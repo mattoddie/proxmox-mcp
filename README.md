@@ -13,9 +13,9 @@ An open-source [Model Context Protocol](https://modelcontextprotocol.io) server 
 [![Container image](https://img.shields.io/badge/ghcr.io-mattoddie%2Fproxmox--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/mattoddie/proxmox-mcp/pkgs/container/proxmox-mcp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**[proxmox-mcp.mattoddie.com](https://proxmox-mcp.mattoddie.com)**
+**[proxmox-mcp.mattoddie.dev](https://proxmox-mcp.mattoddie.dev)**
 
-[Quick start](#quick-start) · [Documentation](https://proxmox-mcp.mattoddie.com/docs/) · [Tool reference](docs/tools.md) · [Contributing](CONTRIBUTING.md)
+[Quick start](#quick-start) · [Documentation](https://proxmox-mcp.mattoddie.dev/docs/) · [Tool reference](docs/tools.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -121,7 +121,7 @@ See the **[tool reference](docs/tools.md)** for every tool and argument. Ready-m
 
 ## Documentation
 
-The docs are also published at **[proxmox-mcp.mattoddie.com/docs](https://proxmox-mcp.mattoddie.com/docs/)**, with search.
+The docs are also published at **[proxmox-mcp.mattoddie.dev/docs](https://proxmox-mcp.mattoddie.dev/docs/)**, with search.
 
 | | |
 |---|---|
