@@ -3,7 +3,7 @@ import starlight from "@astrojs/starlight";
 import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "astro/config";
 
-const SITE = "https://proxmox-mcp.mattoddie.com";
+const SITE = "https://proxmox-mcp.mattoddie.dev";
 const GITHUB = "https://github.com/mattoddie/proxmox-mcp";
 const toolCount = (readFileSync(new URL("../docs/tools.md", import.meta.url), "utf8").match(/^### proxmox_/gm) ?? []).length;
 

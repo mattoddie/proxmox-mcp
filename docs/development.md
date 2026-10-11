@@ -213,7 +213,7 @@ Please test write tools on a lab cluster or throwaway guests, not production. Pr
 
 ## The website
 
-The site at [proxmox-mcp.mattoddie.com](https://proxmox-mcp.mattoddie.com) lives in [`website/`](../website/README.md). It has a hand-built landing page plus these docs rendered with Astro Starlight. It has its own `package.json`, so its dependencies never reach the server or the Docker image.
+The site at [proxmox-mcp.mattoddie.dev](https://proxmox-mcp.mattoddie.dev) lives in [`website/`](../website/README.md). It has a hand-built landing page plus these docs rendered with Astro Starlight. It has its own `package.json`, so its dependencies never reach the server or the Docker image.
 
 The Markdown in `docs/` is the single source: `website/scripts/sync-docs.mjs` copies it into the site at build time. It turns each page's first `# Heading` into the page title, drops hand-written "Contents" lists, rewrites links between `.md` files to site URLs and converts GitHub alerts (`> [!NOTE]`) to Starlight asides. So write docs as normal GitHub Markdown, start each page with a `# Title`, and link between pages with relative `.md` links.
 

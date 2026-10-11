@@ -1,6 +1,6 @@
 # proxmox-mcp website
 
-The site at [proxmox-mcp.mattoddie.com](https://proxmox-mcp.mattoddie.com): a hand-built landing page at `/` and the documentation at `/docs/`, built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build).
+The site at [proxmox-mcp.mattoddie.dev](https://proxmox-mcp.mattoddie.dev): a hand-built landing page at `/` and the documentation at `/docs/`, built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build).
 
 ```sh
 cd website
@@ -42,4 +42,4 @@ Cloudflare Pages builds the site from this folder on every push. Pushes to `main
 | Output directory | `dist` |
 | Node version | `NODE_VERSION=24` |
 | Build watch paths | Include `website/*` and `docs/*` |
-| Custom domain | `proxmox-mcp.mattoddie.com` |
+| Custom domain | `proxmox-mcp.mattoddie.dev` |

@@ -7,5 +7,5 @@ contact_links:
     url: https://github.com/mattoddie/proxmox-mcp/security/advisories/new
     about: Please report vulnerabilities privately, not as a public issue.
   - name: 📖 Documentation
-    url: https://proxmox-mcp.mattoddie.com/docs/
+    url: https://proxmox-mcp.mattoddie.dev/docs/
     about: Setup, configuration, troubleshooting and the full tool reference.
