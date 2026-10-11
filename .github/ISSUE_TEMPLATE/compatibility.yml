@@ -1,0 +1,64 @@
+name: 📡 Compatibility report
+description: Tell us how proxmox-mcp works with your Proxmox VE version and setup, good or bad.
+labels: [compatibility]
+body:
+  - type: input
+    id: pve-version
+    attributes:
+      label: Proxmox VE version
+      description: From `pveversion` on a node.
+      placeholder: e.g. pve-manager/8.4.1
+    validations:
+      required: true
+  - type: dropdown
+    id: topology
+    attributes:
+      label: Setup
+      options:
+        - Single node
+        - Cluster (2 nodes)
+        - Cluster (3 or more nodes)
+    validations:
+      required: true
+  - type: checkboxes
+    id: features
+    attributes:
+      label: Features in use
+      options:
+        - label: Ceph (managed by Proxmox)
+        - label: Proxmox Backup Server storage
+        - label: ZFS
+        - label: High availability
+        - label: SDN
+        - label: Firewall
+        - label: QEMU guest agent in VMs
+  - type: input
+    id: proxmox-mcp
+    attributes:
+      label: proxmox-mcp version
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      options:
+        - API token
+        - Username/password
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Overall result
+      options:
+        - Everything I tried worked
+        - Mostly works, some tools fail
+        - Doesn't work
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Which tools worked or failed, and any error messages. Remove private details.

@@ -1,0 +1,86 @@
+name: 🐛 Bug report
+description: Something doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check [Troubleshooting](https://github.com/mattoddie/proxmox-mcp/blob/main/docs/troubleshooting.md) first.
+        **Remove token secrets, passwords, public IP addresses and other private details** from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Tool(s) involved
+      placeholder: e.g. proxmox_clone_vm
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message or logs
+      description: The tool error text and/or `docker compose logs proxmox-mcp` output. For task failures, include the task log tail.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: proxmox-mcp version
+      description: Shown on the first log line, or the image tag you run.
+      placeholder: e.g. 1.2.0
+    validations:
+      required: true
+  - type: input
+    id: pve-version
+    attributes:
+      label: Proxmox VE version
+      description: From `pveversion` on a node, or the top of the web UI.
+      placeholder: e.g. pve-manager/9.0.10
+    validations:
+      required: true
+  - type: dropdown
+    id: topology
+    attributes:
+      label: Setup
+      options:
+        - Single node
+        - Cluster (2 nodes)
+        - Cluster (3 or more nodes)
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      options:
+        - API token without privilege separation
+        - API token with privilege separation
+        - Username/password
+    validations:
+      required: true
+  - type: input
+    id: permissions
+    attributes:
+      label: Token or user permissions
+      description: The roles and paths granted, if the problem might be permission-related.
+      placeholder: e.g. PVEAuditor on /, PVEVMAdmin on /vms
+  - type: input
+    id: access
+    attributes:
+      label: Access settings
+      description: Which of PROXMOX_ALLOW_WRITES, PROXMOX_ALLOW_DELETES and PROXMOX_ALLOW_EXEC are on, and PROXMOX_TOOLSETS if not all.
+      placeholder: e.g. writes on, deletes off, exec off, toolsets all
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport and client
+      options:
+        - HTTP — Claude Code
+        - HTTP — other client
+        - stdio — Claude Desktop
+        - stdio — other client
+    validations:
+      required: true

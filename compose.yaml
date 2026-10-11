@@ -1,0 +1,14 @@
+# Copy example.env to .env and fill it in, then: docker compose up -d
+services:
+  proxmox-mcp:
+    image: ghcr.io/mattoddie/proxmox-mcp:latest
+    # To build from source instead of pulling, replace the line above with:
+    # build: .
+    container_name: proxmox-mcp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
