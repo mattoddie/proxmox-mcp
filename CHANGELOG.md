@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-15
+
 ### Security
 
 - The raw API tool (`proxmox_api_request`) could be steered past its exec check, even in read-only mode: URL parsing strips tabs and newlines, so a path such as `…/agent/file-re<TAB>ad` was checked as harmless but sent as `…/agent/file-read`. Paths with control characters are now refused, and the checks also run on the normalised path that is actually sent, which must stay under `/api2/json`.
@@ -47,5 +49,6 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mattoddie/proxmox-mcp/releases/tag/v0.1.0
