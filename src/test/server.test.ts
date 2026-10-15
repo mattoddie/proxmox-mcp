@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { Server } from "node:http";
+import { createServer as createHttpServer, request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, describe, it } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -32,7 +32,27 @@ describe("config", () => {
     assert.equal(cfg.tools.allowExec, false);
     assert.equal(cfg.tools.toolsets.size, TOOLSETS.length);
     assert.equal(cfg.transport, "stdio");
+    assert.equal(cfg.http.host, "127.0.0.1");
     assert.equal(cfg.http.port, 8080);
+    assert.equal(cfg.http.allowUnauthenticated, false);
+  });
+
+  it("requires MCP_AUTH_TOKEN for the http transport unless explicitly waived", () => {
+    const base = { PROXMOX_URL: "https://pve", ...TOKEN_ENV, MCP_TRANSPORT: "http" };
+    assert.throws(() => loadConfig(base), /MCP_AUTH_TOKEN is required for the http transport \(generate one with: openssl rand -hex 32\)/);
+    assert.throws(() => loadConfig({ ...base, MCP_AUTH_TOKEN: "  " }), /MCP_AUTH_TOKEN is required/);
+    assert.throws(() => loadConfig({ ...base, MCP_ALLOW_UNAUTHENTICATED: "false" }), /MCP_AUTH_TOKEN is required/);
+    assert.equal(loadConfig({ ...base, MCP_AUTH_TOKEN: "t" }).http.authToken, "t");
+    const open = loadConfig({ ...base, MCP_ALLOW_UNAUTHENTICATED: "true" });
+    assert.equal(open.http.allowUnauthenticated, true);
+    assert.equal(open.http.authToken, undefined);
+    // stdio doesn't listen anywhere, so it needs no token.
+    assert.equal(loadConfig({ PROXMOX_URL: "https://pve", ...TOKEN_ENV }).http.authToken, undefined);
+  });
+
+  it("lower-cases MCP_ALLOWED_HOSTS", () => {
+    const cfg = loadConfig({ PROXMOX_URL: "https://pve", ...TOKEN_ENV, MCP_ALLOWED_HOSTS: "MCP.Example.LAN, Localhost:8080" });
+    assert.deepEqual(cfg.http.allowedHosts, ["mcp.example.lan", "localhost:8080"]);
   });
 
   it("parses the combined token form and validates token ids", () => {
@@ -213,6 +233,25 @@ describe("ProxmoxClient with a password", () => {
     const down = new ProxmoxClient(loadConfig({ PROXMOX_URL: "http://127.0.0.1:1", ...TOKEN_ENV }).proxmox);
     await assert.rejects(down.get("/version"), /Could not reach Proxmox at http:\/\/127\.0\.0\.1:1/);
     await down.close();
+  });
+
+  it("reports a body that stalls after the headers as a timeout", async () => {
+    const sockets = new Set<import("node:net").Socket>();
+    const stall = createHttpServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json", "Content-Length": "100" });
+      res.write('{"data":');
+    });
+    stall.on("connection", (sock) => sockets.add(sock));
+    await new Promise<void>((resolve) => stall.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(stall.address() as AddressInfo).port}`;
+    const slow = new ProxmoxClient(loadConfig({ PROXMOX_URL: url, ...TOKEN_ENV, PROXMOX_TIMEOUT_MS: "300" }).proxmox);
+    try {
+      await assert.rejects(slow.get("/version"), (err: Error) => err instanceof ProxmoxError && /Timed out after 300ms talking to http:\/\/127\.0\.0\.1/.test(err.message));
+    } finally {
+      await slow.close();
+      for (const sock of sockets) sock.destroy();
+      stall.close();
+    }
   });
 });
 
@@ -421,6 +460,21 @@ describe("Streamable HTTP transport", () => {
     assert.equal(res.status, 401);
   });
 
+  it("refuses to start without a token unless unauthenticated access is allowed", async () => {
+    const cfg = loadConfig({ PROXMOX_URL: "https://pve.invalid", ...TOKEN_ENV, MCP_HTTP_PORT: "1" });
+    cfg.http.port = 0;
+    await assert.rejects(startHttpServer(cfg, () => createServer(dummy, cfg.tools)), /MCP_AUTH_TOKEN is required/);
+    cfg.http.allowUnauthenticated = true;
+    const open = await startHttpServer(cfg, () => createServer(dummy, cfg.tools));
+    try {
+      assert.equal((open.address() as AddressInfo).address, "127.0.0.1");
+      const res = await fetch(`http://127.0.0.1:${(open.address() as AddressInfo).port}/mcp`, { method: "GET" });
+      assert.equal(res.status, 405); // past auth: only the method is wrong
+    } finally {
+      open.close();
+    }
+  });
+
   it("lists tools over HTTP with the token", async () => {
     const mcp = new Client({ name: "t", version: "0" });
     await mcp.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: "Bearer s3cret" } } }));
@@ -431,3 +485,51 @@ describe("Streamable HTTP transport", () => {
 });
 
 
+
+describe("HTTP Host and Origin allow-list", () => {
+  let httpServer: Server;
+  let port: number;
+  const dummy = new ProxmoxClient(loadConfig({ PROXMOX_URL: "https://pve.invalid", ...TOKEN_ENV }).proxmox);
+
+  before(async () => {
+    const cfg: Config = loadConfig({
+      PROXMOX_URL: "https://pve.invalid",
+      ...TOKEN_ENV,
+      MCP_TRANSPORT: "http",
+      MCP_AUTH_TOKEN: "s3cret",
+      MCP_ALLOWED_HOSTS: "MCP.Example.LAN,localhost",
+    });
+    cfg.http.port = 0;
+    httpServer = await startHttpServer(cfg, () => createServer(dummy, cfg.tools));
+    port = (httpServer.address() as AddressInfo).port;
+  });
+  after(async () => {
+    httpServer.close();
+    await dummy.close();
+  });
+
+  /** Status of a GET /mcp with the given Host/Origin (405 means it got past the Host, Origin and auth checks). */
+  function status(headers: Record<string, string>): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const req = httpRequest({ host: "127.0.0.1", port, path: "/mcp", method: "GET", headers: { Authorization: "Bearer s3cret", ...headers } }, (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on("error", reject);
+      req.end();
+    });
+  }
+
+  it("matches Host case-insensitively against lower-cased entries", async () => {
+    assert.equal(await status({ Host: "mcp.example.lan:8080" }), 405);
+    assert.equal(await status({ Host: "MCP.EXAMPLE.LAN" }), 405);
+    assert.equal(await status({ Host: "evil.example" }), 403);
+  });
+
+  it("rejects requests from other origins", async () => {
+    assert.equal(await status({ Host: "mcp.example.lan", Origin: "https://mcp.example.lan" }), 405);
+    assert.equal(await status({ Host: "mcp.example.lan", Origin: "http://localhost:3000" }), 405);
+    assert.equal(await status({ Host: "mcp.example.lan", Origin: "https://evil.example" }), 403);
+    assert.equal(await status({ Host: "mcp.example.lan", Origin: "null" }), 403);
+  });
+});

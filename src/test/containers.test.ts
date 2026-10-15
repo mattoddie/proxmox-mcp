@@ -327,6 +327,14 @@ describe("container config permission gates", () => {
       assert.match(errorText(await raw({ extra: { hookscript: "local:snippets/x.sh" } })), /exec permission/);
       const create = await mcp.callTool({ name: "proxmox_create_container", arguments: { node: "pve1", vmid: 330, ostemplate: "x", extra: { hookscript: "y" } } });
       assert.match(errorText(create), /exec permission/);
+      // A create with restore+force restores a backup over the existing container; extra can't turn it into one.
+      const createCt = (extra: Record<string, unknown>) =>
+        mcp.callTool({ name: "proxmox_create_container", arguments: { node: "pve1", vmid: 330, ostemplate: "local:backup/vzdump-lxc-200.tar.zst", extra } });
+      assert.match(errorText(await createCt({ restore: 1, force: 1 })), /extra must not set `restore`, `force`/);
+      assert.match(errorText(await createCt({ vmid: 200 })), /extra must not set `vmid`/);
+      assert.match(errorText(await createCt({ ostemplate: "y", unique: 1 })), /`ostemplate`, `unique`/);
+      // Typed fields that weren't given still count, e.g. delete on an update.
+      assert.match(errorText(await raw({ extra: { delete: "unused0" } })), /extra must not set `delete`/);
       assert.equal(env.mock.lastWrite(), undefined);
     } finally {
       await mcp.close();

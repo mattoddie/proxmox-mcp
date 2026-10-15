@@ -14,6 +14,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -334,7 +335,7 @@ export function registerClusterTools(ctx: ToolContext): void {
     handler: async (a) => {
       await client.put(
         "/cluster/options",
-        defined({
+        defined(withExtra({
           keyboard: a.keyboard,
           language: a.language,
           console: a.console,
@@ -347,8 +348,7 @@ export function registerClusterTools(ctx: ToolContext): void {
           description: a.description,
           delete: deleteParam(a.delete),
           digest: a.digest,
-          ...a.extra,
-        }),
+        }, a.extra)),
       );
       return { updated: true, options: redactConfig(await client.get("/cluster/options")) };
     },
@@ -370,7 +370,7 @@ export function registerClusterTools(ctx: ToolContext): void {
       extra: extraArg,
     },
     handler: async (a) => {
-      const params = defined({ type: a.create ? a.type : undefined, server: a.server, port: a.port, disable: a.disable, ...a.extra });
+      const params = defined(withExtra({ type: a.create ? a.type : undefined, server: a.server, port: a.port, disable: a.disable }, a.extra));
       if (a.create) {
         if (!a.type || !a.server || !a.port) throw new Error("type, server and port are required when creating a metric server");
         await client.post(`/cluster/metrics/server/${enc(a.id)}`, params);
@@ -415,7 +415,7 @@ export function registerClusterTools(ctx: ToolContext): void {
     },
     handler: async (a) => {
       if (a.action === "migrate" && !a.target) throw new Error("target is required for migrate");
-      const params = defined({
+      const params = defined(withExtra({
         vms: a.vmids,
         target: a.target,
         online: a.online,
@@ -424,8 +424,7 @@ export function registerClusterTools(ctx: ToolContext): void {
         "max-workers": a.max_workers,
         "with-local-disks": a.with_local_disks,
         "to-disk": a.to_disk,
-        ...a.extra,
-      });
+      }, a.extra));
       const upid = await client.post(`/cluster/bulk-action/guest/${a.action}`, params);
       return runTask(client, upid, a.wait, { action: a.action, vmids: a.vmids });
     },

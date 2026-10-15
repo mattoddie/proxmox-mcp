@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ProxmoxClient } from "../proxmox/client.js";
-import { compact, formatBytes, formatUptime, fractionPct, isoTime, parsePropertyString, redactSecrets, usage } from "../proxmox/format.js";
+import { compact, formatBytes, formatUptime, fractionPct, isoTime, parsePropertyString, redactPluginData, redactSecrets, usage } from "../proxmox/format.js";
 import {
   defined,
   defineTool,
@@ -17,6 +17,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -201,25 +202,6 @@ function summarizeRepositories(r: Obj): Obj {
 }
 
 // ---------------------------------------------------------------- ACME
-
-/**
- * ACME plugin `data` holds DNS API credentials as KEY=value lines, which the API returns base64-encoded;
- * keep only the keys. (Splitting the base64 text itself at "=" would leak everything but the padding.)
- */
-function redactPluginData(data: unknown): string[] | undefined {
-  if (typeof data !== "string" || !data) return undefined;
-  let text = data;
-  const compactB64 = data.replace(/\s+/g, "");
-  if (/^[A-Za-z0-9+/]+={0,2}$/.test(compactB64) && compactB64.length % 4 === 0) {
-    const decoded = Buffer.from(compactB64, "base64").toString("utf8");
-    if (decoded.includes("=") && !/[\x00-\x08\x0e-\x1f�]/.test(decoded)) text = decoded;
-    else return ["<redacted>"];
-  }
-  return text
-    .split(/\r?\n/)
-    .filter((l) => l.trim())
-    .map((l) => (l.includes("=") ? `${l.slice(0, l.indexOf("="))}=<redacted>` : "<redacted>"));
-}
 
 function summarizePlugin(p: Obj): Obj {
   return compact({
@@ -501,7 +483,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         // The update endpoint requires `type` too, so keep the current one.
         type = (await client.get<Obj>(`${nodePath(node)}/network/${enc(a.iface)}`)).type;
       }
-      const params = defined({
+      const params = defined(withExtra({
         type,
         cidr: a.cidr,
         gateway: a.gateway,
@@ -519,8 +501,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         mtu: a.mtu,
         autostart: a.autostart,
         comments: a.comments,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) {
         await client.post(`${nodePath(node)}/network`, { iface: a.iface, ...params });
       } else {
@@ -755,7 +736,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         const cur = await client.get<Obj>(`${nodePath(node)}/config`);
         deleteKeys = del.filter((k) => !/^acmedomain\d+$/.test(k) || k in cur);
       }
-      await client.put(`${nodePath(node)}/config`, defined({ ...params, delete: deleteParam(deleteKeys), ...a.extra }));
+      await client.put(`${nodePath(node)}/config`, defined(withExtra({ ...params, delete: deleteParam(deleteKeys) }, a.extra)));
       return { node, updated: true, config: await getNodeConfig(client, node) };
     },
   });

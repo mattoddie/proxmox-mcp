@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { compact, flag, parsePropertyString, redactSecrets } from "../proxmox/format.js";
-import { defined, defineTool, digestArg, enc, extraArg, rawArg, type ToolContext } from "./util.js";
+import { defined, defineTool, digestArg, enc, extraArg, rawArg, withExtra, type ToolContext } from "./util.js";
 
 type Obj = Record<string, any>;
 
@@ -202,7 +202,7 @@ export function registerNotificationsTools(ctx: ToolContext): void {
         if (t === "sendmail" && !a.mailto?.length && !a.mailto_user?.length) missing.push("mailto or mailto_user");
         if (missing.length) throw new Error(`Required to create a ${t} endpoint: ${missing.join(", ")}`);
       }
-      const params = defined({
+      const params = defined(withExtra({
         comment: a.comment,
         disable: a.disable,
         mailto: a.mailto,
@@ -220,8 +220,7 @@ export function registerNotificationsTools(ctx: ToolContext): void {
         header: a.headers ? Object.entries(a.headers).map(([k, v]) => `name=${k},value=${b64(v)}`) : undefined,
         body: a.body !== undefined ? b64(a.body) : undefined,
         secret: a.secrets ? Object.entries(a.secrets).map(([k, v]) => `name=${k},value=${b64(v)}`) : undefined,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) await client.post(`${BASE}/endpoints/${t}`, { name: a.name, ...params });
       else await client.put(`${BASE}/endpoints/${t}/${enc(a.name)}`, { ...params, ...defined({ delete: a.delete?.length ? a.delete : undefined, digest: a.digest }) });
       const saved = await client.get<Obj>(`${BASE}/endpoints/${t}/${enc(a.name)}`).catch(() => undefined);
@@ -305,7 +304,7 @@ export function registerNotificationsTools(ctx: ToolContext): void {
       extra: extraArg,
     },
     handler: async (a) => {
-      const params = defined({
+      const params = defined(withExtra({
         target: a.targets,
         "match-severity": a.match_severity,
         "match-field": a.match_field,
@@ -314,8 +313,7 @@ export function registerNotificationsTools(ctx: ToolContext): void {
         "invert-match": a.invert_match,
         disable: a.disable,
         comment: a.comment,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) await client.post(`${BASE}/matchers`, { name: a.name, ...params });
       else await client.put(`${BASE}/matchers/${enc(a.name)}`, { ...params, ...defined({ delete: a.delete?.length ? a.delete : undefined, digest: a.digest }) });
       const m = await client.get<Obj>(`${BASE}/matchers/${enc(a.name)}`).catch(() => undefined);

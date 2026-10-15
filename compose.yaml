@@ -1,4 +1,5 @@
 # Copy example.env to .env and fill it in, then: docker compose up -d
+# The http transport needs MCP_AUTH_TOKEN in .env (generate one with: openssl rand -hex 32).
 services:
   proxmox-mcp:
     image: ghcr.io/mattoddie/proxmox-mcp:latest
@@ -8,6 +9,8 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
+      # Published on every interface of the host; use "127.0.0.1:8080:8080" when only local
+      # clients (or a reverse proxy on the same host) connect.
       - "8080:8080"
     read_only: true
     cap_drop: [ALL]

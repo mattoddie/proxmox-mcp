@@ -14,6 +14,7 @@ import {
   rawArg,
   searchArg,
   vmidArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -306,7 +307,7 @@ export function registerFirewallTools(ctx: ToolContext): void {
     },
     handler: async (a) => {
       const s = await resolveScope(client, a, ALL);
-      const fields = { ...ruleParams(a), delete: deleteParam(a.delete), ...a.extra };
+      const fields = withExtra({ ...ruleParams(a), delete: deleteParam(a.delete) }, a.extra);
       const changes = Object.values(fields).some((v) => v !== undefined);
       if (a.pos === undefined) {
         if (a.moveto !== undefined) throw new Error("moveto needs pos (the rule to move); use insert_at to place a new rule");
@@ -409,12 +410,11 @@ export function registerFirewallTools(ctx: ToolContext): void {
       const given = Object.keys(a).filter((k) => all.has(k) && (a as Obj)[k] !== undefined);
       const bad = given.filter((k) => !OPTION_KEYS[scope].includes(k));
       if (bad.length) throw new Error(`Not available at ${scope} level: ${bad.join(", ")} (allowed: ${OPTION_KEYS[scope].join(", ")})`);
-      const params: Obj = defined({
+      const params: Obj = defined(withExtra({
         ...Object.fromEntries(given.map((k) => [k, (a as Obj)[k]])),
         delete: deleteParam(a.delete),
         digest: a.digest,
-        ...a.extra,
-      });
+      }, a.extra));
       if (!Object.keys(params).some((k) => k !== "digest")) throw new Error("Nothing to change");
       await client.put(`${s.fw}/options`, params);
       const opts = await client.get<Obj>(`${s.fw}/options`);

@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Config } from "./config.js";
+import { AUTH_TOKEN_REQUIRED, type Config } from "./config.js";
 
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
@@ -40,6 +40,20 @@ function readBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
+/** True when `host` (a Host header value or an Origin's host, lower-cased) or its hostname is allowed. */
+function hostAllowed(allowedHosts: string[], host: string): boolean {
+  return allowedHosts.includes(host) || allowedHosts.includes(host.replace(/:\d+$/, ""));
+}
+
+/** An Origin header's host[:port], lower-cased, or undefined for "null" or an unparsable origin. */
+function originHost(origin: string): string | undefined {
+  try {
+    return new URL(origin).host.toLowerCase() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function tokenMatches(header: string | undefined, token: string): boolean {
   const presented = header?.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
   const a = Buffer.from(presented);
@@ -52,7 +66,8 @@ function tokenMatches(header: string | undefined, token: string): boolean {
  * server + transport, so the container can be restarted or scaled freely.
  */
 export function startHttpServer(cfg: Config, makeServer: () => McpServer): Promise<Server> {
-  const { host, port, authToken, allowedHosts } = cfg.http;
+  const { host, port, authToken, allowUnauthenticated, allowedHosts } = cfg.http;
+  if (!authToken && !allowUnauthenticated) return Promise.reject(new Error(AUTH_TOKEN_REQUIRED));
 
   const httpServer = createHttpServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -66,9 +81,14 @@ export function startHttpServer(cfg: Config, makeServer: () => McpServer): Promi
 
     if (allowedHosts) {
       const hostHeader = (req.headers.host ?? "").toLowerCase();
-      const hostname = hostHeader.replace(/:\d+$/, "");
-      if (!allowedHosts.includes(hostHeader) && !allowedHosts.includes(hostname)) {
+      if (!hostAllowed(allowedHosts, hostHeader)) {
         return rpcError(res, 403, `Host ${hostHeader} is not allowed`);
+      }
+      // Browsers send Origin on cross-site requests; refuse pages served from other hosts (DNS rebinding, CSRF).
+      const origin = req.headers.origin;
+      if (origin !== undefined) {
+        const oh = originHost(origin);
+        if (!oh || !hostAllowed(allowedHosts, oh)) return rpcError(res, 403, `Origin ${origin} is not allowed`);
       }
     }
     if (authToken && !tokenMatches(req.headers.authorization, authToken)) {
@@ -106,6 +126,11 @@ export function startHttpServer(cfg: Config, makeServer: () => McpServer): Promi
     httpServer.once("error", reject);
     httpServer.listen(port, host, () => {
       console.error(`proxmox-mcp listening on http://${host}:${port}/mcp${authToken ? " (bearer auth enabled)" : ""}`);
+      if (!authToken) {
+        console.error(
+          "WARNING: MCP_ALLOW_UNAUTHENTICATED=true: anyone who can reach this port can use every enabled tool. Only run it like this behind something else that authenticates.",
+        );
+      }
       resolve(httpServer);
     });
   });

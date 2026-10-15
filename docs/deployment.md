@@ -38,7 +38,7 @@ The image has a built-in health check that calls `/health` every 30 seconds. It 
 
 To listen on one interface only, such as a LAN address or localhost when you use a reverse proxy, change the port mapping to `"192.168.1.20:8080:8080"` or `"127.0.0.1:8080:8080"`.
 
-To verify Proxmox's certificate with the cluster CA, mount it read-only and point `PROXMOX_CA_FILE` at it:
+To verify Proxmox's certificate, the simplest option is to pin its fingerprint with `PROXMOX_TLS_FINGERPRINT` in `.env` (see [Configuration](configuration.md#verifying-the-proxmox-certificate)). To verify it with the cluster CA instead, mount it read-only and point `PROXMOX_CA_FILE` at it:
 
 ```yaml
     volumes:
@@ -175,5 +175,7 @@ git clone https://github.com/mattoddie/proxmox-mcp.git
 cd proxmox-mcp
 npm ci && npm run build
 PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' node dist/index.js   # stdio by default
-MCP_TRANSPORT=http PROXMOX_URL=... PROXMOX_API_TOKEN=... node dist/index.js
+MCP_TRANSPORT=http MCP_AUTH_TOKEN=... PROXMOX_URL=... PROXMOX_API_TOKEN=... node dist/index.js   # listens on 127.0.0.1:8080
 ```
+
+Run this way, the HTTP server listens on `127.0.0.1` only. Set `MCP_HTTP_HOST=0.0.0.0` (or a specific address) to accept connections from other machines.

@@ -156,7 +156,7 @@ describe("node network", () => {
       bridge_vlan_aware: true,
       mtu: 9000,
       autostart: true,
-      extra: { bridge_vids: "2-100" },
+      bridge_vids: "2-100",
     });
     assert.equal(r.created, true);
     assert.equal(r.pending, true);

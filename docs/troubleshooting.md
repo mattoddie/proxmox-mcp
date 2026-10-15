@@ -32,6 +32,9 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 | `Could not read PROXMOX_TOKEN_SECRET_FILE (…)` | The secret file isn't mounted where the variable points. |
 | `Could not read PROXMOX_CA_FILE (…)` | The certificate file isn't mounted where the variable points. |
 | `MCP_HTTP_PORT must be a positive integer` | Fix the value. The same applies to the `_TIMEOUT_MS` variables. |
+| `MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); …` | Set `MCP_AUTH_TOKEN` in `.env` to the output of `openssl rand -hex 32`, and send it from your MCP client. Only if something in front of the server already authenticates every request, set `MCP_ALLOW_UNAUTHENTICATED=true` instead. |
+| `PROXMOX_TLS_FINGERPRINT must be a SHA-256 fingerprint …` | Copy the **SHA-256** fingerprint (32 colon-separated pairs), not SHA-1, from **Node → System → Certificates**. |
+| `PROXMOX_TLS_FINGERPRINT needs an https:// PROXMOX_URL` | Pinning only applies to `https://`. Fix the URL or remove the fingerprint. |
 
 ## The client can't connect to the server
 
@@ -39,8 +42,9 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 2. **Right host?** The port is published on the machine running Docker. If Docker runs on another machine (for example with `DOCKER_HOST`), `localhost` won't work.
 3. **Right path?** The endpoint is `/mcp`, so the URL is `http://<docker-host>:8080/mcp`.
 4. **`401 Unauthorized`:** the client isn't sending `Authorization: Bearer <MCP_AUTH_TOKEN>`, or the token doesn't match. Watch for stray quotes or spaces in `.env`.
-5. **`403 Host … is not allowed`:** add the hostname the client uses to `MCP_ALLOWED_HOSTS`, or unset it.
+5. **`403 Host … is not allowed`:** add the hostname the client uses to `MCP_ALLOWED_HOSTS`, or unset it. A **`403 Origin … is not allowed`** means that, with `MCP_ALLOWED_HOSTS` set, requests from a browser page on another host are refused. Add that page's host if you really mean to call the server from it.
 6. **`405 Method not allowed`:** the client tried to open an SSE stream with `GET`. The server is stateless and only accepts `POST`. Make sure the client is set to *Streamable HTTP* (often called `http`), not `sse`.
+7. **Started outside Docker but unreachable from other machines:** the server listens on `127.0.0.1` by default. Set `MCP_HTTP_HOST=0.0.0.0` (or a LAN address), with `MCP_AUTH_TOKEN` set.
 
 ## Login and permission errors
 
@@ -78,9 +82,17 @@ Password logins can't complete 2FA. Create an API token for the user. Tokens are
 - Hostnames must resolve **inside the container**. If local DNS names don't resolve there, use an IP address.
 - A host firewall on the node, or the Proxmox datacenter firewall, may block port 8006 from the Docker host.
 
-**`Could not reach Proxmox at …: … (Proxmox uses a self-signed certificate by default; set PROXMOX_VERIFY_SSL=false or PROXMOX_CA_FILE)`**
+**`Could not reach Proxmox at …: … (Proxmox uses a self-signed certificate by default; pin it with PROXMOX_TLS_FINGERPRINT, trust its CA with PROXMOX_CA_FILE, or set PROXMOX_VERIFY_SSL=false)`**
 
-You set `PROXMOX_VERIFY_SSL=true`, but the node's certificate isn't trusted. Either set it back to `false`, or keep it on and set `PROXMOX_CA_FILE` to the cluster CA (`/etc/pve/pve-root-ca.pem` from any node). If the error mentions the hostname or altnames, connect using a name or address that's in the node's certificate.
+You set `PROXMOX_VERIFY_SSL=true`, but the node's certificate isn't trusted. Either keep it on and set `PROXMOX_CA_FILE` to the cluster CA (`/etc/pve/pve-root-ca.pem` from any node), or set it back to `false` and pin the certificate with `PROXMOX_TLS_FINGERPRINT`. If the error mentions the hostname or altnames, connect using a name or address that's in the node's certificate.
+
+**`Could not reach Proxmox at …: TLS certificate fingerprint mismatch: the server presented SHA-256 …, which is not in PROXMOX_TLS_FINGERPRINT`**
+
+The node presented a different certificate from the one you pinned. Usually it was renewed or replaced (a new ACME certificate, an uploaded custom certificate, a reinstalled node), or `PROXMOX_URL` points at another node or a load balancer. Check the fingerprint in **Node → System → Certificates** and update `PROXMOX_TLS_FINGERPRINT`; list several, comma-separated, for multiple nodes. If you didn't change anything, treat it as a possible interception and find out why before trusting the new certificate.
+
+**`WARNING: the Proxmox TLS certificate is not verified …`** in the startup log
+
+Not an error, but the connection to Proxmox can be intercepted. Set `PROXMOX_TLS_FINGERPRINT` or one of the other options in [Configuration](configuration.md#verifying-the-proxmox-certificate).
 
 **`Timed out after 30000ms talking to https://…`**
 
@@ -137,6 +149,14 @@ The endpoint doesn't exist on your Proxmox VE version, for example bulk guest ac
 **`… failed with HTTP 400: Parameter verification failed. (name: …)`**
 
 Proxmox rejected an argument. The part in brackets names each bad parameter and why. If it's a parameter passed through `extra`, check its name and format in the [API viewer](https://pve.proxmox.com/pve-docs/api-viewer/) for your version.
+
+**``extra must not set `vmid`: use the tool's typed arguments …``**
+
+`extra` can't repeat a parameter the tool sets from its own arguments, or a few reserved ones (for example `archive`, `restore` and `force` on the create tools; use `proxmox_restore_backup` to restore). Pass the value through the typed argument instead.
+
+**`path must not contain control characters …`** (raw API tool)
+
+The path contained a tab, newline or other control character. Proxmox paths never need them; remove them.
 
 ## A change didn't take effect
 

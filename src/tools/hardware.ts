@@ -13,6 +13,7 @@ import {
   nodeArg,
   rawArg,
   searchArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -328,14 +329,14 @@ export function registerHardwareTools(ctx: ToolContext): void {
       const params = defined({ description: a.description, mdev: a.mdev, "live-migration-capable": a.live_migration_capable });
       if (a.create) {
         if (!map?.length) throw new Error("`map` is required when creating a mapping");
-        await client.post(path, defined({ id: a.id, map, ...params, ...a.extra }));
+        await client.post(path, defined(withExtra({ id: a.id, map, ...params }, a.extra)));
       } else {
         // The USB update endpoint requires `map`; resend the current entries when it isn't changing.
         if (!map && a.kind === "usb") {
           const cur = await client.get<Obj>(`${path}/${enc(a.id)}`);
           map = Array.isArray(cur?.map) ? cur.map : cur?.map ? [cur.map] : undefined;
         }
-        await client.put(`${path}/${enc(a.id)}`, defined({ map, ...params, delete: deleteParam(a.delete), digest: a.digest, ...a.extra }));
+        await client.put(`${path}/${enc(a.id)}`, defined(withExtra({ map, ...params, delete: deleteParam(a.delete), digest: a.digest }, a.extra)));
       }
       const saved = await client.get<Obj>(`${path}/${enc(a.id)}`).catch(() => undefined);
       return compact({ saved: a.id, kind: a.kind, action: a.create ? "created" : "updated", mapping: saved ? summarizeMapping({ id: a.id, ...saved }) : undefined });
@@ -415,8 +416,8 @@ export function registerHardwareTools(ctx: ToolContext): void {
         level: a.level,
       });
       const base = "/cluster/qemu/custom-cpu-models";
-      if (a.create) await client.post(base, defined({ cputype: a.name, ...params, ...a.extra }));
-      else await client.put(`${base}/${enc(a.name)}`, defined({ ...params, delete: deleteParam(a.delete), digest: a.digest, ...a.extra }));
+      if (a.create) await client.post(base, defined(withExtra({ cputype: a.name, ...params }, a.extra)));
+      else await client.put(`${base}/${enc(a.name)}`, defined(withExtra({ ...params, delete: deleteParam(a.delete), digest: a.digest }, a.extra)));
       const saved = await client.get<Obj>(`${base}/${enc(a.name)}`).catch(() => undefined);
       return compact({ saved: a.name, action: a.create ? "created" : "updated", model: saved });
     },

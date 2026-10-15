@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { errorText, startEnv, type TestEnv } from "./helpers.js";
+import { connect, errorText, startEnv, toolOptions, type TestEnv } from "./helpers.js";
 
 const STORAGE_CONFIG = [
   { storage: "local", type: "dir", path: "/var/lib/vz", content: "iso,vztmpl,backup", "prune-backups": "keep-last=3,keep-daily=7", digest: "d1" },
@@ -74,7 +74,7 @@ describe("storage tools", () => {
       encryption_key: "autogen",
       prune_backups: { keep_last: 3, keep_daily: 7, keep_all: false },
       max_protected_backups: -1,
-      extra: { port: 8008 },
+      port: 8008,
     });
     assert.equal(res.action, "created");
     assert.equal(res.result.config["encryption-key"], "<redacted>");
@@ -262,6 +262,43 @@ describe("storage tools", () => {
     assert.deepEqual(env.mock.requests.at(-1)!.query, {});
     assert.match(errorText(await env.callRaw("proxmox_scan_storage", { type: "pbs", server: "x" })), /requires `username`/);
     assert.match(errorText(await env.callRaw("proxmox_scan_storage", { type: "iscsi" })), /requires `portal`/);
+  });
+
+  it("only allows local storage scans without write access", async () => {
+    env.mock.on("GET", /^\/nodes\/pve1\/scan\/(\w+)$/, (_p, m) => [{ kind: m[1] }]);
+    const ro = await connect(env.client, toolOptions("read"));
+    try {
+      const scan = (args: Record<string, unknown>) => ro.callTool({ name: "proxmox_scan_storage", arguments: args });
+      const before = env.mock.requests.length;
+      for (const args of [
+        { type: "nfs", server: "attacker.example" },
+        { type: "cifs", server: "10.0.0.9", username: "u", password: "p" },
+        { type: "pbs", server: "pbs", username: "u@pbs", password: "p" },
+        { type: "iscsi", portal: "10.0.0.9" },
+      ]) {
+        assert.match(errorText(await scan(args)), /needs write access \(PROXMOX_ALLOW_WRITES=true\)/);
+      }
+      assert.equal(env.mock.requests.length, before);
+      const zfs: any = await scan({ type: "zfs" });
+      assert.equal(zfs.isError, undefined);
+      const { tools } = await ro.listTools();
+      assert.match(tools.find((t) => t.name === "proxmox_scan_storage")!.description!, /need write access/);
+    } finally {
+      await ro.close();
+    }
+  });
+
+  it("registers proxmox_init_disk_gpt only with delete access, like proxmox_wipe_disk", async () => {
+    for (const [level, expected] of [["write", false], ["delete", true]] as const) {
+      const mcp = await connect(env.client, toolOptions(level));
+      try {
+        const names = (await mcp.listTools()).tools.map((t) => t.name);
+        assert.equal(names.includes("proxmox_init_disk_gpt"), expected, level);
+        assert.equal(names.includes("proxmox_wipe_disk"), expected, level);
+      } finally {
+        await mcp.close();
+      }
+    }
   });
 
   // ---------------------------------------------------------------- disks

@@ -544,10 +544,16 @@ describe("vm config permission gates", () => {
     try {
       const raw = (args: Record<string, unknown>) => mcp.callTool({ name: "proxmox_update_vm_config", arguments: { vmid: 100, ...args } });
       assert.match(errorText(await raw({ delete: ["unused0"] })), /delete permission/);
-      assert.match(errorText(await raw({ extra: { delete: "net1,unused1" } })), /delete permission/);
+      assert.match(errorText(await raw({ extra: { delete: "net1,unused1" } })), /extra must not set `delete`/);
       assert.match(errorText(await raw({ extra: { hookscript: "local:snippets/x.sh" } })), /exec permission/);
       const create = await mcp.callTool({ name: "proxmox_create_vm", arguments: { node: "pve1", vmid: 170, extra: { hookscript: "local:snippets/x.sh" } } });
       assert.match(errorText(create), /exec permission/);
+      // A create with archive+force is a restore that overwrites the existing VM; extra can't turn it into one.
+      const createVm = (extra: Record<string, unknown>) => mcp.callTool({ name: "proxmox_create_vm", arguments: { node: "pve1", vmid: 170, extra } });
+      assert.match(errorText(await createVm({ archive: "local:backup/vzdump-qemu-100.vma.zst", force: 1 })), /extra must not set `archive`, `force`/);
+      assert.match(errorText(await createVm({ vmid: 100 })), /extra must not set `vmid`/);
+      assert.match(errorText(await createVm({ "live-restore": 1, unique: 1 })), /`live-restore`, `unique`/);
+      assert.match(errorText(await raw({ extra: { force: 1 } })), /`force`/);
       assert.equal(env.mock.lastWrite(), undefined);
     } finally {
       await mcp.close();

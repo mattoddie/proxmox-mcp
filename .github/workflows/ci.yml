@@ -72,6 +72,10 @@ jobs:
           test "$code" = 401
           docker logs smoke
           docker rm -f smoke
+          # The http transport must refuse to start without MCP_AUTH_TOKEN.
+          if docker run --rm -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci; then
+            echo "Started without MCP_AUTH_TOKEN"; exit 1
+          fi
 
       - name: Build all platforms
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
