@@ -194,6 +194,9 @@ function pruneString(p: Obj | undefined): string | undefined {
   return parts.length ? parts.join(",") : undefined;
 }
 
+/** Scan types that make the node connect to a server named in the arguments. */
+const REMOTE_SCAN_TYPES = new Set(["nfs", "cifs", "pbs", "iscsi"]);
+
 export function registerStorageTools(ctx: ToolContext): void {
   const { client } = ctx;
 
@@ -654,7 +657,10 @@ export function registerStorageTools(ctx: ToolContext): void {
     toolset: "storage",
     title: "Scan for storage",
     description:
-      "Discover storage that can be added with proxmox_save_storage: NFS exports or CIFS shares on a server, PBS datastores, iSCSI targets on a portal, or local LVM volume groups, LVM thin pools and ZFS pools on a node.",
+      "Discover storage that can be added with proxmox_save_storage: NFS exports or CIFS shares on a server, PBS datastores, iSCSI targets on a portal, or local LVM volume groups, LVM thin pools and ZFS pools on a node." +
+      (ctx.allowWrites
+        ? ""
+        : " Only the local scans (lvm, lvmthin, zfs) are available: nfs, cifs, pbs and iscsi make the node contact the given server, possibly with credentials, which needs write access (PROXMOX_ALLOW_WRITES=true)."),
     input: {
       node: nodeArg,
       type: z.enum(["nfs", "cifs", "pbs", "iscsi", "lvm", "lvmthin", "zfs"]).describe("What to scan for"),
@@ -668,6 +674,10 @@ export function registerStorageTools(ctx: ToolContext): void {
       vg: z.string().optional().describe("lvmthin: volume group to list thin pools of"),
     },
     handler: async (a) => {
+      // Remote scans make the node connect to an arbitrary server (and send it credentials), so they count as writes.
+      if (REMOTE_SCAN_TYPES.has(a.type) && !ctx.allowWrites) {
+        throw new Error(`Scanning ${a.type} makes the node contact another server and needs write access (PROXMOX_ALLOW_WRITES=true); lvm, lvmthin and zfs scans work read-only`);
+      }
       const node = await client.resolveNode(a.node);
       const need = (field: keyof typeof a) => {
         if (a[field] === undefined) throw new Error(`Scanning ${a.type} requires \`${String(field)}\``);
@@ -939,7 +949,8 @@ export function registerStorageTools(ctx: ToolContext): void {
     title: "Initialize disk with GPT",
     description: "Write a new, empty GPT partition table to a disk so it can be used (e.g. for Ceph or manual partitioning). Existing partitions are lost.",
     input: { node: nodeArg, disk: blockDeviceArg, uuid: z.string().optional().describe("UUID for the GPT table"), wait: waitArg },
-    write: true,
+    // Destroys the disk's partition table (and so its data), like proxmox_wipe_disk.
+    delete: true,
     destructive: true,
     handler: async (a) => {
       const node = await client.resolveNode(a.node);
