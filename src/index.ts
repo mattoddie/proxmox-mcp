@@ -15,6 +15,13 @@ async function main(): Promise<void> {
       `writes ${tools.allowWrites ? "ENABLED" : "disabled"}${tools.allowDeletes ? " (with deletes)" : ""}${tools.allowExec ? " (with exec)" : ""}, ` +
       `toolsets ${tools.toolsets.size}, transport ${cfg.transport}`,
   );
+  const { verifySsl, caCert, tlsFingerprints, url } = cfg.proxmox;
+  if (url.startsWith("https:") && !verifySsl && !caCert && !tlsFingerprints) {
+    console.error(
+      "WARNING: the Proxmox TLS certificate is not verified (PROXMOX_VERIFY_SSL=false), so the API token or password can be intercepted. " +
+        "Pin the certificate with PROXMOX_TLS_FINGERPRINT (shown under Node > System > Certificates), set PROXMOX_CA_FILE, or use a trusted certificate with PROXMOX_VERIFY_SSL=true.",
+    );
+  }
 
   let shutdown: () => Promise<void>;
   if (cfg.transport === "http") {

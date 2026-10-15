@@ -1,5 +1,5 @@
-import { rootCertificates } from "node:tls";
-import { Agent, fetch, type Response } from "undici";
+import { rootCertificates, type ConnectionOptions, type TLSSocket } from "node:tls";
+import { Agent, buildConnector, fetch, type Response } from "undici";
 import type { ProxmoxConfig } from "../config.js";
 
 export class ProxmoxError extends Error {
@@ -93,11 +93,10 @@ export class ProxmoxClient {
   private loginPromise?: Promise<void>;
 
   constructor(readonly cfg: ProxmoxConfig) {
+    // A custom CA turns verification on; it is trusted alongside the system CAs (Node's `ca` replaces them otherwise).
+    const tls: ConnectionOptions = cfg.caCert ? { rejectUnauthorized: true, ca: [...rootCertificates, cfg.caCert] } : { rejectUnauthorized: cfg.verifySsl };
     this.dispatcher = new Agent({
-      // A custom CA turns verification on; it is trusted alongside the system CAs (Node's `ca` replaces them otherwise).
-      connect: cfg.caCert
-        ? { rejectUnauthorized: true, ca: [...rootCertificates, cfg.caCert] }
-        : { rejectUnauthorized: cfg.verifySsl },
+      connect: cfg.tlsFingerprints ? pinnedConnector(tls, cfg.tlsFingerprints) : tls,
       headersTimeout: cfg.timeoutMs,
       bodyTimeout: cfg.timeoutMs,
     });
@@ -373,10 +372,34 @@ export class ProxmoxClient {
     }
     const cause = e.cause?.code ?? e.cause?.message ?? e.message;
     const tlsHint = /CERT|SELF_SIGNED|UNABLE_TO_VERIFY/i.test(String(cause))
-      ? " (Proxmox uses a self-signed certificate by default; set PROXMOX_VERIFY_SSL=false or PROXMOX_CA_FILE)"
+      ? " (Proxmox uses a self-signed certificate by default; pin it with PROXMOX_TLS_FINGERPRINT, trust its CA with PROXMOX_CA_FILE, or set PROXMOX_VERIFY_SSL=false)"
       : "";
     return new ProxmoxError(`Could not reach Proxmox at ${this.cfg.url}: ${cause}${tlsHint}`);
   }
+}
+
+/**
+ * A connector that, on top of the usual TLS options, only accepts a server certificate whose SHA-256 fingerprint is
+ * pinned, the way Proxmox's own clients (e.g. the PBS storage plugin, pvesh) trust a self-signed certificate.
+ * The check runs after the handshake because Node skips checkServerIdentity when chain verification fails or is off.
+ */
+function pinnedConnector(tls: ConnectionOptions, fingerprints: string[]): buildConnector.connector {
+  // No TLS session reuse, so every connection presents (and is checked against) the certificate.
+  const connect = buildConnector({ ...tls, maxCachedSessions: 0 });
+  return (opts, callback) => {
+    connect(opts, (err, socket) => {
+      if (err || !socket) return callback(err ?? new Error("TLS connection failed"), null);
+      const presented = (socket as TLSSocket).getPeerCertificate?.()?.fingerprint256;
+      if (!presented || !fingerprints.includes(presented.toUpperCase())) {
+        socket.destroy();
+        return callback(
+          new Error(`TLS certificate fingerprint mismatch: the server presented SHA-256 ${presented ?? "no certificate"}, which is not in PROXMOX_TLS_FINGERPRINT`),
+          null,
+        );
+      }
+      callback(null, socket);
+    });
+  };
 }
 
 function iso(epochSeconds: unknown): string | undefined {

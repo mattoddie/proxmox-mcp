@@ -13,6 +13,11 @@ export interface ProxmoxConfig {
   verifySsl: boolean;
   /** PEM bundle trusted in addition to the system CAs. */
   caCert?: string;
+  /**
+   * Pinned SHA-256 fingerprints of the server certificate, as "AA:BB:..." (PROXMOX_TLS_FINGERPRINT).
+   * When set, the certificate must match one of them, whether or not chain verification is on.
+   */
+  tlsFingerprints?: string[];
   timeoutMs: number;
   /** How long tools wait for a Proxmox task (UPID) to finish before returning. */
   taskTimeoutMs: number;
@@ -89,6 +94,24 @@ function read(env: Env, name: string): string | undefined {
   return value ? value : undefined;
 }
 
+/**
+ * Parses PROXMOX_TLS_FINGERPRINT: one or more comma-separated SHA-256 fingerprints, as Proxmox shows them
+ * ("AA:BB:...", optionally prefixed "sha256:" or "SHA256 Fingerprint=") or as 64 hex digits, into "AA:BB:..." form.
+ */
+export function parseFingerprints(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => {
+      const hex = v.replace(/^(sha-?256\s*(fingerprint)?\s*[=:]?\s*)/i, "").replace(/[:\s]/g, "");
+      if (!/^[0-9a-f]{64}$/i.test(hex)) {
+        throw new Error(`PROXMOX_TLS_FINGERPRINT must be a SHA-256 fingerprint (AA:BB:... with 32 pairs, or 64 hex digits), got "${v}"`);
+      }
+      return hex.toUpperCase().match(/../g)!.join(":");
+    });
+}
+
 function bool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
@@ -153,6 +176,10 @@ export function loadConfig(env: Env = process.env): Config {
     }
   }
 
+  const fingerprintValue = read(env, "PROXMOX_TLS_FINGERPRINT");
+  const tlsFingerprints = fingerprintValue ? parseFingerprints(fingerprintValue) : undefined;
+  if (tlsFingerprints && parsed.protocol !== "https:") throw new Error("PROXMOX_TLS_FINGERPRINT needs an https:// PROXMOX_URL");
+
   const transport = (read(env, "MCP_TRANSPORT") ?? "stdio") as TransportType;
   if (!["stdio", "http"].includes(transport)) {
     throw new Error(`MCP_TRANSPORT must be stdio or http, got "${transport}"`);
@@ -196,6 +223,7 @@ export function loadConfig(env: Env = process.env): Config {
       password: tokenId ? undefined : password,
       verifySsl: caCert !== undefined || bool(read(env, "PROXMOX_VERIFY_SSL"), false),
       caCert,
+      tlsFingerprints: tlsFingerprints?.length ? tlsFingerprints : undefined,
       timeoutMs: int("PROXMOX_TIMEOUT_MS", read(env, "PROXMOX_TIMEOUT_MS"), 30000),
       taskTimeoutMs: int("PROXMOX_TASK_TIMEOUT_MS", read(env, "PROXMOX_TASK_TIMEOUT_MS"), 120000),
       defaultNode: read(env, "PROXMOX_DEFAULT_NODE"),
