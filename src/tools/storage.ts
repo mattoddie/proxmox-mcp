@@ -657,10 +657,7 @@ export function registerStorageTools(ctx: ToolContext): void {
     toolset: "storage",
     title: "Scan for storage",
     description:
-      "Discover storage that can be added with proxmox_save_storage: NFS exports or CIFS shares on a server, PBS datastores, iSCSI targets on a portal, or local LVM volume groups, LVM thin pools and ZFS pools on a node." +
-      (ctx.allowWrites
-        ? ""
-        : " Only the local scans (lvm, lvmthin, zfs) are available: nfs, cifs, pbs and iscsi make the node contact the given server, possibly with credentials, which needs write access (PROXMOX_ALLOW_WRITES=true)."),
+      "Discover storage that can be added with proxmox_save_storage: NFS exports or CIFS shares on a server, PBS datastores, iSCSI targets on a portal, or local LVM volume groups, LVM thin pools and ZFS pools on a node. The nfs, cifs, pbs and iscsi scans make the node contact the given server, possibly with credentials, so they need write access (PROXMOX_ALLOW_WRITES=true); the local scans are always available.",
     input: {
       node: nodeArg,
       type: z.enum(["nfs", "cifs", "pbs", "iscsi", "lvm", "lvmthin", "zfs"]).describe("What to scan for"),

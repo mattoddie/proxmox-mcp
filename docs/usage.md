@@ -145,9 +145,11 @@ There are deliberate exceptions. `proxmox_create_api_token` returns the new toke
 
 ## The `extra` argument
 
-Tools have typed arguments for the common settings. The Proxmox API has many more options, and new versions add more. For anything not covered, `extra` accepts an object of raw API parameters that's merged last, so it overrides the typed arguments:
+Tools have typed arguments for the common settings. The Proxmox API has many more options, and new versions add more. For anything not covered, `extra` accepts an object of raw API parameters that are added to the request:
 
 > *"Set VM 100's CPU type to host. Use `extra` with `cpu: "host"`."*
+
+`extra` can't override what the tool sets itself: a parameter that one of the tool's typed arguments maps to (even when that argument isn't given) is refused, as are a few reserved ones such as `archive`, `restore` and `force` on the create tools. That keeps the tool's checks honest, so for example `extra` can't point a restore at another VMID or turn a create into an overwrite. Use the typed argument instead.
 
 Parameter names are Proxmox's own, as shown in the [API viewer](https://pve.proxmox.com/pve-docs/api-viewer/). To see the current values, ask the assistant to fetch the object with `raw: true` first.
 
@@ -161,9 +163,9 @@ Parameter names are Proxmox's own, as shown in the [API viewer](https://pve.prox
 | `PROXMOX_ALLOW_WRITES=true` | `GET`, `POST`, `PUT` |
 | `+ PROXMOX_ALLOW_DELETES=true` | All, including `DELETE` |
 
-Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands or write files: guest agent `exec`, `file-write` and `set-user-password`, the QEMU monitor, console and shell proxies, migration tunnels and the node `execute` endpoint.
+Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands, open consoles, send input or read or write files: every guest agent endpoint (including `exec`, `file-read`, `file-write` and `set-user-password`), the QEMU monitor, `sendkey`, console and shell proxies and websockets, migration tunnels and the node `execute` endpoint. Paths with control characters, `..` or `./` segments, or a query string are refused, and the checks run on the path exactly as it will be sent.
 
-Responses are redacted unless the call passes `redact: false`. Leave `raw` out of `PROXMOX_TOOLSETS` if you want the assistant limited to the curated tools.
+Responses are redacted unless the call passes `redact: false`, including the DNS API credentials in ACME plugin configs (only the key names are shown). Leave `raw` out of `PROXMOX_TOOLSETS` if you want the assistant limited to the curated tools.
 
 ## Tips for good results
 

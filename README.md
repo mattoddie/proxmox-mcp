@@ -64,8 +64,10 @@ Copy the token secret from the output. You can't see it again later. [Getting st
 mkdir proxmox-mcp && cd proxmox-mcp
 curl -fsSLO https://raw.githubusercontent.com/mattoddie/proxmox-mcp/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/mattoddie/proxmox-mcp/main/example.env -o .env
-# Edit .env: set PROXMOX_URL, PROXMOX_TOKEN_ID (mcp@pve!mcp), PROXMOX_TOKEN_SECRET
-# and a random MCP_AUTH_TOKEN (e.g. `openssl rand -hex 32`)
+# Edit .env: set PROXMOX_URL, PROXMOX_TOKEN_ID (mcp@pve!mcp), PROXMOX_TOKEN_SECRET,
+# a random MCP_AUTH_TOKEN (required; e.g. `openssl rand -hex 32`) and, recommended,
+# PROXMOX_TLS_FINGERPRINT (the node certificate's SHA-256 fingerprint, from
+# Node > System > Certificates) so the connection to Proxmox is verified
 docker compose up -d
 ```
 

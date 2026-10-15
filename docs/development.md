@@ -14,7 +14,7 @@ This page is for people working on proxmox-mcp itself. Start with [CONTRIBUTING.
 
 ## Setup
 
-You need Node.js 22 or later (CI tests 22 and 24) and Docker for building the image.
+You need Node.js 22 or later (CI tests 22 and 24) and Docker for building the image. The image is built on the current Node.js LTS (`node:24-alpine`); Dependabot skips odd-numbered Node majors, which are short-lived "Current" releases, so it only proposes even-numbered majors, which become LTS.
 
 ```sh
 git clone https://github.com/mattoddie/proxmox-mcp.git
@@ -116,7 +116,7 @@ The shared arguments in `tools/util.ts` keep tools consistent:
 | `nodeArg`, `nodeRequiredArg` | Node-scoped tools. Resolve with `client.resolveNode(node)`. |
 | `waitArg` | Any tool whose API call returns a UPID. Pass the result through `runTask()`. |
 | `searchArg`, `limitArg(n)`, `rawArg` | List tools. Use `filterAndLimit()` for consistent `{total, returned, items}` results. |
-| `extraArg` | Raw Proxmox parameters, spread last into the request so they override typed arguments. |
+| `extraArg` | Raw Proxmox parameters for options the typed arguments don't cover. Merge them with `withExtra(params, a.extra, reserved?)` **before** `defined()`: it refuses keys the tool sets itself (even ones left undefined) and any `reserved` keys, so `extra` can't override checked or gated parameters. Run permission checks on the merged result. |
 | `deleteKeysArg` | Config keys to remove, sent with `deleteParam()` as Proxmox's `delete` parameter. |
 | `digestArg` | Optimistic locking for config updates. |
 

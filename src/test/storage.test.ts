@@ -282,7 +282,7 @@ describe("storage tools", () => {
       const zfs: any = await scan({ type: "zfs" });
       assert.equal(zfs.isError, undefined);
       const { tools } = await ro.listTools();
-      assert.match(tools.find((t) => t.name === "proxmox_scan_storage")!.description!, /Only the local scans/);
+      assert.match(tools.find((t) => t.name === "proxmox_scan_storage")!.description!, /need write access/);
     } finally {
       await ro.close();
     }

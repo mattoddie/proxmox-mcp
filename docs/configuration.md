@@ -17,11 +17,26 @@ The server checks the configuration at startup. If something is wrong, it exits 
 | Variable | Default | Description |
 |---|---|---|
 | `PROXMOX_URL` | **required** | URL of any cluster node, or a load balancer in front of them, including the port: `https://pve1.example.lan:8006`. A trailing `/api2/json` is removed if you include it. |
-| `PROXMOX_VERIFY_SSL` | `false` | Verify the node's TLS certificate. Leave it `false` for the self-signed certificate Proxmox ships with. Set it to `true` if the node has a trusted certificate (for example from ACME), or set `PROXMOX_CA_FILE` instead. |
+| `PROXMOX_TLS_FINGERPRINT` | | **Recommended with the default self-signed certificate.** The SHA-256 fingerprint of the node's certificate, as `AA:BB:…` (32 pairs) or 64 hex digits. The server then only talks to a node presenting that certificate, whether or not `PROXMOX_VERIFY_SSL` is on. Separate several with commas, for example the old and new certificate during a renewal, or each node's certificate behind a load balancer. See [Verifying the Proxmox certificate](#verifying-the-proxmox-certificate). |
+| `PROXMOX_VERIFY_SSL` | `false` | Verify the node's certificate chain and hostname. It's `false` by default because of the self-signed certificate Proxmox ships with; pin that with `PROXMOX_TLS_FINGERPRINT` instead. Set it to `true` if the node has a trusted certificate (for example from ACME), or set `PROXMOX_CA_FILE`. With an `https://` URL, verification off and no fingerprint or CA, the server logs a warning at startup. |
 | `PROXMOX_CA_FILE` | | Path to a PEM file with the CA certificate(s) to trust (in addition to the system CAs). Setting it turns certificate verification on, whatever `PROXMOX_VERIFY_SSL` says. Use the cluster's own CA, `/etc/pve/pve-root-ca.pem` on any node, to verify the default node certificates. |
 | `PROXMOX_TIMEOUT_MS` | `30000` | Timeout for each API request, in milliseconds. |
 | `PROXMOX_TASK_TIMEOUT_MS` | `120000` | How long tools wait for a Proxmox task (start, clone, migrate, backup…) to finish before returning. A task that takes longer keeps running and the tool returns its task ID. See [Usage](usage.md#tasks-and-wait). |
 | `PROXMOX_DEFAULT_NODE` | | Node used by node-scoped tools when a call doesn't name one. Single-node installs don't need it. In a cluster without it, those tools ask for a node. |
+
+### Verifying the Proxmox certificate
+
+Without verification, a machine that can intercept the traffic between proxmox-mcp and the node can read the API token or password. Pick one of these:
+
+- **Pin the certificate (simplest).** Copy the SHA-256 fingerprint from **Node → System → Certificates**, select the certificate the web UI uses (`pveproxy-ssl.pem` if there is one, otherwise `pve-ssl.pem`), **View Certificate**. Or run this on the node:
+
+  ```sh
+  openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -fingerprint -sha256
+  ```
+
+  Then set `PROXMOX_TLS_FINGERPRINT=AA:BB:…`. This is how Proxmox's own clients trust self-signed certificates, for example a Proxmox Backup Server storage. When the certificate changes (renewal, a new ACME certificate, a reinstalled node), update the fingerprint, or list the old and new ones while you switch over.
+- **Trust the cluster CA** with `PROXMOX_CA_FILE=/path/to/pve-root-ca.pem` (copied from `/etc/pve/pve-root-ca.pem`). Covers every node's default certificate.
+- **Use a trusted certificate** (for example from Proxmox's built-in ACME support) and set `PROXMOX_VERIFY_SSL=true`.
 
 Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`. Anything else counts as `false`.
 
@@ -49,7 +64,7 @@ How each method works:
 |---|---|---|
 | `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. |
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
-| `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool. Requires `PROXMOX_ALLOW_WRITES=true`. |
+| `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
@@ -70,10 +85,11 @@ Tools that aren't allowed are **not registered at all**. The assistant can't see
 | Variable | Default | Description |
 |---|---|---|
 | `MCP_TRANSPORT` | `http` in the Docker image (`stdio` when run with Node directly) | `http` for Streamable HTTP, or `stdio`. |
-| `MCP_HTTP_HOST` | `0.0.0.0` | Address to listen on (HTTP only). |
+| `MCP_HTTP_HOST` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Address to listen on (HTTP only). Outside Docker the server only listens on localhost unless you set this. |
 | `MCP_HTTP_PORT` | `8080` | Port to listen on (HTTP only). |
-| `MCP_AUTH_TOKEN` | | When set, every request to `/mcp` must send `Authorization: Bearer <token>`. **Set this whenever anything other than you can reach the port.** |
-| `MCP_ALLOWED_HOSTS` | | Comma-separated allow-list of `Host` header values, such as `proxmox-mcp.lan,proxmox-mcp.lan:8080`. Requests with any other `Host` are rejected, which protects against DNS-rebinding attacks from web pages in your browser. |
+| `MCP_AUTH_TOKEN` | **required** for `http` | Every request to `/mcp` must send `Authorization: Bearer <token>`. With the `http` transport the server refuses to start without it, unless `MCP_ALLOW_UNAUTHENTICATED=true`. Generate one with `openssl rand -hex 32`. Not needed for `stdio`. |
+| `MCP_ALLOW_UNAUTHENTICATED` | `false` | Serve `/mcp` without a token. **Only** set this when something else in front of the server authenticates every request, such as an authenticating reverse proxy, and nothing else can reach the port. The server logs a warning at startup when it's on. |
+| `MCP_ALLOWED_HOSTS` | | Comma-separated allow-list of `Host` header values, such as `proxmox-mcp.lan,proxmox-mcp.lan:8080` (case-insensitive). Requests with any other `Host`, and requests whose `Origin` header (sent by browsers) names another host, are rejected. This protects against DNS-rebinding and cross-site attacks from web pages in your browser. |
 
 The HTTP server exposes these endpoints:
 
@@ -163,6 +179,15 @@ PROXMOX_API_TOKEN=mcp@pve!mcp=...
 MCP_AUTH_TOKEN=...
 PROXMOX_ALLOW_WRITES=true
 PROXMOX_TASK_TIMEOUT_MS=300000   # wait up to 5 minutes for clones and migrations
+```
+
+**Single node with its self-signed certificate pinned:**
+
+```sh
+PROXMOX_URL=https://192.168.1.10:8006
+PROXMOX_API_TOKEN=mcp@pve!mcp=...
+PROXMOX_TLS_FINGERPRINT=AB:CD:EF:...   # from Node > System > Certificates
+MCP_AUTH_TOKEN=...
 ```
 
 **Cluster with a default node and a verified certificate:**
