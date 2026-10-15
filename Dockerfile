@@ -3,7 +3,7 @@
 # The build output is plain JavaScript with no native modules, so the build
 # stage always runs on the build machine's own platform. Multi-arch builds
 # don't have to run npm under emulation.
-FROM --platform=$BUILDPLATFORM node:25-alpine AS build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -14,7 +14,7 @@ RUN npm test && npm prune --omit=dev && rm -rf dist/test dist/scripts
 ARG VERSION
 RUN if [ -n "$VERSION" ]; then npm pkg set version="$VERSION"; fi
 
-FROM node:25-alpine
+FROM node:24-alpine
 LABEL org.opencontainers.image.title="proxmox-mcp" \
       org.opencontainers.image.description="MCP server for Proxmox VE" \
       org.opencontainers.image.source="https://github.com/mattoddie/proxmox-mcp" \
