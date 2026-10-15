@@ -194,6 +194,14 @@ export class ProxmoxClient {
     };
   }
 
+  /**
+   * The URL a request for `path` (relative to /api2/json) is sent to. URL parsing normalises the path
+   * (resolves dot segments, strips tabs and newlines), so callers that vet paths should check this.
+   */
+  apiUrl(path: string): URL {
+    return new URL(`${this.cfg.url}/api2/json${path.startsWith("/") ? path : `/${path}`}`);
+  }
+
   /** API path prefix of a guest, e.g. /nodes/pve1/qemu/100. */
   guestPath(g: GuestRef): string {
     return `/nodes/${encodeURIComponent(g.node)}/${g.type}/${g.vmid}`;
@@ -279,7 +287,7 @@ export class ProxmoxClient {
   }
 
   private async raw(method: HttpMethod, path: string, params: Params | undefined, auth: boolean): Promise<Response> {
-    const url = new URL(`${this.cfg.url}/api2/json${path}`);
+    const url = this.apiUrl(path);
     const encoded = encodeParams(params);
     let body: string | undefined;
     const headers: Record<string, string> = { Accept: "application/json" };
