@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { request as httpRequest, type Server } from "node:http";
+import { createServer as createHttpServer, request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, describe, it } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -233,6 +233,25 @@ describe("ProxmoxClient with a password", () => {
     const down = new ProxmoxClient(loadConfig({ PROXMOX_URL: "http://127.0.0.1:1", ...TOKEN_ENV }).proxmox);
     await assert.rejects(down.get("/version"), /Could not reach Proxmox at http:\/\/127\.0\.0\.1:1/);
     await down.close();
+  });
+
+  it("reports a body that stalls after the headers as a timeout", async () => {
+    const sockets = new Set<import("node:net").Socket>();
+    const stall = createHttpServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json", "Content-Length": "100" });
+      res.write('{"data":');
+    });
+    stall.on("connection", (sock) => sockets.add(sock));
+    await new Promise<void>((resolve) => stall.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(stall.address() as AddressInfo).port}`;
+    const slow = new ProxmoxClient(loadConfig({ PROXMOX_URL: url, ...TOKEN_ENV, PROXMOX_TIMEOUT_MS: "300" }).proxmox);
+    try {
+      await assert.rejects(slow.get("/version"), (err: Error) => err instanceof ProxmoxError && /Timed out after 300ms talking to http:\/\/127\.0\.0\.1/.test(err.message));
+    } finally {
+      await slow.close();
+      for (const sock of sockets) sock.destroy();
+      stall.close();
+    }
   });
 });
 

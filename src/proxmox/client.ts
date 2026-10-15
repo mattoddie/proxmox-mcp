@@ -261,7 +261,7 @@ export class ProxmoxClient {
 
   private async doLogin(): Promise<void> {
     const res = await this.raw("POST", "/access/ticket", { username: this.cfg.username, password: this.cfg.password }, false);
-    const text = await res.text();
+    const text = await this.readText(res);
     if (!res.ok) {
       throw new ProxmoxError(
         `Login to Proxmox failed (HTTP ${res.status} ${res.statusText}); check PROXMOX_USERNAME (user@realm) and PROXMOX_PASSWORD`,
@@ -318,8 +318,17 @@ export class ProxmoxClient {
     }
   }
 
+  /** Reads the response body; a timeout or dropped connection while reading is reported like one before the headers. */
+  private async readText(res: Response): Promise<string> {
+    try {
+      return await res.text();
+    } catch (err) {
+      throw this.networkError(err);
+    }
+  }
+
   private async parse<T>(res: Response, method: string, path: string): Promise<T> {
-    const text = await res.text();
+    const text = await this.readText(res);
     let json: any;
     if (text) {
       try {
@@ -367,7 +376,9 @@ export class ProxmoxClient {
 
   private networkError(err: unknown): ProxmoxError {
     const e = err as Error & { cause?: { code?: string; message?: string } };
-    if (e.name === "TimeoutError" || e.name === "AbortError") {
+    if (e instanceof ProxmoxError) return e;
+    const timeoutCodes = ["UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_CONNECT_TIMEOUT"];
+    if (e.name === "TimeoutError" || e.name === "AbortError" || timeoutCodes.includes(e.cause?.code ?? "") || timeoutCodes.includes((e as any).code)) {
       return new ProxmoxError(`Timed out after ${this.cfg.timeoutMs}ms talking to ${this.cfg.url}`);
     }
     const cause = e.cause?.code ?? e.cause?.message ?? e.message;
