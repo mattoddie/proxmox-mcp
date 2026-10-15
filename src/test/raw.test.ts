@@ -90,6 +90,29 @@ describe("raw API tool", () => {
     assert.match(errorText(await env.callRaw("proxmox_api_request", { path: "nodes/pve1/status" })), /must be absolute/);
   });
 
+  it("redacts ACME DNS plugin credentials", async () => {
+    // The API returns plugin data as base64 of KEY=value lines.
+    const data = Buffer.from("CF_Token=not-a-real-token\nCF_Account_ID=abc123\n").toString("base64");
+    env.mock.on("GET", /^\/cluster\/acme\/plugins$/, () => [
+      { plugin: "cf", type: "dns", api: "cf", data, digest: "d1" },
+      { plugin: "standalone", type: "standalone" },
+    ]);
+    env.mock.on("GET", /^\/cluster\/acme\/plugins\/cf$/, () => ({ data, digest: "d1" }));
+    const list = await env.call("proxmox_api_request", { path: "/cluster/acme/plugins" });
+    assert.equal(list[0].data, "CF_Token=<redacted>\nCF_Account_ID=<redacted>");
+    assert.equal(list[0].api, "cf");
+    assert.deepEqual(list[1], { plugin: "standalone", type: "standalone" });
+    // A single plugin's config doesn't repeat type/api, so the path decides.
+    const one = await env.call("proxmox_api_request", { path: "/cluster/acme/plugins/cf" });
+    assert.equal(one.data, "CF_Token=<redacted>\nCF_Account_ID=<redacted>");
+    assert.ok(!JSON.stringify([list, one]).includes(data));
+    // Unrelated `data` fields are left alone.
+    env.mock.on("GET", /^\/nodes\/pve1\/rrddata$/, () => [{ data: "x=1" }]);
+    assert.deepEqual(await env.call("proxmox_api_request", { path: "/nodes/pve1/rrddata" }), [{ data: "x=1" }]);
+    // redact=false returns it as is.
+    assert.equal((await env.call("proxmox_api_request", { path: "/cluster/acme/plugins/cf", redact: false })).data, data);
+  });
+
   it("allows guest file reads with exec access", async () => {
     env.mock.on("GET", /\/agent\/file-read$/, () => ({ content: "x", truncated: 0 }));
     const res = await env.call("proxmox_api_request", { path: "/nodes/pve1/qemu/100/agent/file-read", params: { file: "/etc/hostname" } });

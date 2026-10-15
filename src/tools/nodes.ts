@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ProxmoxClient } from "../proxmox/client.js";
-import { compact, formatBytes, formatUptime, fractionPct, isoTime, parsePropertyString, redactSecrets, usage } from "../proxmox/format.js";
+import { compact, formatBytes, formatUptime, fractionPct, isoTime, parsePropertyString, redactPluginData, redactSecrets, usage } from "../proxmox/format.js";
 import {
   defined,
   defineTool,
@@ -202,25 +202,6 @@ function summarizeRepositories(r: Obj): Obj {
 }
 
 // ---------------------------------------------------------------- ACME
-
-/**
- * ACME plugin `data` holds DNS API credentials as KEY=value lines, which the API returns base64-encoded;
- * keep only the keys. (Splitting the base64 text itself at "=" would leak everything but the padding.)
- */
-function redactPluginData(data: unknown): string[] | undefined {
-  if (typeof data !== "string" || !data) return undefined;
-  let text = data;
-  const compactB64 = data.replace(/\s+/g, "");
-  if (/^[A-Za-z0-9+/]+={0,2}$/.test(compactB64) && compactB64.length % 4 === 0) {
-    const decoded = Buffer.from(compactB64, "base64").toString("utf8");
-    if (decoded.includes("=") && !/[\x00-\x08\x0e-\x1f�]/.test(decoded)) text = decoded;
-    else return ["<redacted>"];
-  }
-  return text
-    .split(/\r?\n/)
-    .filter((l) => l.trim())
-    .map((l) => (l.includes("=") ? `${l.slice(0, l.indexOf("="))}=<redacted>` : "<redacted>"));
-}
 
 function summarizePlugin(p: Obj): Obj {
   return compact({

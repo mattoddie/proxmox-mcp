@@ -84,7 +84,8 @@ export function registerRawTools(ctx: ToolContext): void {
         );
       }
       const data = await client.request(method, path, a.params);
-      return a.redact === false ? data : redactSecrets(data);
+      // ACME plugin `data` is a KEY=value blob of DNS API credentials, which the field-name check can't see.
+      return a.redact === false ? data : redactSecrets(data, { acmePluginData: /^\/cluster\/acme\/plugins\b/i.test(sent) });
     },
   });
 }

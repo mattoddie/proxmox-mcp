@@ -158,20 +158,52 @@ const URL_CREDENTIALS_RE = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s\/:@]+:)[^\s\/@]+@/gi;
 const REDACTED = "<redacted>";
 
 /**
+ * ACME plugin `data` holds DNS API credentials as KEY=value lines, which the API returns base64-encoded;
+ * keep only the keys. (Splitting the base64 text itself at "=" would leak everything but the padding.)
+ */
+export function redactPluginData(data: unknown): string[] | undefined {
+  if (typeof data !== "string" || !data) return undefined;
+  let text = data;
+  const compactB64 = data.replace(/\s+/g, "");
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(compactB64) && compactB64.length % 4 === 0) {
+    const decoded = Buffer.from(compactB64, "base64").toString("utf8");
+    if (decoded.includes("=") && !/[\x00-\x08\x0e-\x1f�]/.test(decoded)) text = decoded;
+    else return [REDACTED];
+  }
+  return text
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((l) => (l.includes("=") ? `${l.slice(0, l.indexOf("="))}=${REDACTED}` : REDACTED));
+}
+
+/** An ACME DNS plugin config ({plugin, type: "dns", api, data}), whose `data` holds the DNS API credentials. */
+function isAcmePlugin(o: Obj): boolean {
+  return typeof o.data === "string" && (o.type === "dns" || (o.api !== undefined && o.plugin !== undefined));
+}
+
+export interface RedactOptions {
+  /** Treat every `data` string as ACME plugin credentials (e.g. for anything under /cluster/acme/plugins). */
+  acmePluginData?: boolean;
+}
+
+/**
  * Replaces the values of password/secret/key-like fields with "<redacted>",
  * recursively. Used for raw objects returned to the model.
  */
-export function redactSecrets<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((v) => redactSecrets(v)) as T;
+export function redactSecrets<T>(value: T, opts: RedactOptions = {}): T {
+  if (Array.isArray(value)) return value.map((v) => redactSecrets(v, opts)) as T;
   if (value && typeof value === "object") {
     const out: Obj = {};
+    const acme = isAcmePlugin(value as Obj) || (opts.acmePluginData && typeof (value as Obj).data === "string");
     for (const [k, v] of Object.entries(value as Obj)) {
-      if (SECRET_KEY_RE.test(k) && v !== undefined && v !== null && v !== "" && typeof v !== "object" && typeof v !== "boolean") {
+      if (acme && k === "data" && v) {
+        out[k] = redactPluginData(v)!.join("\n");
+      } else if (SECRET_KEY_RE.test(k) && v !== undefined && v !== null && v !== "" && typeof v !== "object" && typeof v !== "boolean") {
         out[k] = REDACTED;
       } else if (SECRET_KEY_RE.test(k) && Array.isArray(v)) {
-        out[k] = v.map((x) => (x !== null && typeof x === "object" ? redactSecrets(x) : REDACTED));
+        out[k] = v.map((x) => (x !== null && typeof x === "object" ? redactSecrets(x, opts) : REDACTED));
       } else {
-        out[k] = redactSecrets(v);
+        out[k] = redactSecrets(v, opts);
       }
     }
     return out as T;
