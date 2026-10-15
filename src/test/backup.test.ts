@@ -120,7 +120,8 @@ describe("backup tools", () => {
       retention: { keep_last: 3, keep_weekly: 2, keep_all: false },
       notes_template: "{{guestname}}",
       remove_old: true,
-      extra: { "repeat-missed": 1 },
+      repeat_missed: true,
+      extra: { "pbs-change-detection-mode": "metadata" },
     });
     assert.deepEqual(r, { id: "nightly", status: "created" });
     const w = env.mock.lastWrite()!;
@@ -137,6 +138,7 @@ describe("backup tools", () => {
       remove: "1",
       "notes-template": "{{guestname}}",
       "repeat-missed": "1",
+      "pbs-change-detection-mode": "metadata",
     });
   });
 
@@ -359,6 +361,33 @@ describe("backup tools", () => {
     } finally {
       await mcp.close();
     }
+  });
+
+  it("doesn't let extra swap the target VMID or add force past the overwrite checks", async () => {
+    const mcp = await connect(env.client, toolOptions("write"));
+    try {
+      const call = (args: Record<string, unknown>) => mcp.callTool({ name: "proxmox_restore_backup", arguments: args });
+      // VMID 150 is free, so without the check this would restore over the stopped VM 101 with force.
+      assert.match(errorText(await call({ volid: PBS_VM, vmid: 150, node: "pve2", extra: { vmid: 101, force: 1 } })), /extra must not set `vmid`, `force`/);
+      assert.match(errorText(await call({ volid: TAR, vmid: 250, node: "pve1", extra: { restore: 0 } })), /extra must not set `restore`/);
+      assert.match(errorText(await call({ volid: VMA, vmid: 150, node: "pve1", extra: { archive: PBS_VM } })), /extra must not set `archive`/);
+      // Reserved even where the guest type doesn't use them as typed arguments.
+      assert.match(errorText(await call({ volid: TAR, vmid: 250, node: "pve1", extra: { archive: VMA } })), /extra must not set `archive`/);
+      assert.match(errorText(await call({ volid: VMA, vmid: 150, node: "pve1", extra: { unique: 1, storage: "local-lvm" } })), /`unique`, `storage`/);
+      assert.match(errorText(await call({ volid: VMA, vmid: 150, extra: { force: 1 } })), /extra must not set `force`/);
+      assert.equal(env.mock.lastWrite(), undefined);
+    } finally {
+      await mcp.close();
+    }
+  });
+
+  it("doesn't let extra change the guest selection of a backup", async () => {
+    assert.match(errorText(await env.callRaw("proxmox_backup_guests", { vmids: [100], extra: { all: 1 } })), /extra must not set `all`/);
+    assert.match(errorText(await env.callRaw("proxmox_backup_guests", { vmids: [100], extra: { vmid: "101" } })), /extra must not set `vmid`/);
+    env.mock.on("GET", /^\/cluster\/backup$/, () => []);
+    assert.match(errorText(await env.callRaw("proxmox_save_backup_job", { id: "x", extra: { vmid: "100" } })), /needs a selection/);
+    assert.match(errorText(await env.callRaw("proxmox_save_backup_job", { id: "x", all: true, extra: { vmid: "100" } })), /extra must not set `vmid`/);
+    assert.equal(env.mock.lastWrite(), undefined);
   });
 
   it("needs exec permission for hook scripts", async () => {

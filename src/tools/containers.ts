@@ -31,6 +31,7 @@ import {
   searchArg,
   vmidArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -495,7 +496,7 @@ export function registerContainersTools(ctx: ToolContext): void {
     handler: async (a) => {
       const node = await client.resolveNode(a.node);
       const vmid = a.vmid ?? (await nextVmid(ctx));
-      const params: Obj = defined({
+      const params: Obj = {
         vmid,
         ostemplate: a.ostemplate,
         hostname: a.hostname,
@@ -519,12 +520,14 @@ export function registerContainersTools(ctx: ToolContext): void {
         pool: a.pool,
         tags: a.tags?.join(";"),
         description: a.description,
-      });
+      };
       (a.mount_points ?? []).forEach((m, i) => (params[`mp${i}`] = mountString(m, `mp${i}`)));
       (a.nets ?? [{}]).forEach((n, i) => (params[`net${i}`] = netString(n, i)));
-      Object.assign(params, a.extra);
-      checkGatedParams(ctx, params);
-      const upid = await client.post(`/nodes/${encodeURIComponent(node)}/lxc`, params);
+      // restore/force/unique turn a create into a backup restore, which with force overwrites an existing container;
+      // use proxmox_restore_backup.
+      const body = defined(withExtra(params, a.extra, ["restore", "force", "unique", "ignore-unpack-errors"]));
+      checkGatedParams(ctx, body);
+      const upid = await client.post(`/nodes/${encodeURIComponent(node)}/lxc`, body);
       return runTask(client, upid, a.wait, { vmid, node, hostname: a.hostname });
     },
   });
@@ -557,7 +560,7 @@ export function registerContainersTools(ctx: ToolContext): void {
       const newid = a.newid ?? (await nextVmid(ctx));
       const upid = await client.post(
         `${client.guestPath(g)}/clone`,
-        defined({
+        defined(withExtra({
           newid,
           hostname: a.hostname,
           description: a.description,
@@ -568,8 +571,7 @@ export function registerContainersTools(ctx: ToolContext): void {
           pool: a.pool,
           snapname: a.snapname,
           bwlimit: a.bwlimit,
-          ...a.extra,
-        }),
+        }, a.extra)),
       );
       return runTask(client, upid, a.wait, { source: g.vmid, newid, node: a.target ?? g.node });
     },
@@ -612,7 +614,7 @@ export function registerContainersTools(ctx: ToolContext): void {
       const base = client.guestPath(g);
       const needCurrent = a.nets || a.mount_points || a.features;
       const current: Obj = needCurrent ? await client.get<Obj>(`${base}/config`) : {};
-      const params: Obj = defined({
+      const typed: Obj = {
         hostname: a.hostname,
         cores: a.cores,
         cpulimit: a.cpulimit,
@@ -631,10 +633,10 @@ export function registerContainersTools(ctx: ToolContext): void {
         delete: deleteParam(a.delete),
         revert: deleteParam(a.revert),
         digest: a.digest,
-      });
-      for (const [key, spec] of Object.entries(a.nets ?? {})) params[key] = netString(spec, Number(key.slice(3)), current[key]);
-      for (const [key, spec] of Object.entries(a.mount_points ?? {})) params[key] = mountString(spec, key, current[key]);
-      Object.assign(params, a.extra);
+      };
+      for (const [key, spec] of Object.entries(a.nets ?? {})) typed[key] = netString(spec, Number(key.slice(3)), current[key]);
+      for (const [key, spec] of Object.entries(a.mount_points ?? {})) typed[key] = mountString(spec, key, current[key]);
+      const params = defined(withExtra(typed, a.extra));
       if (!Object.keys(params).filter((k) => k !== "digest").length) throw new Error("Nothing to change");
       checkGatedParams(ctx, params);
       await client.put(`${base}/config`, params);

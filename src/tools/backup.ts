@@ -16,6 +16,7 @@ import {
   searchArg,
   vmidArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -217,6 +218,9 @@ function checkHookParams(ctx: ToolContext, extra: Obj | undefined): void {
   if (key && !ctx.allowExec) throw new ProxmoxError(`${key} runs a script as root on the node, so setting it needs exec permission (PROXMOX_ALLOW_EXEC)`);
 }
 
+// Restore parameters that pick the target or the overwrite behaviour; never taken from `extra` (either guest type).
+const RESTORE_RESERVED = ["vmid", "force", "archive", "ostemplate", "restore", "unique", "storage", "live-restore"];
+
 // Job keys that describe the schedule/job rather than vzdump options.
 const JOB_ONLY_KEYS = new Set(["id", "type", "schedule", "enabled", "comment", "repeat-missed", "next-run", "starttime", "dow", "node", "digest"]);
 
@@ -335,7 +339,7 @@ export function registerBackupTools(ctx: ToolContext): void {
       checkHookParams(ctx, a.extra);
       const exists = a.id ? (await client.get<Obj[]>("/cluster/backup")).some((j) => j.id === a.id) : false;
       const selectionGiven = a.vmids !== undefined || a.all !== undefined || a.pool !== undefined;
-      if (!exists && !selectionGiven && !a.extra?.vmid && !a.extra?.all && !a.extra?.pool) {
+      if (!exists && !selectionGiven) {
         throw new ProxmoxError("A new backup job needs a selection: pass vmids, all=true or pool");
       }
       const toDelete = [...(a.delete ?? [])];
@@ -346,7 +350,7 @@ export function registerBackupTools(ctx: ToolContext): void {
         if (!a.all) toDelete.push("all");
         if (!a.all && a.exclude === undefined) toDelete.push("exclude");
       }
-      const params = defined({
+      const params = defined(withExtra({
         schedule: a.schedule,
         enabled: a.enabled,
         storage: a.storage,
@@ -364,8 +368,7 @@ export function registerBackupTools(ctx: ToolContext): void {
         comment: a.comment,
         "repeat-missed": a.repeat_missed,
         bwlimit: a.bwlimit,
-        ...a.extra,
-      });
+      }, a.extra, ["id", "delete"]));
       if (exists) {
         await client.put(`/cluster/backup/${enc(a.id!)}`, { ...params, delete: deleteParam([...new Set(toDelete)]) });
         return { id: a.id, status: "updated" };
@@ -483,7 +486,7 @@ export function registerBackupTools(ctx: ToolContext): void {
       checkHookParams(ctx, a.extra);
       const { guests } = await clusterMap();
       const groups = groupByNode([...new Set(a.vmids)], guests);
-      const common = defined({
+      const common = defined(withExtra({
         storage: a.storage,
         mode: a.mode,
         compress: a.compress,
@@ -492,8 +495,7 @@ export function registerBackupTools(ctx: ToolContext): void {
         remove: a.remove_old,
         "prune-backups": retentionString(a.retention),
         bwlimit: a.bwlimit,
-        ...a.extra,
-      });
+      }, a.extra, ["vmid", "all", "pool", "exclude"]));
       const perNode = new Map([...groups].map(([node, ids]) => [node, { ...common, vmid: ids.join(",") }]));
       const tasks = await runVzdump(perNode, a.wait);
       const failed = tasks.filter((t) => t.status === "failed").length;
@@ -620,25 +622,29 @@ export function registerBackupTools(ctx: ToolContext): void {
       const detected = backupGuestType(a.volid);
       const type = a.type ? (a.type === "vm" ? "qemu" : "lxc") : detected;
       if (!type) throw new ProxmoxError(`Can't tell whether ${a.volid} is a VM or container backup; pass type`);
-      if (a.live_restore && type !== "qemu") throw new ProxmoxError("live_restore only applies to VM backups");
-      if (a.unprivileged !== undefined && type !== "lxc") throw new ProxmoxError("unprivileged only applies to container backups");
-      const existing = (await client.get<Obj[]>("/cluster/resources", { type: "vm" })).find((r) => Number(r.vmid) === a.vmid);
-      if (existing && !a.force) {
-        throw new ProxmoxError(`VMID ${a.vmid} is in use by ${existing.type === "qemu" ? "VM" : "container"} "${existing.name ?? ""}" on ${existing.node}; pick a free VMID (proxmox_get_next_vmid) or pass force=true to overwrite it`);
-      }
-      if (a.force && existing) {
-        if (!ctx.allowDeletes) throw new ProxmoxError("Overwriting an existing guest destroys it and needs delete permission (PROXMOX_ALLOW_DELETES); restore to a new VMID instead");
-        if (existing.type !== type) throw new ProxmoxError(`VMID ${a.vmid} is a ${existing.type === "qemu" ? "VM" : "container"} but the backup is a ${type === "qemu" ? "VM" : "container"}`);
-        if (existing.status === "running") throw new ProxmoxError(`Guest ${a.vmid} is running; stop it before restoring over it`);
-      }
-      const node = a.node ?? (a.force && existing ? existing.node : await nodeForStorage(client, storageOf(a.volid)));
       const common = { vmid: a.vmid, storage: a.storage, force: a.force, unique: a.unique, start: a.start, pool: a.pool, bwlimit: a.bwlimit };
+      // Built (and `extra` checked) before the checks below, so they see exactly what is sent: `extra` can't swap
+      // in another vmid or add force/archive behind the overwrite check.
       const params =
         type === "qemu"
-          ? defined({ ...common, archive: a.volid, "live-restore": a.live_restore, ...a.extra })
-          : defined({ ...common, ostemplate: a.volid, restore: true, unprivileged: a.unprivileged, ...a.extra });
+          ? defined(withExtra({ ...common, archive: a.volid, "live-restore": a.live_restore }, a.extra, RESTORE_RESERVED))
+          : defined(withExtra({ ...common, ostemplate: a.volid, restore: true, unprivileged: a.unprivileged }, a.extra, RESTORE_RESERVED));
+      if (a.live_restore && type !== "qemu") throw new ProxmoxError("live_restore only applies to VM backups");
+      if (a.unprivileged !== undefined && type !== "lxc") throw new ProxmoxError("unprivileged only applies to container backups");
+      const vmid = Number(params.vmid);
+      const force = Boolean(params.force);
+      const existing = (await client.get<Obj[]>("/cluster/resources", { type: "vm" })).find((r) => Number(r.vmid) === vmid);
+      if (existing && !force) {
+        throw new ProxmoxError(`VMID ${vmid} is in use by ${existing.type === "qemu" ? "VM" : "container"} "${existing.name ?? ""}" on ${existing.node}; pick a free VMID (proxmox_get_next_vmid) or pass force=true to overwrite it`);
+      }
+      if (force && existing) {
+        if (!ctx.allowDeletes) throw new ProxmoxError("Overwriting an existing guest destroys it and needs delete permission (PROXMOX_ALLOW_DELETES); restore to a new VMID instead");
+        if (existing.type !== type) throw new ProxmoxError(`VMID ${vmid} is a ${existing.type === "qemu" ? "VM" : "container"} but the backup is a ${type === "qemu" ? "VM" : "container"}`);
+        if (existing.status === "running") throw new ProxmoxError(`Guest ${vmid} is running; stop it before restoring over it`);
+      }
+      const node = a.node ?? (force && existing ? existing.node : await nodeForStorage(client, storageOf(a.volid)));
       const upid = await client.post(`/nodes/${enc(node)}/${type}`, params);
-      return runTask(client, upid, a.wait, { vmid: a.vmid, node, type: type === "qemu" ? "vm" : "container", volid: a.volid });
+      return runTask(client, upid, a.wait, { vmid, node, type: type === "qemu" ? "vm" : "container", volid: a.volid });
     },
   });
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ProxmoxClient } from "../proxmox/client.js";
 import { compact, flag, isoTime } from "../proxmox/format.js";
-import { defined, defineTool, deleteKeysArg, deleteParam, digestArg, enc, extraArg, rawArg, runTask, waitArg, type ToolContext } from "./util.js";
+import { defined, defineTool, deleteKeysArg, deleteParam, digestArg, enc, extraArg, rawArg, runTask, waitArg, withExtra, type ToolContext } from "./util.js";
 
 type Obj = Record<string, any>;
 
@@ -136,7 +136,7 @@ export function registerReplicationTools(ctx: ToolContext): void {
     idempotent: true,
     handler: async (a) => {
       const jobs = await client.get<Obj[]>("/cluster/replication");
-      const params = defined({ schedule: a.schedule, rate: a.rate, comment: a.comment, disable: a.disable, ...a.extra });
+      const params = defined(withExtra({ schedule: a.schedule, rate: a.rate, comment: a.comment, disable: a.disable }, a.extra));
       const existing = a.id ? jobs.find((j) => j.id === a.id) : undefined;
       if (existing) {
         if (a.target && a.target !== existing.target) throw new Error(`Job ${a.id} replicates to ${existing.target}; the target can't be changed (create a new job)`);

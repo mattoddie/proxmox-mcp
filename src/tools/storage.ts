@@ -16,6 +16,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -325,7 +326,7 @@ export function registerStorageTools(ctx: ToolContext): void {
     idempotent: true,
     handler: async (a) => {
       const exists = await storageExists(client, a.storage);
-      const params: Obj = defined({
+      const params: Obj = defined(withExtra({
         type: a.type,
         content: a.content?.join(","),
         nodes: a.nodes?.join(","),
@@ -364,8 +365,7 @@ export function registerStorageTools(ctx: ToolContext): void {
         "prune-backups": pruneString(a.prune_backups),
         "max-protected-backups": a.max_protected_backups,
         bwlimit: a.bwlimit,
-        ...a.extra,
-      });
+      }, a.extra));
       let result: unknown;
       if (exists) {
         const fixed = CREATE_ONLY.filter((k) => params[k] !== undefined);

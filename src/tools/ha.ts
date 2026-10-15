@@ -13,6 +13,7 @@ import {
   limitArg,
   rawArg,
   searchArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -208,7 +209,7 @@ export function registerHaTools(ctx: ToolContext): void {
     handler: async (a) => {
       const sid = await canonicalSid(client, a.sid);
       const existing = (await client.get<Obj[]>("/cluster/ha/resources")).some((r) => r.sid === sid);
-      const params = defined({
+      const params = defined(withExtra({
         state: a.state,
         group: a.group,
         max_restart: a.max_restart,
@@ -216,8 +217,7 @@ export function registerHaTools(ctx: ToolContext): void {
         failback: a.failback,
         "auto-rebalance": a.auto_rebalance,
         comment: a.comment,
-        ...a.extra,
-      });
+      }, a.extra));
       if (existing) {
         await client.put(`/cluster/ha/resources/${enc(sid)}`, defined({ ...params, delete: deleteParam(a.delete), digest: a.digest }));
       } else {
@@ -311,7 +311,7 @@ export function registerHaTools(ctx: ToolContext): void {
     },
     handler: async (a) => {
       const exists = (await client.get<Obj[]>("/cluster/ha/groups")).some((g) => g.group === a.group);
-      const params = defined({ nodes: a.nodes?.join(","), restricted: a.restricted, nofailback: a.nofailback, comment: a.comment, ...a.extra });
+      const params = defined(withExtra({ nodes: a.nodes?.join(","), restricted: a.restricted, nofailback: a.nofailback, comment: a.comment }, a.extra));
       if (exists) {
         await client.put(`/cluster/ha/groups/${enc(a.group)}`, defined({ ...params, delete: deleteParam(a.delete), digest: a.digest }));
       } else {
@@ -386,15 +386,14 @@ export function registerHaTools(ctx: ToolContext): void {
     handler: async (a) => {
       const existing = (await client.get<Obj[]>("/cluster/ha/rules")).find((r) => r.rule === a.rule);
       const resources = a.resources ? (await canonicalSids(client, a.resources)).join(",") : undefined;
-      const params = defined({
+      const params = defined(withExtra({
         resources,
         nodes: a.nodes?.join(","),
         affinity: a.affinity,
         strict: a.strict,
         disable: a.disable,
         comment: a.comment,
-        ...a.extra,
-      });
+      }, a.extra));
       if (existing) {
         if (a.type && existing.type && a.type !== existing.type) throw new Error(`Rule ${a.rule} is a ${existing.type} rule; its type can't be changed`);
         // The section-config update schema is selected by `type`, so it must be sent on updates too.

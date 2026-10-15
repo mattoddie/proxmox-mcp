@@ -12,6 +12,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -534,7 +535,7 @@ export function registerCephTools(ctx: ToolContext): void {
     handler: async (a) => {
       const upid = await client.post(
         `${cephBase(a.node)}/osd`,
-        defined({
+        defined(withExtra({
           dev: a.dev,
           "crush-device-class": a.device_class,
           db_dev: a.db_dev,
@@ -543,8 +544,7 @@ export function registerCephTools(ctx: ToolContext): void {
           wal_dev_size: a.wal_dev_size,
           encrypted: a.encrypted,
           "osds-per-device": a.osds_per_device,
-          ...a.extra,
-        }),
+        }, a.extra)),
       );
       return runTask(client, upid, a.wait, { node: a.node, dev: a.dev });
     },
@@ -603,7 +603,7 @@ export function registerCephTools(ctx: ToolContext): void {
       const node = await cephNode(client, a.node);
       const upid = await client.post(
         `${cephBase(node)}/pool`,
-        defined({
+        defined(withExtra({
           name: a.name,
           size: a.size,
           min_size: a.min_size,
@@ -616,8 +616,7 @@ export function registerCephTools(ctx: ToolContext): void {
           target_size_ratio: a.target_size_ratio,
           add_storages: a.add_storages,
           "erasure-coding": a.erasure_coding,
-          ...a.extra,
-        }),
+        }, a.extra)),
       );
       return runTask(client, upid, a.wait, { pool: a.name });
     },
@@ -633,7 +632,7 @@ export function registerCephTools(ctx: ToolContext): void {
     input: { name: z.string().describe("Pool name"), ...poolSettings, node: cephNodeArg, wait: waitArg, extra: extraArg },
     handler: async (a) => {
       const node = await cephNode(client, a.node);
-      const params = defined({
+      const params = defined(withExtra({
         size: a.size,
         min_size: a.min_size,
         pg_num: a.pg_num,
@@ -643,8 +642,7 @@ export function registerCephTools(ctx: ToolContext): void {
         crush_rule: a.crush_rule,
         target_size: a.target_size,
         target_size_ratio: a.target_size_ratio,
-        ...a.extra,
-      });
+      }, a.extra));
       if (!Object.keys(params).length) throw new Error("Nothing to change: give at least one setting");
       const upid = await client.put(`${cephBase(node)}/pool/${enc(a.name)}`, params);
       return runTask(client, upid, a.wait, { pool: a.name, changed: Object.keys(params) });
@@ -844,7 +842,7 @@ export function registerCephTools(ctx: ToolContext): void {
     handler: async (a) => {
       await client.post(
         `${cephBase(a.node)}/init`,
-        defined({ network: a.network, "cluster-network": a.cluster_network, size: a.size, min_size: a.min_size, ...a.extra }),
+        defined(withExtra({ network: a.network, "cluster-network": a.cluster_network, size: a.size, min_size: a.min_size }, a.extra)),
       );
       return { initialised: true, node: a.node };
     },

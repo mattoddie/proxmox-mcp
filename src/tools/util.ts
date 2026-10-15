@@ -50,7 +50,27 @@ export const rawArg = z.boolean().optional().describe("Return the full unprocess
 export const extraArg = z
   .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
   .optional()
-  .describe("Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer). Merged last, so they override typed arguments.");
+  .describe(
+    "Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here.",
+  );
+
+/**
+ * Merges `extra` into request parameters built from typed arguments. Keys the
+ * tool sets itself (present in `params`, even with an undefined value because
+ * the argument was omitted) and the `reserved` keys are refused, so `extra`
+ * can't override a value the tool validated or gated on (vmid, force, delete...).
+ * Pass `params` before `defined()` so omitted typed arguments still count.
+ */
+export function withExtra<T extends Obj>(params: T, extra: Obj | undefined, reserved: readonly string[] = []): T {
+  if (!extra) return params;
+  const clash = Object.keys(extra).filter((k) => Object.hasOwn(params, k) || reserved.includes(k));
+  if (clash.length) {
+    throw new Error(
+      `extra must not set ${clash.map((k) => `\`${k}\``).join(", ")}: use the tool's typed arguments (extra is only for parameters the tool doesn't handle itself)`,
+    );
+  }
+  return { ...params, ...extra };
+}
 
 /** Config keys to remove, sent as Proxmox's `delete` parameter. */
 export const deleteKeysArg = z

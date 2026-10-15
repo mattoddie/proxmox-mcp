@@ -30,6 +30,7 @@ import {
   searchArg,
   vmidArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -779,17 +780,21 @@ export function registerVmsTools(ctx: ToolContext): void {
         params[`net${i}`] = buildNet(n);
       });
       const boot = a.boot_order ?? (a.disks?.length || a.iso ? Object.keys(params).filter((k) => DISK_RE.test(k) && !/^(efidisk|tpmstate)/.test(k) && !/cloudinit/.test(params[k])).sort(bootSort) : undefined);
-      const body = {
-        vmid,
-        ...commonParams(a),
-        scsihw: a.scsihw ?? "virtio-scsi-single",
-        ostype: a.ostype ?? "l26",
-        ...params,
-        boot: boot?.length ? `order=${boot.join(";")}` : undefined,
-        start: a.start,
-        pool: a.pool,
-        ...a.extra,
-      };
+      const body = withExtra(
+        {
+          vmid,
+          ...commonParams(a),
+          scsihw: a.scsihw ?? "virtio-scsi-single",
+          ostype: a.ostype ?? "l26",
+          ...params,
+          boot: boot?.length ? `order=${boot.join(";")}` : undefined,
+          start: a.start,
+          pool: a.pool,
+        },
+        a.extra,
+        // These turn a create into a backup restore, which with force overwrites an existing VM; use proxmox_restore_backup.
+        ["archive", "force", "unique", "live-restore"],
+      );
       checkGatedParams(ctx, body);
       const upid = await client.post(`/nodes/${encodeURIComponent(node)}/qemu`, defined(body));
       return runTask(client, upid, a.wait, { vmid, node, name: a.name });
@@ -867,7 +872,7 @@ export function registerVmsTools(ctx: ToolContext): void {
     handler: async (a) => {
       if (a.extra && "force" in a.extra) throw new Error("`force` (physically deleting disks) is not allowed here; use proxmox_unlink_vm_disk");
       const g = await vm(a);
-      const params = defined({
+      const params = defined(withExtra({
         ...commonParams(a),
         vcpus: a.vcpus,
         cpulimit: a.cpulimit,
@@ -876,8 +881,7 @@ export function registerVmsTools(ctx: ToolContext): void {
         revert: deleteParam(a.revert),
         digest: a.digest,
         skiplock: a.skiplock,
-        ...a.extra,
-      });
+      }, a.extra));
       if (!Object.keys(params).some((k) => k !== "digest" && k !== "skiplock")) throw new Error("Nothing to change: give at least one setting, delete or revert");
       checkGatedParams(ctx, params);
       const upid = await client.post(`${client.guestPath(g)}/config`, params);

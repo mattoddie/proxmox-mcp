@@ -17,6 +17,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -501,7 +502,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         // The update endpoint requires `type` too, so keep the current one.
         type = (await client.get<Obj>(`${nodePath(node)}/network/${enc(a.iface)}`)).type;
       }
-      const params = defined({
+      const params = defined(withExtra({
         type,
         cidr: a.cidr,
         gateway: a.gateway,
@@ -519,8 +520,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         mtu: a.mtu,
         autostart: a.autostart,
         comments: a.comments,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) {
         await client.post(`${nodePath(node)}/network`, { iface: a.iface, ...params });
       } else {
@@ -755,7 +755,7 @@ export function registerNodesTools(ctx: ToolContext): void {
         const cur = await client.get<Obj>(`${nodePath(node)}/config`);
         deleteKeys = del.filter((k) => !/^acmedomain\d+$/.test(k) || k in cur);
       }
-      await client.put(`${nodePath(node)}/config`, defined({ ...params, delete: deleteParam(deleteKeys), ...a.extra }));
+      await client.put(`${nodePath(node)}/config`, defined(withExtra({ ...params, delete: deleteParam(deleteKeys) }, a.extra)));
       return { node, updated: true, config: await getNodeConfig(client, node) };
     },
   });

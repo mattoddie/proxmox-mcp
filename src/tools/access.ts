@@ -14,6 +14,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -206,7 +207,7 @@ export function registerAccessTools(ctx: ToolContext): void {
       if (a.password !== undefined && !a.create) {
         throw new Error("password can only be set when creating a user; use proxmox_change_password for existing users");
       }
-      const params = defined({
+      const params = defined(withExtra({
         email: a.email,
         firstname: a.firstname,
         lastname: a.lastname,
@@ -215,8 +216,7 @@ export function registerAccessTools(ctx: ToolContext): void {
         enable: a.enable,
         comment: a.comment,
         keys: a.keys,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) await client.post("/access/users", { userid: a.userid, ...defined({ password: a.password }), ...params });
       else await client.put(`/access/users/${enc(a.userid)}`, { ...defined({ append: a.append }), ...params });
       const u = await client.get<Obj>(`/access/users/${enc(a.userid)}`);
@@ -679,7 +679,7 @@ export function registerAccessTools(ctx: ToolContext): void {
       extra: extraArg,
     },
     handler: async (a) => {
-      const params = defined({
+      const params = defined(withExtra({
         comment: a.comment,
         default: a.default,
         tfa: a.tfa,
@@ -700,8 +700,7 @@ export function registerAccessTools(ctx: ToolContext): void {
         scopes: a.scopes,
         autocreate: a.autocreate,
         "sync-defaults-options": a.sync_defaults_options,
-        ...a.extra,
-      });
+      }, a.extra));
       if (a.create) {
         if (!a.type) throw new Error("type is required when creating a realm");
         await client.post("/access/domains", { realm: a.realm, type: a.type, ...params });

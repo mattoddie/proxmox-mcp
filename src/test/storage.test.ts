@@ -74,7 +74,7 @@ describe("storage tools", () => {
       encryption_key: "autogen",
       prune_backups: { keep_last: 3, keep_daily: 7, keep_all: false },
       max_protected_backups: -1,
-      extra: { port: 8008 },
+      port: 8008,
     });
     assert.equal(res.action, "created");
     assert.equal(res.result.config["encryption-key"], "<redacted>");

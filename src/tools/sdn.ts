@@ -15,6 +15,7 @@ import {
   runTask,
   searchArg,
   waitArg,
+  withExtra,
   type ToolContext,
 } from "./util.js";
 
@@ -107,16 +108,16 @@ async function saveObject(
   opts: { vnet?: string; createOnly?: Obj; deleteKeys?: string[]; digest?: string; lockToken?: string; extra?: Obj },
 ): Promise<Obj> {
   const { client } = ctx;
-  const common = defined({ ...params, "lock-token": opts.lockToken });
+  const common = { ...params, "lock-token": opts.lockToken };
   if (create) {
-    await client.post(collectionPath(kind, opts.vnet), defined({ [KIND_INFO[kind].key]: id, ...opts.createOnly, ...common, ...opts.extra }));
+    await client.post(collectionPath(kind, opts.vnet), defined(withExtra({ [KIND_INFO[kind].key]: id, ...opts.createOnly, ...common }, opts.extra)));
   }
   // After a successful create, failing to resolve the read-back path must not turn the result into an error.
   const path = create ? await resolvedObjectPath(client, kind, id, opts.vnet).catch(() => undefined) : await resolvedObjectPath(client, kind, id, opts.vnet);
   if (!create) {
     await client.put(
       path!,
-      defined({ ...common, delete: deleteParam(opts.deleteKeys), digest: opts.digest, ...opts.extra }),
+      defined(withExtra({ ...common, delete: deleteParam(opts.deleteKeys), digest: opts.digest }, opts.extra)),
     );
   }
   const readBack = path
