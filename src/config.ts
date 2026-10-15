@@ -60,9 +60,15 @@ export interface Config {
     host: string;
     port: number;
     authToken?: string;
+    /** Serve /mcp without a bearer token (MCP_ALLOW_UNAUTHENTICATED); only behind something else that authenticates. */
+    allowUnauthenticated: boolean;
+    /** Lower-cased Host (and Origin) allow-list. */
     allowedHosts?: string[];
   };
 }
+
+export const AUTH_TOKEN_REQUIRED =
+  "MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); set MCP_ALLOW_UNAUTHENTICATED=true only behind something else that authenticates";
 
 type Env = Record<string, string | undefined>;
 
@@ -175,8 +181,11 @@ export function loadConfig(env: Env = process.env): Config {
 
   const allowedHosts = read(env, "MCP_ALLOWED_HOSTS")
     ?.split(",")
-    .map((h) => h.trim())
+    .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
+  const authToken = read(env, "MCP_AUTH_TOKEN");
+  const allowUnauthenticated = bool(read(env, "MCP_ALLOW_UNAUTHENTICATED"), false);
+  if (transport === "http" && !authToken && !allowUnauthenticated) throw new Error(AUTH_TOKEN_REQUIRED);
 
   return {
     proxmox: {
@@ -194,9 +203,11 @@ export function loadConfig(env: Env = process.env): Config {
     tools: { allowWrites, allowDeletes, allowExec, toolsets },
     transport,
     http: {
-      host: read(env, "MCP_HTTP_HOST") ?? "0.0.0.0",
+      // Loopback unless told otherwise; the Docker image sets MCP_HTTP_HOST=0.0.0.0.
+      host: read(env, "MCP_HTTP_HOST") ?? "127.0.0.1",
       port: int("MCP_HTTP_PORT", read(env, "MCP_HTTP_PORT"), 8080),
-      authToken: read(env, "MCP_AUTH_TOKEN"),
+      authToken,
+      allowUnauthenticated,
       allowedHosts: allowedHosts?.length ? allowedHosts : undefined,
     },
   };
