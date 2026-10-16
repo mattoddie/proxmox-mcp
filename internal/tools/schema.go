@@ -60,8 +60,15 @@ func Int() *Schema {
 // Bool is z.boolean().
 func Bool() *Schema { return &Schema{kind: "boolean"} }
 
-// Enum is z.enum([...]).
-func Enum(values ...string) *Schema { return &Schema{kind: "enum", enum: values} }
+// Enum is z.enum([...]). zod keeps the values as the keys of an object, so integer-like values
+// ("3") come first, in numeric order, as JavaScript orders object keys.
+func Enum(values ...string) *Schema {
+	o := js.NewObj()
+	for _, v := range values {
+		o.Set(v, true)
+	}
+	return &Schema{kind: "enum", enum: o.Keys()}
+}
 
 // Arr is z.array(items).
 func Arr(items *Schema) *Schema { return &Schema{kind: "array", items: items} }
