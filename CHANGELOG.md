@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Changed
 
 - The server is rewritten in Go, on the official Go MCP SDK. There are no behaviour changes: tool names, titles, descriptions, arguments, access levels and annotations, the prompts, the configuration variables, and tool output and error messages are the same as in 0.2.0, which a reference test checks against what the TypeScript server listed.
@@ -56,6 +58,7 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mattoddie/proxmox-mcp/releases/tag/v0.1.0
