@@ -4,12 +4,12 @@
 
 ## How was it tested?
 
-<!-- e.g. new unit tests against the mock, `npm test`, and/or tried against a real Proxmox VE (version, single node or cluster). -->
+<!-- e.g. new unit tests against the mock, `make test`, and/or tried against a real Proxmox VE (version, single node or cluster). -->
 
 ## Checklist
 
-- [ ] `npm test` passes
-- [ ] New or changed tools have tests, and `npm run docs:tools` has been run
+- [ ] `make lint` and `make test` pass
+- [ ] New or changed tools have tests, and `make docs` has been run
 - [ ] New tools have the right access level (`write`, `delete` or `exec`) and `destructive` flag
 - [ ] Docs updated where behaviour changed (README / `docs/`)
 - [ ] `CHANGELOG.md` has an entry under **Unreleased** for user-facing changes

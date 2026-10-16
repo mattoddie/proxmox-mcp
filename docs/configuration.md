@@ -84,7 +84,7 @@ Tools that aren't allowed are **not registered at all**. The assistant can't see
 
 | Variable | Default | Description |
 |---|---|---|
-| `MCP_TRANSPORT` | `http` in the Docker image (`stdio` when run with Node directly) | `http` for Streamable HTTP, or `stdio`. |
+| `MCP_TRANSPORT` | `http` in the Docker image (`stdio` when the binary is run directly) | `http` for Streamable HTTP, or `stdio`. |
 | `MCP_HTTP_HOST` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Address to listen on (HTTP only). Outside Docker the server only listens on localhost unless you set this. |
 | `MCP_HTTP_PORT` | `8080` | Port to listen on (HTTP only). |
 | `MCP_AUTH_TOKEN` | **required** for `http` | Every request to `/mcp` must send `Authorization: Bearer <token>`. With the `http` transport the server refuses to start without it, unless `MCP_ALLOW_UNAUTHENTICATED=true`. Generate one with `openssl rand -hex 32`. Not needed for `stdio`. |

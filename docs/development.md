@@ -14,187 +14,189 @@ This page is for people working on proxmox-mcp itself. Start with [CONTRIBUTING.
 
 ## Setup
 
-You need Node.js 22 or later (CI tests 22 and 24) and Docker for building the image. The image is built on the current Node.js LTS (`node:24-alpine`); Dependabot skips odd-numbered Node majors, which are short-lived "Current" releases, so it only proposes even-numbered majors, which become LTS.
+You need Go (the version in `go.mod`; `go` downloads the pinned toolchain itself) and Docker for building the image. The image is a static binary on [distroless](https://github.com/GoogleContainerTools/distroless) `static-debian13:nonroot`.
 
 ```sh
 git clone https://github.com/mattoddie/proxmox-mcp.git
 cd proxmox-mcp
-npm ci
-npm test            # type-checks, builds and runs all tests against a mock Proxmox API
+make test           # runs all tests against a mock Proxmox API
 ```
 
-| Script | What it does |
+| Command | What it does |
 |---|---|
-| `npm run build` | Compile TypeScript from `src/` to `dist/` |
-| `npm test` | Build, then run `dist/test/*.test.js` with the Node test runner |
-| `npm start` | Run the built server (`node dist/index.js`) |
-| `npm run docs:tools` | Regenerate [`docs/tools.md`](tools.md) from the tool definitions |
-| `npm run docs:check` | Fail if `docs/tools.md` is out of date (CI runs this) |
+| `make build` | Build `bin/proxmox-mcp` |
+| `make test` | `go test ./...` |
+| `make lint` | `gofmt` and `go vet` (CI runs this) |
+| `make docs` | Regenerate [`docs/tools.md`](tools.md) from the tool definitions |
+| `make docs-check` | Fail if `docs/tools.md` is out of date (CI runs this) |
+| `make vulncheck` | Scan the dependencies with `govulncheck` |
+| `make image` | Build the Docker image |
 
-The project deliberately has only three runtime dependencies: `@modelcontextprotocol/sdk`, `zod` and `undici`. There's no test framework, linter or bundler. Please discuss before adding a dependency.
+The binary has subcommands: `proxmox-mcp` (or `proxmox-mcp serve`) runs the server, `proxmox-mcp healthcheck` is the image's health check and `proxmox-mcp version` prints the version, which release builds set with `-ldflags`.
+
+The project deliberately has one direct dependency, the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk). There's no test framework or linter beyond the Go toolchain. Please discuss before adding a dependency.
 
 ## Project layout
 
 ```text
-src/
-├── index.ts            # entry point: load config, pick transport, handle signals
-├── config.ts           # environment variables → typed Config (validation lives here)
-├── server.ts           # builds the McpServer, its instructions, and registers every toolset and prompt
-├── http.ts             # stateless Streamable HTTP transport, auth, Host allow-list, /health
-├── prompts.ts          # the built-in MCP prompts
+cmd/
+├── proxmox-mcp/        # entry point: load config, pick transport, handle signals; healthcheck and version
+└── gen-tool-docs/      # writes docs/tools.md
+internal/
+├── config/             # environment variables → typed Config (validation lives here)
+├── httpserver/         # stateless Streamable HTTP transport, auth, Host/Origin allow-list, /health
+├── js/                 # JSON values with JavaScript semantics (ordered objects, undefined, number formatting)
 ├── proxmox/
-│   ├── client.ts       # ProxmoxClient: token/ticket auth, requests, errors, node/guest resolution, tasks
-│   └── format.ts       # summary helpers: sizes, times, property strings, disks/NICs, redaction
-├── tools/
-│   ├── util.ts         # defineTool(), shared arguments (vmid, node, wait, extra, delete, digest…), runTask()
-│   └── <toolset>.ts    # one file per toolset: cluster, nodes, vms, containers, agent, …
-├── scripts/
-│   └── gen-tool-docs.ts
-└── test/
-    ├── mock-proxmox.ts # an in-process fake Proxmox VE API with a two-node cluster
-    ├── helpers.ts      # startEnv(), connect(), parse(), errorText()
-    └── *.test.ts
+│   ├── client.go       # Client: token/ticket auth, requests, errors, TLS pinning, node/guest resolution, tasks
+│   ├── format.go       # summary helpers: sizes, times, property strings, disks/NICs, redaction
+│   └── proxmoxtest/    # an in-process fake Proxmox VE API with a two-node cluster
+└── tools/
+    ├── tools.go        # NewServer(), its instructions, Define() and the access gates
+    ├── schema.go       # argument schemas: JSON Schema output and validation
+    ├── helpers.go      # shared arguments (vmid, node, wait, extra, delete, digest…), withExtra(), runTask()
+    ├── prompts.go      # the built-in MCP prompts
+    ├── <toolset>.go    # one file per toolset: cluster, nodes, vms, containers, agent, …
+    └── *_test.go       # tests against proxmoxtest, plus testdata/
 ```
+
+The server was first written in TypeScript. The tools reshape loosely typed API data, so `internal/js` keeps the JavaScript semantics the original code relied on (key order, `undefined` versus `null`, `Number()`/`String()` conversions, `toFixed`), which keeps the output identical. `testdata/typescript-reference.json` records what the TypeScript server listed (every tool's schema, annotations and access level, and the prompts), and the reference tests check the Go server against it.
 
 ## How a request flows
 
 1. An MCP client calls a tool, for example `proxmox_vm_power {vmid: 101, action: "start"}`.
-2. The MCP SDK validates the arguments against the tool's zod schema.
-3. The handler registered by `defineTool()` runs. For guest tools it first calls `client.resolveGuest(vmid)`, which finds the guest's node and type in `/cluster/resources`. For node tools it calls `client.resolveNode(node)`.
-4. `ProxmoxClient.request()` authenticates (a `PVEAPIToken` header, or a ticket cookie plus CSRF token that's renewed before it expires and on `401`), sends parameters the way the web UI does (query string for `GET`/`DELETE`, form body for `POST`/`PUT`), and unwraps the `{data}` envelope. Failures become a `ProxmoxError` with Proxmox's reason, any per-parameter errors and a hint.
-5. If Proxmox returns a task ID (UPID), the handler passes it to `runTask()`, which waits for the task with `client.waitForTask()` unless `wait: false`, and turns a failed task into an error with the end of its log.
-6. The handler summarises the result (`proxmox/format.ts`), redacts secrets and returns plain data.
-7. `defineTool()` serialises that to JSON text. A thrown error becomes `isError: true` with the message, so the model can see what went wrong and adjust.
+2. The handler that `Define()` registers validates the arguments against the tool's schema (types, ranges, enums, patterns, required arguments) and drops unknown ones.
+3. The tool's handler runs. For guest tools it first calls `client.ResolveGuest()`, which finds the guest's node and type in `/cluster/resources`. For node tools it calls `client.ResolveNode()`.
+4. `Client.Request()` authenticates (a `PVEAPIToken` header, or a ticket cookie plus CSRF token that's renewed before it expires and on `401`), sends parameters the way the web UI does (query string for `GET`/`DELETE`, form body for `POST`/`PUT`), never follows redirects, and unwraps the `{data}` envelope. Failures become a `*proxmox.Error` with Proxmox's reason, any per-parameter errors and a hint.
+5. If Proxmox returns a task ID (UPID), the handler passes it to `runTask()`, which waits for the task with `client.WaitForTask()` unless `wait: false`, and turns a failed task into an error with the end of its log.
+6. The handler summarises the result (`proxmox/format.go`), redacts secrets and returns plain data.
+7. `Define()` serialises that to JSON text. A returned error becomes `isError: true` with the message, so the model can see what went wrong and adjust.
 
 ## Adding a tool
 
-Tools are defined with `defineTool()` in the file for their toolset. Here's a complete example from `containers.ts`:
+Tools are defined with `c.Define()` in the file for their toolset. Here's an example in the style of `containers.go`:
 
-```ts
-defineTool(ctx, "proxmox_resize_container_disk", {
-  toolset: "containers",                  // which PROXMOX_TOOLSETS entry enables it
-  title: "Resize a container disk",       // short human title
-  description:
-    "Grow a container's rootfs or mount point volume. size is absolute (\"20G\") or relative (\"+5G\"). Shrinking is not supported. The filesystem is grown automatically, also while running.",
-  write: true,                            // only registered with PROXMOX_ALLOW_WRITES=true
-  destructive: false,                     // growing a disk can't lose data
-  input: {
-    vmid: vmidArg,
-    node: guestNodeArg,                   // optional; looked up from the VMID
-    disk: volumeKeyArg,
-    size: z.string().regex(/^\+?\d+(\.\d+)?[KMGT]?$/, "e.g. 20G or +5G").describe("New size, e.g. \"20G\", or an increase such as \"+5G\""),
-    digest: digestArg,
-    wait: waitArg,
-  },
-  handler: async (a) => {
-    const g = await ct(a.vmid, a.node);   // resolveGuest(), insisting on a container
-    const upid = await client.put(`${client.guestPath(g)}/resize`, defined({ disk: a.disk, size: a.size, digest: a.digest }));
-    return runTask(client, upid, a.wait, { vmid: g.vmid, node: g.node, disk: a.disk, size: a.size });
-  },
-});
+```go
+c.Define("proxmox_resize_container_disk", Def{
+	Toolset:     "containers",             // which PROXMOX_TOOLSETS entry enables it
+	Title:       "Resize a container disk", // short human title
+	Description: "Grow a container's rootfs or mount point volume. size is absolute (\"20G\") or relative (\"+5G\"). ...",
+	Write:       true,                     // only registered with PROXMOX_ALLOW_WRITES=true
+	Destructive: False,                    // growing a disk can't lose data
+	Input: []Prop{
+		P("vmid", vmidArg),
+		P("node", guestNodeArg),           // optional; looked up from the VMID
+		P("disk", Str().Pattern(`^(rootfs|mp\d+)$`, "must be rootfs or mpN").D("Volume to resize")),
+		P("size", Str().Pattern(`^\+?\d+(\.\d+)?[KMGT]?$`, "e.g. 20G or +5G").D("New size, e.g. \"20G\", or an increase such as \"+5G\"")),
+		P("digest", digestArg),
+		P("wait", waitArg),
+	},
+	Handler: func(ctx context.Context, a *Obj) (any, error) {
+		g, err := c.guest(ctx, a, "lxc") // ResolveGuest(), insisting on a container
+		if err != nil {
+			return nil, err
+		}
+		upid, err := client.Put(ctx, client.GuestPath(g)+"/resize", defined(js.O("disk", a.Get("disk"), "size", a.Get("size"), "digest", a.Get("digest"))))
+		if err != nil {
+			return nil, err
+		}
+		return runTask(ctx, client, upid, a.Get("wait"), js.O("vmid", g.VMID, "node", g.Node, "disk", a.Get("disk"), "size", a.Get("size")))
+	},
+})
 ```
 
-The `defineTool()` options that control registration:
+Arguments arrive as an ordered `*js.Obj`: an omitted argument is `js.Undef`, so `a.Get("x")` can go straight into a parameter object and `defined()` drops it. Build results with `js.O(...)` in the order the fields should appear, and `proxmox.C(...)` (or `proxmox.Compact`) to drop empty ones.
 
-| Option | Effect |
+The `Def` fields that control registration:
+
+| Field | Effect |
 |---|---|
-| `toolset` | Required. The tool is only registered when this toolset is enabled. |
-| `write: true` | The tool changes state. Only registered when writes are enabled. Marked `readOnlyHint: false`. |
-| `delete: true` | The tool deletes guests, data or configuration. Only registered when deletes are enabled too. Marked destructive. |
-| `exec: true` | The tool runs commands or reads or writes files inside guests, or talks to the QEMU monitor. Only registered when exec is enabled too. Marked destructive unless `readOnly` is set. |
-| `destructive` | Overrides the destructive hint for write tools, so clients confirm before running them. Set it to `true` for anything that stops, restarts, migrates, rolls back or reconfigures; `false` for harmless writes. |
-| `idempotent: true` | Repeating the call with the same arguments has no further effect. Sets `idempotentHint`. |
-| `readOnly` | Overrides the read-only hint. Used, for example, by exec tools that only read. |
+| `Toolset` | Required. The tool is only registered when this toolset is enabled. |
+| `Write: true` | The tool changes state. Only registered when writes are enabled. Marked `readOnlyHint: false`. |
+| `Delete: true` | The tool deletes guests, data or configuration. Only registered when deletes are enabled too. Marked destructive. |
+| `Exec: true` | The tool runs commands or reads or writes files inside guests, or talks to the QEMU monitor. Only registered when exec is enabled too. Marked destructive unless `ReadOnly` is set. |
+| `Destructive` | Overrides the destructive hint for write tools, so clients confirm before running them. Set it to `True` for anything that stops, restarts, migrates, rolls back or reconfigures; `False` for harmless writes. |
+| `Idempotent: true` | Repeating the call with the same arguments has no further effect. Sets `idempotentHint`. |
+| `ReadOnly` | Overrides the read-only hint. Used, for example, by exec tools that only read. |
 
-`delete` and `exec` imply `write`, so a tool with `delete: true` is never registered without writes.
+`Delete` and `Exec` imply `Write`, so a tool with `Delete: true` is never registered without writes.
 
-The shared arguments in `tools/util.ts` keep tools consistent:
+The shared arguments in `tools/helpers.go` keep tools consistent:
 
 | Argument | Use it for |
 |---|---|
-| `vmidArg`, `guestNodeArg` | Tools that act on a guest. Resolve with `client.resolveGuest(vmid, { node, type })`. |
-| `nodeArg`, `nodeRequiredArg` | Node-scoped tools. Resolve with `client.resolveNode(node)`. |
+| `vmidArg`, `guestNodeArg` | Tools that act on a guest. Resolve with `c.guest(ctx, a, "qemu" \| "lxc" \| "")`. |
+| `nodeArg`, `nodeRequiredArg` | Node-scoped tools. Resolve with `c.node(ctx, a)`. |
 | `waitArg` | Any tool whose API call returns a UPID. Pass the result through `runTask()`. |
 | `searchArg`, `limitArg(n)`, `rawArg` | List tools. Use `filterAndLimit()` for consistent `{total, returned, items}` results. |
-| `extraArg` | Raw Proxmox parameters for options the typed arguments don't cover. Merge them with `withExtra(params, a.extra, reserved?)` **before** `defined()`: it refuses keys the tool sets itself (even ones left undefined) and any `reserved` keys, so `extra` can't override checked or gated parameters. Run permission checks on the merged result. |
+| `extraArg` | Raw Proxmox parameters for options the typed arguments don't cover. Merge them with `withExtra(params, a.Get("extra"), reserved...)` **before** `defined()` (or use `definedExtra()`): it refuses keys the tool sets itself (even ones left undefined) and any `reserved` keys, so `extra` can't override checked or gated parameters. Run permission checks on the merged result. |
 | `deleteKeysArg` | Config keys to remove, sent with `deleteParam()` as Proxmox's `delete` parameter. |
 | `digestArg` | Optimistic locking for config updates. |
 
 Checklist for a new tool:
 
-1. Put it in the right `src/tools/<toolset>.ts`. If it needs a new toolset, add it to `TOOLSETS` in `config.ts`, describe it in `TOOLSET_INFO` in `scripts/gen-tool-docs.ts`, and register it in `server.ts`.
-2. Mark its access level correctly with `write`, `delete` or `exec`, and set `destructive` deliberately.
+1. Put it in the right `internal/tools/<toolset>.go`. If it needs a new toolset, add it to `config.Toolsets`, describe it in `toolsetInfo` in `cmd/gen-tool-docs`, and register it in `NewServer()`.
+2. Mark its access level correctly with `Write`, `Delete` or `Exec`, and set `Destructive` deliberately.
 3. Address guests by VMID and resolve the node; never make the model look up a node it doesn't need to know.
 4. For anything that starts a task, offer `wait` and use `runTask()`.
 5. For updates, change only the fields passed, and offer `delete`, `digest` and `extra` where they apply. For named objects, follow the `save_*` convention with `create: true`.
-6. Return a **compact summary** and offer `raw: true` for the full object. Run anything that might contain secrets through `redactSecrets()`.
+6. Return a **compact summary** and offer `raw: true` for the full object. Run anything that might contain secrets through `proxmox.RedactSecrets()`.
 7. Write descriptions for the model: what the tool does, when to use it, units, side effects (*"the guest is stopped"*), and any version requirement (*"Proxmox VE 9+"*).
-8. Add tests in `src/test/<toolset>.test.ts` using the mock.
-9. Run `npm run docs:tools` and commit the updated `docs/tools.md`. If it's a notable feature, update the README table and [CHANGELOG](../CHANGELOG.md).
+8. Add tests in `internal/tools/<toolset>_test.go` using the mock.
+9. Run `make docs` and commit the updated `docs/tools.md`. Tools that aren't in `internal/tools/testdata/typescript-reference.json` fail the reference test's "no extra tools" check, so add an entry for a new tool there too (or, after a deliberate change to an existing tool, update its entry). If it's a notable feature, update the README table and [CHANGELOG](../CHANGELOG.md).
 
 ## Tool design guidelines
 
 - **Fewer, broader tools beat many narrow ones.** One `proxmox_vm_power` with an `action` is easier for a model than separate start, stop, shutdown and reboot tools.
 - **Never surprise.** Updates only change what was asked. Destructive actions are flagged. Deletes and exec are behind their own switches.
-- **Errors should teach.** Throw messages that tell the model, or the user, how to fix the call: *"target is required for migrate"*. `ProxmoxError` already adds hints for `401`, `403` and `501`.
+- **Errors should teach.** Return messages that tell the model, or the user, how to fix the call: *"target is required for migrate"*. `proxmox.Error` already adds hints for `401`, `403` and `501`.
 - **Respect Proxmox's own permissions.** Don't work around a `403`; report it. The token's ACLs are a security layer the user chose.
 - **Be honest about versions.** If an endpoint only exists on some Proxmox VE versions, say so in the description and let the `501` or `404` explain itself.
 
 ## Testing
 
-Tests use Node's built-in test runner against `MockProxmox` (`src/test/mock-proxmox.ts`), a small HTTP server that imitates the Proxmox VE API:
+Tests use the standard `go test` against `proxmoxtest.Mock` (`internal/proxmox/proxmoxtest`), a small HTTP server that imitates the Proxmox VE API:
 
-- A fixed two-node cluster (`pve1`, `pve2`) with VMs 100, 101 and template 9000, container 200 and three storages. `NODES`, `GUESTS`, `STORAGES`, `VM_100_CONFIG` and `CT_200_CONFIG` are exported for assertions.
-- Token authentication by default, or `new MockProxmox({ auth: "password" })` for the ticket and CSRF flow (user `root@pam`, password `secret`).
-- `on(method, regex, handler)` adds a route. Later routes take precedence over earlier ones and over the fixtures. Return the `data` payload, or `mock.error(status, reason, errors?)` for an HTTP error.
-- `upid(node, type, id, task)` makes a task ID with a given final state and log. Task status and log lookups work for any UPID; unknown ones report `stopped`/`OK`.
+- A fixed two-node cluster (`pve1`, `pve2`) with VMs 100, 101 and template 9000, container 200 and three storages. `NodesJSON`, `GuestsJSON`, `StoragesJSON`, `VM100ConfigJSON` and `CT200ConfigJSON` are exported for assertions.
+- Token authentication by default, or `proxmoxtest.New(t, "password")` for the ticket and CSRF flow (user `root@pam`, password `secret`).
+- `On(method, regexp, handler)` adds a route and `Reply(method, regexp, data)` one with a fixed answer. Later routes take precedence over earlier ones and over the fixtures. Return the `data` payload, or `proxmoxtest.Error(status, reason, errors...)` for an HTTP error.
+- `Upid(node, type, id, task...)` makes a task ID with a given final state and log. Task status and log lookups work for any UPID; unknown ones report `stopped`/`OK`.
 - Unmatched `POST`, `PUT` and `DELETE` requests succeed with `null`, so simple write tools can be tested by inspecting what was sent. Unmatched `GET`s return `404`.
-- `requests`, `requestsTo(prefix, method?)` and `lastWrite()` show what the server sent. Bodies are decoded from the form encoding.
+- `Requests()`, `RequestsTo(prefix, method)`, `Last()` and `LastWrite()` show what the server sent. Bodies are decoded from the form encoding.
 
-`startEnv()` in `helpers.ts` starts the mock, a client pointed at it and an MCP client with **every** tool enabled, and returns `call()` (parses the JSON result and fails on errors) and `callRaw()` (for error assertions with `errorText()`). A typical test:
+`startEnv(t)` in `env_test.go` starts the mock, a client pointed at it and an MCP session with **every** tool enabled; `env.call(t, name, args)` parses the JSON result (failing on errors) and `env.errorText(t, name, args)` asserts an error. Arguments can be a JSON string or a `js.O(...)`. A typical test:
 
-```ts
-import assert from "node:assert/strict";
-import { after, before, beforeEach, describe, it } from "node:test";
-import { errorText, startEnv, type TestEnv } from "./helpers.js";
+```go
+func TestVmPower(t *testing.T) {
+	env := startEnv(t)
 
-describe("vm power", () => {
-  let env: TestEnv;
-  before(async () => {
-    env = await startEnv();
-  });
-  after(() => env.stop());
-  beforeEach(() => env.mock.reset());
+	t.Run("starts a VM and waits for the task", func(t *testing.T) {
+		// VM 101 is a stopped VM on pve2 in the fixtures; the tool finds its node itself.
+		upid := env.mock.Upid("pve2", "qmstart", "101")
+		env.mock.Reply("POST", `^/nodes/pve2/qemu/101/status/start$`, upid)
+		res := env.call(t, "proxmox_vm_power", `{"vmid":101,"action":"start"}`)
+		eqAt(t, res, "status", "ok")
+		eqStr(t, env.mock.LastWrite().Path, "/nodes/pve2/qemu/101/status/start")
+	})
 
-  it("starts a VM and waits for the task", async () => {
-    // VM 101 is a stopped VM on pve2 in the fixtures; the tool finds its node itself.
-    const upid = env.mock.upid("pve2", "qmstart", "101");
-    env.mock.on("POST", /^\/nodes\/pve2\/qemu\/101\/status\/start$/, () => upid);
-    const res = await env.call("proxmox_vm_power", { vmid: 101, action: "start" });
-    assert.equal(res.status, "ok");
-    assert.equal(env.mock.lastWrite()?.path, "/nodes/pve2/qemu/101/status/start");
-  });
-
-  it("reports a failed task with its log", async () => {
-    const upid = env.mock.upid("pve2", "qmstart", "101", { status: "stopped", exitstatus: "start failed", log: ["kvm: out of memory"] });
-    env.mock.on("POST", /\/qemu\/101\/status\/start$/, () => upid);
-    const text = errorText(await env.callRaw("proxmox_vm_power", { vmid: 101, action: "start" }));
-    assert.match(text, /out of memory/);
-  });
-});
+	t.Run("reports a failed task with its log", func(t *testing.T) {
+		upid := env.mock.Upid("pve2", "qmstart", "101", proxmoxtest.Task{Status: "stopped", ExitStatus: "start failed", Log: []string{"kvm: out of memory"}})
+		env.mock.Reply("POST", `/qemu/101/status/start$`, upid)
+		match(t, env.errorText(t, "proxmox_vm_power", `{"vmid":101,"action":"start"}`), `out of memory`)
+	})
+}
 ```
 
-To test that a tool is gated, connect with fewer permissions using `connect(client, toolOptions("read"))` and check it isn't listed. `toolOptions()` takes `"read"`, `"write"`, `"delete"`, `"exec"` or `"all"`.
+To test that a tool is gated, connect with fewer permissions using `connect(t, client, toolOptions("read"))` and check it isn't listed. `toolOptions()` takes `"read"`, `"write"`, `"delete"`, `"exec"` or `"all"`.
 
-Run a single file with `npm run build && node --test dist/test/vms.test.js`.
+Run one toolset's tests with `go test ./internal/tools -run 'TestVms|TestReferenceTools/vms/'`. CI also runs the suite with the race detector (`CGO_ENABLED=1 go test -race ./...`).
 
 ## Running against a real Proxmox
 
 With the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```sh
-npm run build
-PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector node dist/index.js
+make build
+PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector bin/proxmox-mcp
 ```
 
 Or build the image and point Claude Code at it:
@@ -209,7 +211,7 @@ Please test write tools on a lab cluster or throwaway guests, not production. Pr
 
 ## Docs that are generated
 
-[`docs/tools.md`](tools.md) is generated by `src/scripts/gen-tool-docs.ts`. The script starts the server in-process several times with different settings, to work out each tool's toolset and access level, and lists the registered tools and prompts. Don't edit `docs/tools.md` by hand. Change the tool's title, description or argument `.describe()` text and run `npm run docs:tools`. CI fails if the committed file is stale.
+[`docs/tools.md`](tools.md) is generated by `cmd/gen-tool-docs`. It starts the server in-process with every tool enabled, lists the registered tools and prompts, and takes each tool's toolset and access level from its definition. Don't edit `docs/tools.md` by hand. Change the tool's title, description or argument `.D()` text and run `make docs`. CI fails if the committed file is stale.
 
 ## The website
 
