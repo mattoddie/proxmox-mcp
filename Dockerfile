@@ -1,35 +1,38 @@
 # syntax=docker/dockerfile:1
 
-# The build output is plain JavaScript with no native modules, so the build
-# stage always runs on the build machine's own platform. Multi-arch builds
-# don't have to run npm under emulation.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm test && npm prune --omit=dev && rm -rf dist/test dist/scripts
+# The binary is static Go, so the build stage runs on the build machine's own
+# platform and cross-compiles: multi-arch builds don't need emulation.
+FROM --platform=$BUILDPLATFORM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+COPY docs/tools.md ./docs/tools.md
+RUN CGO_ENABLED=0 go test ./...
 # Release builds pass the version from the Git tag (e.g. 1.2.3).
-ARG VERSION
-RUN if [ -n "$VERSION" ]; then npm pkg set version="$VERSION"; fi
+ARG VERSION=0.0.0-dev
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+      -ldflags "-s -w -X github.com/mattoddie/proxmox-mcp/internal/tools.Version=${VERSION}" \
+      -o /out/proxmox-mcp ./cmd/proxmox-mcp
 
-FROM node:24-alpine
+# Distroless: no shell, no package manager, just CA certificates, tzdata and a
+# non-root user (65532), so there is very little for CVE scanners to find.
+FROM gcr.io/distroless/static-debian13:nonroot
 LABEL org.opencontainers.image.title="proxmox-mcp" \
       org.opencontainers.image.description="MCP server for Proxmox VE" \
       org.opencontainers.image.source="https://github.com/mattoddie/proxmox-mcp" \
       org.opencontainers.image.documentation="https://github.com/mattoddie/proxmox-mcp#readme" \
       org.opencontainers.image.licenses="MIT"
-ENV NODE_ENV=production \
-    MCP_TRANSPORT=http \
+COPY --from=build /out/proxmox-mcp /proxmox-mcp
+# Inside the container the server must listen on all interfaces for a published port to
+# reach it (the binary itself defaults to 127.0.0.1). MCP_AUTH_TOKEN is still required.
+ENV MCP_TRANSPORT=http \
     MCP_HTTP_HOST=0.0.0.0 \
     MCP_HTTP_PORT=8080
-WORKDIR /app
-COPY --from=build --chown=node:node /app/package.json ./
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/dist ./dist
-USER node
+USER nonroot:nonroot
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["node", "-e", "if (process.env.MCP_TRANSPORT === 'stdio') process.exit(0); fetch('http://127.0.0.1:' + process.env.MCP_HTTP_PORT + '/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-ENTRYPOINT ["node", "dist/index.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/proxmox-mcp", "healthcheck"]
+ENTRYPOINT ["/proxmox-mcp"]

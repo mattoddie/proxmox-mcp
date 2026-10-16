@@ -15,25 +15,23 @@ concurrency:
 
 jobs:
   test:
-    name: Test (Node ${{ matrix.node }})
+    name: Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22, 24]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - name: Build and test
-        run: npm test
+          go-version-file: go.mod
+      - name: Lint
+        run: make lint
+      - name: Test
+        run: go test -race ./...
+        env:
+          CGO_ENABLED: "1"
       - name: Check docs/tools.md is up to date
-        run: npm run docs:check
+        run: make docs-check
 
   docker:
     name: Docker image
@@ -70,6 +68,9 @@ jobs:
           test "$tools" -gt 0
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/mcp -d '{}')
           test "$code" = 401
+          test "$(docker run --rm proxmox-mcp:ci version)" = 0.0.0-ci
+          sleep 6
+          test "$(docker inspect --format '{{.State.Health.Status}}' smoke)" = healthy
           docker logs smoke
           docker rm -f smoke
           # The http transport must refuse to start without MCP_AUTH_TOKEN.
