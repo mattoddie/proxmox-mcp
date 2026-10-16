@@ -35,7 +35,7 @@ Ask about your cluster in plain English. The assistant picks from **300+ tools**
 
 ## Highlights
 
-- **🐳 Docker-first.** There's one small image (`ghcr.io/mattoddie/proxmox-mcp`) for `linux/amd64` and `linux/arm64`. It serves Streamable HTTP for a long-running service, or stdio for `docker run -i`.
+- **🐳 Docker-first.** There's one small, distroless image (`ghcr.io/mattoddie/proxmox-mcp`) for `linux/amd64` and `linux/arm64`. It serves Streamable HTTP for a long-running service, or stdio for `docker run -i`.
 - **🛡️ Safe by default.** The server is read-only unless you turn on writes. Deleting needs a second switch, and running commands inside guests needs a third. Tools that aren't allowed aren't registered at all, destructive tools are labelled so your MCP client asks before running them, and passwords and keys are redacted from output.
 - **🧰 Broad coverage.** It covers 19 toolsets: cluster, nodes, VMs, containers, guest agent, snapshots, storage, backups, tasks, access control, firewall, HA, SDN, Ceph, pools, replication, notifications, hardware and a raw API tool.
 - **⏱️ Task-aware.** Long operations such as starts, clones, migrations and backups run as Proxmox tasks. Tools wait for them and report the result with the end of the task log, or hand back the task ID to follow up later.

@@ -6,6 +6,13 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Changed
+
+- The server is rewritten in Go, on the official Go MCP SDK. There are no behaviour changes: tool names, titles, descriptions, arguments, access levels and annotations, the prompts, the configuration variables, and tool output and error messages are the same as in 0.2.0, which a reference test checks against what the TypeScript server listed.
+- The Docker image is now a static binary on distroless (`gcr.io/distroless/static-debian13:nonroot`): no shell, package manager or Node.js, and much smaller. It runs as UID 65532 instead of 1000, so files you mount (such as `PROXMOX_CA_FILE` or `_FILE` secrets) must be readable by that user. The environment defaults, port and health check behaviour are unchanged.
+- Without Docker, proxmox-mcp is a single binary (`proxmox-mcp`, with `version` and `healthcheck` subcommands) instead of a Node.js 22+ program.
+- A few protocol details differ slightly, with no effect on clients: `tools/list` and `prompts/list` are sorted by name; defaults are left out of listings (`readOnlyHint: false`, `required: false` on optional prompt arguments, `execution.taskSupport: "forbidden"`); calling an unknown tool returns a JSON-RPC error instead of an error result; a `/mcp` request without the `Accept: application/json, text/event-stream` header gets HTTP 400 instead of 406; and sorting by name uses a close approximation of the JavaScript locale collation.
+
 ## [0.2.0] - 2026-10-15
 
 ### Security

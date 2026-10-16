@@ -48,7 +48,7 @@ To verify Proxmox's certificate, the simplest option is to pin its fingerprint w
       PROXMOX_CA_FILE: /certs/pve-root-ca.pem
 ```
 
-Copy the file from any node with `scp root@pve1:/etc/pve/pve-root-ca.pem .`.
+Copy the file from any node with `scp root@pve1:/etc/pve/pve-root-ca.pem .`. The container runs as UID 65532, so the file must be world-readable (`chmod 644`).
 
 ## Image tags
 
@@ -140,7 +140,7 @@ Tools that start a Proxmox task wait for it for up to `PROXMOX_TASK_TIMEOUT_MS` 
 
 ## Hardening
 
-The image already runs as the unprivileged `node` user and doesn't need a writable filesystem, and the default `compose.yaml` already sets `read_only`, `cap_drop: [ALL]` and `no-new-privileges`. You can lock it down further:
+The image is distroless (no shell or package manager), already runs as the unprivileged `nonroot` user (UID 65532) and doesn't need a writable filesystem, and the default `compose.yaml` already sets `read_only`, `cap_drop: [ALL]` and `no-new-privileges`. You can lock it down further:
 
 ```yaml
 services:
@@ -168,14 +168,14 @@ Running Docker directly on a Proxmox node is possible but not recommended by Pro
 
 ## Running without Docker
 
-Docker is the supported way to run proxmox-mcp, but the server is an ordinary Node.js 22+ program:
+Docker is the supported way to run proxmox-mcp, but the server is a single static Go binary with no runtime dependencies. Build it with Go (the version in `go.mod`), or copy `/proxmox-mcp` out of the image:
 
 ```sh
 git clone https://github.com/mattoddie/proxmox-mcp.git
 cd proxmox-mcp
-npm ci && npm run build
-PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' node dist/index.js   # stdio by default
-MCP_TRANSPORT=http MCP_AUTH_TOKEN=... PROXMOX_URL=... PROXMOX_API_TOKEN=... node dist/index.js   # listens on 127.0.0.1:8080
+make build   # or: go build -o bin/proxmox-mcp ./cmd/proxmox-mcp
+PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' bin/proxmox-mcp   # stdio by default
+MCP_TRANSPORT=http MCP_AUTH_TOKEN=... PROXMOX_URL=... PROXMOX_API_TOKEN=... bin/proxmox-mcp   # listens on 127.0.0.1:8080
 ```
 
 Run this way, the HTTP server listens on `127.0.0.1` only. Set `MCP_HTTP_HOST=0.0.0.0` (or a specific address) to accept connections from other machines.

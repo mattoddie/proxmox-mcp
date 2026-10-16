@@ -51,7 +51,7 @@ The `agent` toolset and the guest-network tools need the **QEMU guest agent** in
 | Component | Requirement |
 |---|---|
 | Docker image | `linux/amd64` or `linux/arm64` (for example Raspberry Pi 4/5) |
-| Node.js (to run or build without Docker) | 22 or later. CI tests 22 and 24. |
+| Go (only to build without Docker) | The version in `go.mod`. The binary itself is static and has no runtime dependencies. |
 | MCP clients | Any client supporting Streamable HTTP or stdio. See [Connecting MCP clients](clients.md). |
 
 ## Not covered yet
