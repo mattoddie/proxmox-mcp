@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://proxmox-mcp.mattoddie.dev/sitemap-index.xml
