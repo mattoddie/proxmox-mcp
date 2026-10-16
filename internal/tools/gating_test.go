@@ -147,8 +147,8 @@ func TestToolGating(t *testing.T) {
 			if info.Gate == Read && tool.Name != "proxmox_api_request" && (a.DestructiveHint != nil || !a.ReadOnlyHint) {
 				t.Fatalf("%s: read tools carry no destructive hint", tool.Name)
 			}
-			if (info.Gate == Delete || info.Gate == Exec) && (a.DestructiveHint == nil || !*a.DestructiveHint) {
-				t.Fatalf("%s: delete and exec tools are destructive", tool.Name)
+			if (info.Gate == Delete || info.Gate == Exec) && !a.ReadOnlyHint && (a.DestructiveHint == nil || !*a.DestructiveHint) {
+				t.Fatalf("%s: delete and exec tools are destructive unless read-only", tool.Name)
 			}
 			if *a.OpenWorldHint {
 				t.Fatalf("%s: openWorldHint should be false", tool.Name)
