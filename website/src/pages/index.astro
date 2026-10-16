@@ -47,6 +47,17 @@ curl -fsSL ${raw}/main/example.env -o .env
 # set PROXMOX_URL, PROXMOX_TOKEN_ID,
 # PROXMOX_TOKEN_SECRET and MCP_AUTH_TOKEN in .env
 docker compose up -d`;
+// The illustrated cluster under the hero (example data). Each node is a small rack with
+// three guest slots and an IO-wait meter; db-01 moves from pve2's second slot to pve3's
+// empty third slot when the chat migrates it.
+const NODE = { w: 250, h: 196, top: 66, slotX: 16, slotW: 218, slotH: 32, slotY: [44, 82, 120] };
+const nodes = [
+  { name: "pve1", x: 275, guests: [["101", "web-01"], ["102", "web-02"], ["105", "proxy"]] },
+  { name: "pve2", x: 595, guests: [["103", "app-01"], null, ["107", "ci-runner"]] },
+  { name: "pve3", x: 915, guests: [["110", "dns"], ["112", "media"], null] },
+];
+const mover = { x: 595 + NODE.slotX, y: NODE.top + NODE.slotY[1] };
+const target = { x: 915 + NODE.slotX, y: NODE.top + NODE.slotY[2] };
 const connectSnippet = `claude mcp add --transport http proxmox \\
   http://<docker-host>:8080/mcp \\
   --header "Authorization: Bearer <token>"`;
@@ -114,7 +125,7 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
 
     <main id="main">
       <!-- Hero -->
-      <section class="hero">
+      <section class="hero scene">
         <svg class="mesh" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           <defs>
             <linearGradient id="link" x1="0" x2="1">
@@ -146,6 +157,69 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
             <rect x="1135" y="605" width="10" height="10" rx="2" />
           </g>
         </svg>
+        <svg class="scene-art" viewBox="0 0 1440 300" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+          <defs>
+            <linearGradient id="hot" x1="0" x2="1">
+              <stop offset="0" stop-color="#f97316" />
+              <stop offset="1" stop-color="#f43f5e" />
+            </linearGradient>
+            <linearGradient id="rack" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#2a1820" />
+              <stop offset="1" stop-color="#170d12" />
+            </linearGradient>
+            <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14" /></filter>
+          </defs>
+          <rect class="floor" x="0" y={NODE.top + NODE.h} width="1440" height={300 - NODE.top - NODE.h} />
+          <line class="floor-edge" x1="0" y1={NODE.top + NODE.h + 0.5} x2="1440" y2={NODE.top + NODE.h + 0.5} />
+          <rect class="warn-glow" x={595 - 6} y={NODE.top - 6} width={NODE.w + 12} height={NODE.h + 12} rx="18" filter="url(#soft)" />
+          {
+            nodes.map((n, ni) => (
+              <g class={`node n${ni + 1}`} transform={`translate(${n.x} ${NODE.top})`}>
+                <ellipse class="shadow" cx={NODE.w / 2} cy={NODE.h + 4} rx={NODE.w / 2 + 6} ry="8" />
+                <rect class="body" width={NODE.w} height={NODE.h} rx="14" />
+                <text class="name" x="18" y="31">{n.name}</text>
+                <g class="leds">
+                  <circle cx="198" cy="25" r="4" /><circle cx="214" cy="25" r="4" /><circle class="warn" cx="230" cy="25" r="4" />
+                </g>
+                {n.guests.map((g, si) => (
+                  <g transform={`translate(${NODE.slotX} ${NODE.slotY[si]})`}>
+                    <rect class="slot" width={NODE.slotW} height={NODE.slotH} rx="8" />
+                    {g && (
+                      <g class="vm">
+                        <rect width={NODE.slotW} height={NODE.slotH} rx="8" />
+                        <circle cx="16" cy="16" r="3.5" style={`animation-delay:${-(ni * 3 + si) * 0.37}s`} />
+                        <text x="30" y="21"><tspan class="id">{g[0]}</tspan> {g[1]}</text>
+                      </g>
+                    )}
+                  </g>
+                ))}
+                <text class="meter-label" x="16" y="179">IO wait</text>
+                <rect class="track" x="80" y="170" width="110" height="10" rx="5" />
+                <rect class="bar" x="80" y="170" width="110" height="10" rx="5" />
+                <text class="val v0" x="234" y="179" text-anchor="end">–</text>
+                <text class="val v1" x="234" y="179" text-anchor="end">{["9%", "38%", "2%"][ni]}</text>
+                <text class="val v2" x="234" y="179" text-anchor="end">{["9%", "6%", "4%"][ni]}</text>
+              </g>
+            ))
+          }
+          <g class="badge warn-badge" transform="translate(720 38)">
+            <rect x="-112" y="-15" width="224" height="28" rx="14" />
+            <text y="4" text-anchor="middle">IO wait high · local-zfs 94%</text>
+          </g>
+          <g class="badge done-badge" transform="translate(1040 38)">
+            <rect x="-112" y="-15" width="224" height="28" rx="14" />
+            <text y="4" text-anchor="middle">live-migrated · 41 ms downtime</text>
+          </g>
+          <path class="route" d={`M${mover.x + NODE.slotW} ${mover.y + 16} C ${mover.x + NODE.slotW + 60} ${mover.y + 16}, ${target.x - 60} ${target.y + 16}, ${target.x} ${target.y + 16}`} />
+          <g class="mover" transform={`translate(${mover.x} ${mover.y})`}>
+            <g class="mover-inner" style={`--dx:${target.x - mover.x}px;--dy:${target.y - mover.y}px`}>
+              <rect width={NODE.slotW} height={NODE.slotH} rx="8" />
+              <circle cx="16" cy="16" r="3.5" />
+              <text x="30" y="21"><tspan class="id">104</tspan> db-01</text>
+            </g>
+          </g>
+          <text class="caption" x="1165" y="291" text-anchor="end">Illustration · example data</text>
+        </svg>
 
         <div class="wrap hero-grid">
           <div class="hero-copy">
@@ -176,8 +250,8 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
               </div>
               <div class="msg bot" data-step="2">
                 <strong>db-01</strong> (VMID 104) runs on <strong>pve2</strong>, where IO wait has been at <mark>38%</mark> since 9:00.
-                Its disk is on <code>local-zfs</code>, which is <mark>94% full</mark>, and three other busy guests share it.
-                <br /><br />pve3 is quiet, at <mark>2% IO wait</mark> with plenty of free space. Want me to live-migrate db-01 there?
+                Its disk is on <code>local-zfs</code>, which is <mark>94% full</mark> and shared with other busy guests.
+                pve3 is quiet, at <mark>2% IO wait</mark> with plenty of free space. Want me to live-migrate db-01 there?
               </div>
               <div class="msg user" data-step="3">Yes, move it.</div>
               <div class="calls" data-step="4">
@@ -406,31 +480,49 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
         });
       }
 
-      // Play the example conversation once it scrolls into view.
+      // Play the example conversation when the hero is on screen, and loop it. Steps also
+      // switch the scene: the diagnosis heats up pve2, the migration moves db-01 to pve3.
+      const hero = document.querySelector<HTMLElement>(".hero.scene");
       const chat = document.getElementById("chat");
       const steps = chat ? [...chat.querySelectorAll<HTMLElement>("[data-step]")] : [];
+      const sceneAt: Record<number, string> = { 2: "hot", 4: "migrating", 5: "migrated" };
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (chat && !reduce) {
+      if (hero && chat && reduce) {
+        hero.classList.add("hot", "migrated");
+      } else if (hero && chat) {
         chat.classList.add("animate");
         const delays = [300, 900, 1900, 1900, 900, 1700];
+        let timers: number[] = [];
+        let visible = false;
+        let running = false;
+        const reset = () => {
+          timers.forEach(clearTimeout);
+          timers = [];
+          steps.forEach((el) => el.classList.remove("shown"));
+          chat.querySelectorAll(".call").forEach((c) => c.classList.remove("done"));
+          hero.classList.remove(...Object.values(sceneAt));
+        };
         const play = () => {
+          running = true;
+          reset();
           let t = 0;
           steps.forEach((el, i) => {
             t += delays[i] ?? 1000;
-            setTimeout(() => {
+            timers.push(window.setTimeout(() => {
               el.classList.add("shown");
+              if (sceneAt[i]) hero.classList.add(sceneAt[i]);
               for (const [j, c] of [...el.querySelectorAll<HTMLElement>(".call")].entries()) {
-                setTimeout(() => c.classList.add("done"), 450 + j * 380);
+                timers.push(window.setTimeout(() => c.classList.add("done"), 450 + j * 380));
               }
-            }, t);
+            }, t));
           });
+          // Hold the finished scene for a while, then start again if the hero is still in view.
+          timers.push(window.setTimeout(() => (visible ? play() : (running = false)), t + 7000));
         };
-        new IntersectionObserver((entries, obs) => {
-          if (entries.some((e) => e.isIntersecting)) {
-            play();
-            obs.disconnect();
-          }
-        }, { threshold: 0.35 }).observe(chat);
+        new IntersectionObserver((entries) => {
+          visible = entries.some((e) => e.isIntersecting);
+          if (visible && !running) play();
+        }, { threshold: 0.2 }).observe(chat);
       }
     </script>
 
@@ -528,6 +620,74 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
       @keyframes pulse { from { stroke-dashoffset: 600; } to { stroke-dashoffset: 0; } }
       @keyframes blink { 50% { opacity: 0.45; } }
 
+      /* The illustrated cluster along the bottom of the hero; the chat steps switch its states. */
+      .hero.scene { padding: 64px 0 300px; }
+      /* Floor that runs past the edges of the fixed-width scene on wide screens. */
+      .hero.scene::after { inset: auto 0 0 0; height: 38px; background: #160c11; border-top: 1px solid rgba(255, 255, 255, 0.08); mask-image: none; opacity: 1; z-index: -2; }
+      .hero.scene .mesh { mask-image: linear-gradient(#000 55%, transparent 85%); }
+      .hero.scene .hero-grid { grid-template-columns: minmax(0, 1fr) 440px; align-items: start; }
+      .scene-art { position: absolute; left: 50%; bottom: 0; width: 1440px; height: 300px; transform: translateX(-50%); z-index: -1; }
+      .scene-art .floor { fill: #160c11; }
+      .scene-art .floor-edge { stroke: rgba(255, 255, 255, 0.08); }
+      .scene-art .shadow { fill: rgba(0, 0, 0, 0.5); }
+      .scene-art .body { fill: url(#rack); stroke: rgba(255, 255, 255, 0.13); stroke-width: 1.5; transition: stroke 0.8s ease; }
+      .scene-art .name { fill: var(--text); font: 700 19px var(--display); }
+      .scene-art .leds circle { fill: var(--green); animation: blink 2.4s ease-in-out infinite; }
+      .scene-art .leds circle:nth-child(2) { animation-delay: -0.8s; }
+      .scene-art .leds circle:nth-child(3) { animation-delay: -1.6s; }
+      .scene-art .slot { fill: rgba(255, 255, 255, 0.02); stroke: rgba(255, 255, 255, 0.16); stroke-dasharray: 4 4; }
+      .scene-art .vm rect, .scene-art .mover rect { fill: #2f1d25; stroke: rgba(255, 255, 255, 0.1); }
+      .scene-art .vm circle, .scene-art .mover circle { fill: var(--green); animation: blink 1.8s ease-in-out infinite; }
+      .scene-art .vm text, .scene-art .mover text { fill: var(--text); font: 500 15px var(--mono); }
+      .scene-art .id { fill: var(--muted); }
+      .scene-art .meter-label, .scene-art .val { fill: var(--muted); font: 500 13px var(--mono); }
+      .scene-art .track { fill: rgba(255, 255, 255, 0.07); }
+      .scene-art .bar { fill: #6b5560; transform-box: fill-box; transform-origin: left center; transform: scaleX(0.18); transition: transform 1.2s ease, fill 0.8s ease; }
+      .scene-art .n2 .bar { transform: scaleX(0.3); }
+      .scene-art .val { transition: opacity 0.5s ease; }
+      .scene-art .v1, .scene-art .v2 { opacity: 0; }
+      .scene-art .warn-glow { fill: none; stroke: #f43f5e; stroke-width: 10; opacity: 0; transition: opacity 0.8s ease; }
+      .scene-art .badge { opacity: 0; transition: opacity 0.6s ease; }
+      .scene-art .badge text { font: 600 13px var(--sans); }
+      .scene-art .warn-badge rect { fill: rgba(244, 63, 94, 0.16); stroke: rgba(244, 63, 94, 0.6); }
+      .scene-art .warn-badge text { fill: #fecdd3; }
+      .scene-art .done-badge rect { fill: rgba(52, 211, 153, 0.14); stroke: rgba(52, 211, 153, 0.55); }
+      .scene-art .done-badge text { fill: #a7f3d0; }
+      .scene-art .route { fill: none; stroke: #fdba74; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 2 9; opacity: 0; transition: opacity 0.5s ease; animation: flow 0.9s linear infinite; }
+      .scene-art .caption { fill: var(--muted); font: 11.5px var(--sans); opacity: 0.75; }
+      @keyframes flow { to { stroke-dashoffset: -11; } }
+      @keyframes glow { 50% { opacity: 0.35; } }
+      @keyframes hop { 0% { transform: none; } 45% { transform: translate(calc(var(--dx) * 0.5), -34px); } 100% { transform: translate(var(--dx), var(--dy)); } }
+
+      /* pve2 runs hot; pve3 is quiet. */
+      .hero.hot .scene-art .n1 .bar { fill: var(--green); transform: scaleX(0.22); }
+      .hero.hot .scene-art .n2 .bar { fill: url(#hot); transform: scaleX(0.95); }
+      .hero.hot .scene-art .n3 .bar { fill: var(--green); transform: scaleX(0.06); }
+      .hero.hot .scene-art .v0 { opacity: 0; }
+      .hero.hot .scene-art .v1 { opacity: 1; }
+      .hero.hot .scene-art .n2 .v1 { fill: #fda4af; }
+      .hero.hot .scene-art .n2 .body { stroke: rgba(244, 63, 94, 0.75); }
+      .hero.hot .scene-art .n2 .leds .warn { fill: var(--rose); animation-duration: 0.7s; }
+      .hero.hot .scene-art .warn-glow { opacity: 0.8; animation: glow 1.6s ease-in-out infinite; }
+      .hero.hot .scene-art .warn-badge { opacity: 1; }
+      .hero.hot .scene-art .mover rect { fill: rgba(244, 63, 94, 0.22); stroke: #fb7185; stroke-width: 1.5; }
+      .hero.hot .scene-art .mover circle { fill: var(--rose); animation-duration: 0.7s; }
+      .hero.hot .scene-art .n3 .slot { stroke: rgba(52, 211, 153, 0.45); }
+      /* Migration in flight. */
+      .hero.migrating .scene-art .route { opacity: 1; }
+      /* db-01 lands on pve3 and pve2 calms down. */
+      .hero.migrated .scene-art .mover-inner { transform: translate(var(--dx), var(--dy)); animation: hop 1.6s cubic-bezier(0.55, 0, 0.3, 1); }
+      .hero.migrated .scene-art .route, .hero.migrated .scene-art .warn-badge, .hero.migrated .scene-art .warn-glow { opacity: 0; animation: none; }
+      .hero.migrated .scene-art .done-badge { opacity: 1; transition-delay: 1.3s; }
+      .hero.migrated .scene-art .v0, .hero.migrated .scene-art .v1 { opacity: 0; }
+      .hero.migrated .scene-art .v2 { opacity: 1; transition-delay: 1s; }
+      .hero.migrated .scene-art .n2 .bar { fill: var(--green); transform: scaleX(0.15); transition-delay: 1s; }
+      .hero.migrated .scene-art .n3 .bar { fill: var(--green); transform: scaleX(0.12); transition-delay: 1s; }
+      .hero.migrated .scene-art .n2 .body { stroke: rgba(255, 255, 255, 0.13); transition-delay: 1s; }
+      .hero.migrated .scene-art .n2 .leds .warn { fill: var(--green); animation-duration: 2.4s; }
+      .hero.migrated .scene-art .mover rect { fill: rgba(52, 211, 153, 0.16); stroke: rgba(52, 211, 153, 0.7); stroke-width: 1.5; transition: fill 0.6s ease 1.3s, stroke 0.6s ease 1.3s; }
+      .hero.migrated .scene-art .mover circle { fill: var(--green); animation-duration: 1.8s; }
+
       .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; }
       .eyebrow {
         display: inline-flex; align-items: center; gap: 10px; margin: 0 0 22px;
@@ -564,15 +724,15 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
 
       /* Chat demo */
       .chat {
-        border-radius: 20px; border: 1px solid var(--line);
-        background: linear-gradient(180deg, rgba(36, 20, 28, 0.9), rgba(18, 10, 14, 0.92));
+        border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(26, 14, 20, 0.84); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.02) inset, 0 0 80px -20px rgba(244, 63, 94, 0.32);
         overflow: hidden;
       }
       .chat-bar { display: flex; align-items: center; gap: 7px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
       .chat-bar span { width: 11px; height: 11px; border-radius: 50%; background: #3a2a31; }
       .chat-bar em { margin-left: auto; font-style: normal; color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
-      .chat-body { padding: 22px; display: flex; flex-direction: column; gap: 14px; min-height: 490px; }
+      .chat-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
       .msg { max-width: 88%; padding: 12px 15px; border-radius: 14px; font-size: 14.5px; line-height: 1.55; }
       .msg.user { align-self: flex-end; background: linear-gradient(135deg, #e11d48, #be123c); color: #fff; border-bottom-right-radius: 4px; }
       .msg.bot { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
@@ -710,8 +870,15 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
         .examples { grid-template-columns: repeat(2, 1fr); }
         .steps { grid-template-columns: minmax(0, 1fr); }
         .chat-body { min-height: 0; }
+        /* The cluster drops below the chat, cropped to the three nodes. */
+        .hero.scene { padding-bottom: 0; display: flex; flex-direction: column; }
+        .hero.scene::after { display: none; }
+        .hero.scene .hero-grid { grid-template-columns: minmax(0, 1fr); }
+        .hero.scene .scene-art { order: 2; position: relative; left: auto; bottom: auto; transform: none; display: block; flex: none; max-width: none; width: calc(100% * 1440 / 940); height: auto; aspect-ratio: 1440 / 300; margin: 24px 0 0 calc(-100% * 265 / 940); }
       }
       @media (max-width: 640px) {
+        /* Phones: just pve2 and pve3, so the migration stays legible. */
+        .hero.scene .scene-art { width: calc(100% * 1440 / 590); margin-left: calc(-100% * 585 / 590); }
         .wrap { width: calc(100% - 32px); }
         .hide-sm { display: none; }
         .examples, .compat { grid-template-columns: minmax(0, 1fr); }
