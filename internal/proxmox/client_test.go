@@ -299,6 +299,23 @@ func TestClientWithToken(t *testing.T) {
 		}
 	})
 
+	t.Run("refuses control characters in parameters", func(t *testing.T) {
+		before := len(mock.Requests())
+		for _, v := range []string{"net1\vunused0", "a\x00b", "x\x1b[0m", "\x7f"} {
+			_, err := client.Put(ctx, "/nodes/pve1/qemu/100/config", js.O("delete", v))
+			mustMatch(t, err, `^Parameter "delete" contains a control character`)
+		}
+		_, err := client.Get(ctx, "/version", js.O("a\x01", "x"))
+		mustMatch(t, err, `^Parameter "a\?" contains a control character`)
+		if len(mock.Requests()) != before {
+			t.Fatal("a request was sent")
+		}
+		// Multi-line text is fine.
+		if _, err := client.Put(ctx, "/nodes/pve1/qemu/100/config", js.O("description", "line 1\r\nline 2\tend")); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("reports non-JSON responses", func(t *testing.T) {
 		html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<html>hi</html>")) }))
 		defer html.Close()

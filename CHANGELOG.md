@@ -13,6 +13,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Read-only, the raw API tool could make a node connect to a server of the caller's choosing with a `GET`: remote storage scans (`scan/nfs`, `cifs`, `pbs`, `iscsi`, `glusterfs`, which `proxmox_scan_storage` already gated), `query-url-metadata` and ACME `meta`/`tos` with a `directory`. These now need `PROXMOX_ALLOW_WRITES`.
 - The raw API tool now needs `PROXMOX_ALLOW_EXEC` for backup `file-restore/download` (it reads files out of a guest's backup) and for any request that sets `hookscript` or vzdump `script`, as the curated tools already did.
 - **Breaking:** `proxmox_query_url_metadata` is now a write tool (`PROXMOX_ALLOW_WRITES`), because the node fetches any URL it is given, including internal addresses. `proxmox_list_acme_directories` still lists the known directories read-only, but fetching a `directory`'s metadata now needs write access for the same reason.
+- The check that `proxmox_update_vm_config` and `proxmox_update_container_config` need delete access to delete an `unusedN` entry (which destroys its volume) could be bypassed by separating keys with a vertical tab or NUL, which Proxmox also splits on. The VM, container and raw tools now share one check that splits the list on anything that can't be part of a key.
+- Request parameters may no longer contain control characters other than tab, newline and carriage return; such requests are refused before they are sent. Send binary guest file content base64-encoded.
 - Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
 
 ## [0.3.0] - 2026-10-16

@@ -614,10 +614,31 @@ func (c *Client) doLogin(ctx context.Context) (*ticket, error) {
 	return &ticket{value: js.Str(data.Get("ticket")), csrf: js.Str(data.Get("CSRFPreventionToken")), at: time.Now()}, nil
 }
 
+// paramControlRe matches control characters other than tab, newline and carriage return, which
+// multi-line values (descriptions, certificates, notes) legitimately contain.
+var paramControlRe = regexp.MustCompile(`[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`)
+
+// checkParamChars refuses parameters with control characters. Proxmox splits lists on some of
+// them (NUL, \v), so they could hide an entry from a check made on this side, and no
+// legitimate text parameter needs them.
+func checkParamChars(params []Param) error {
+	for _, p := range params {
+		if paramControlRe.MatchString(p.Key) || paramControlRe.MatchString(p.Value) {
+			return Errorf("Parameter %q contains a control character (only tab, newline and carriage return are allowed; send binary data base64-encoded)", strings.ToValidUTF8(paramControlRe.ReplaceAllString(p.Key, "?"), "?"))
+		}
+	}
+	return nil
+}
+
 // send makes one request and reads the whole body.
 func (c *Client) send(ctx context.Context, method, path string, params *js.Obj, auth bool) (*http.Response, []byte, error) {
 	target := c.APIURL(path)
 	encoded := EncodeParams(params)
+	if auth {
+		if err := checkParamChars(encoded); err != nil {
+			return nil, nil, err
+		}
+	}
 	var body io.Reader
 	if method == "GET" || method == "DELETE" {
 		if len(encoded) > 0 {

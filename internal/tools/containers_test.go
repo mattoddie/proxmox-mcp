@@ -286,6 +286,9 @@ func TestContainersPermissionGates(t *testing.T) {
 			return errorTextOf(t, callOn(t, s, "proxmox_update_container_config", `{"vmid":200,`+args+`}`))
 		}
 		match(t, update(`"delete":["unused0"]`), `delete permission`)
+		for _, sep := range []string{`\u000b`, `\u0000`, `|`} {
+			match(t, update(`"delete":["mp0`+sep+`unused0"]`), `delete permission`, sep)
+		}
 		match(t, update(`"extra":{"hookscript":"local:snippets/x.sh"}`), `exec permission`)
 		match(t, errorTextOf(t, callOn(t, s, "proxmox_create_container", `{"node":"pve1","vmid":330,"ostemplate":"x","extra":{"hookscript":"y"}}`)), `exec permission`)
 		// A create with restore+force restores a backup over the existing container; extra can't turn it into one.

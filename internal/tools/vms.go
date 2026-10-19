@@ -135,20 +135,6 @@ func vmsEncodeSshKeys(keys any) any {
 	return js.EncodeURIComponent(strings.TrimFunc(text, unicode.IsSpace))
 }
 
-var vmsUnusedDeleteRe = regexp.MustCompile(`(^|[,;\s])unused\d+`)
-
-// vmsCheckGatedParams guards options that reach beyond a plain config write: deleting an unusedN
-// key destroys that volume, and a hookscript runs as root on the node at every lifecycle event.
-func vmsCheckGatedParams(c *Context, params *Obj) error {
-	if !c.AllowDeletes && vmsUnusedDeleteRe.MatchString(js.Str(or(params.Get("delete"), ""))) {
-		return errors.New("Deleting an unusedN entry permanently destroys its volume and needs delete permission (PROXMOX_ALLOW_DELETES); see proxmox_unlink_vm_disk")
-	}
-	if !c.AllowExec && params.Defined("hookscript") {
-		return errors.New("hookscript runs a script as root on the node, so setting it needs exec permission (PROXMOX_ALLOW_EXEC)")
-	}
-	return nil
-}
-
 // ---------------------------------------------------------------- summaries
 
 // vmsRedactValue redacts a single config value by its key (e.g. cipassword).
@@ -1205,7 +1191,7 @@ func registerVms(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			if err := vmsCheckGatedParams(c, body); err != nil {
+			if err := checkGuestConfigGates(c, body, "; see proxmox_unlink_vm_disk"); err != nil {
 				return nil, err
 			}
 			upid, err := client.Post(ctx, "/nodes/"+js.EncodeURIComponent(node)+"/qemu", defined(body))
@@ -1325,7 +1311,7 @@ func registerVms(c *Context) {
 			if len(updated) == 0 {
 				return nil, errors.New("Nothing to change: give at least one setting, delete or revert")
 			}
-			if err := vmsCheckGatedParams(c, params); err != nil {
+			if err := checkGuestConfigGates(c, params, "; see proxmox_unlink_vm_disk"); err != nil {
 				return nil, err
 			}
 			upid, err := client.Post(ctx, client.GuestPath(g)+"/config", params)
