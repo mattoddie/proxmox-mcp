@@ -37,7 +37,7 @@ The best defence against all three is to limit what's possible, not to rely on t
 | Toolsets | `PROXMOX_TOOLSETS` | Tools outside the listed toolsets don't exist. The model can't see or call them. The raw API tool (`raw`) is never part of `all` and must be listed by name. |
 | Tool annotations | Built in | Each tool is marked read-only or destructive, so MCP clients can ask for your confirmation before running destructive tools. |
 | Server instructions | Built in | With writes on, the model is told to confirm with you before stopping, rebooting, migrating, restoring, reconfiguring or deleting, and with exec on, to show you the exact command first. This helps, but it isn't a security boundary. |
-| Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. |
+| Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. The raw API tool can only skip redaction (`redact: false`) when `PROXMOX_ALLOW_UNREDACTED=true`. |
 | Endpoint auth | `MCP_AUTH_TOKEN` | Bearer token required on every request. Checked in constant time. The HTTP transport won't start without one unless you explicitly set `MCP_ALLOW_UNAUTHENTICATED=true`. |
 | Host allow-list | `MCP_ALLOWED_HOSTS` | Rejects requests with an unexpected `Host` header, or with an `Origin` header from another host. This blocks DNS-rebinding and cross-site attacks from browser pages. |
 | Typed arguments win | Built in | `extra` can only add parameters a tool doesn't set itself. It can't override a typed or checked one, such as `vmid`, `force` or `delete`, or turn a create into a restore with `archive` or `restore`. |

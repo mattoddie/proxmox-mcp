@@ -89,6 +89,16 @@ func registerRaw(c *Context) {
 	if !c.AllowExec {
 		desc += " Backup file-restore downloads and hookscript/script parameters need exec access."
 	}
+	input := []Prop{
+		P("method", Enum("GET", "POST", "PUT", "DELETE").Opt().D("HTTP method (default GET)")),
+		P("path", Str().D("Path relative to /api2/json, starting with /")),
+		P("params", Rec(Union(Str(), Num(), Bool(), Arr(Union(Str(), Num())))).Opt().D("API parameters (booleans are sent as 1/0, arrays as repeated keys)")),
+	}
+	// Turning redaction off is the operator's decision, not the model's: the argument only
+	// exists with PROXMOX_ALLOW_UNREDACTED=true.
+	if c.AllowUnredacted {
+		input = append(input, P("redact", Bool().Opt().D("Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")))
+	}
 
 	c.Define("proxmox_api_request", Def{
 		Toolset:     "raw",
@@ -96,12 +106,7 @@ func registerRaw(c *Context) {
 		Description: desc,
 		ReadOnly:    boolPtr(!c.AllowWrites),
 		Destructive: boolPtr(c.AllowWrites),
-		Input: []Prop{
-			P("method", Enum("GET", "POST", "PUT", "DELETE").Opt().D("HTTP method (default GET)")),
-			P("path", Str().D("Path relative to /api2/json, starting with /")),
-			P("params", Rec(Union(Str(), Num(), Bool(), Arr(Union(Str(), Num())))).Opt().D("API parameters (booleans are sent as 1/0, arrays as repeated keys)")),
-			P("redact", Bool().Opt().D("Redact password/secret/key fields in the response (default true)")),
-		},
+		Input:       input,
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			method := js.Str(or(a.Get("method"), "GET"))
 			if method != "GET" && !c.AllowWrites {
@@ -161,7 +166,7 @@ func registerRaw(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			if a.Get("redact") == false {
+			if c.AllowUnredacted && a.Get("redact") == false {
 				return data, nil
 			}
 			// ACME plugin `data` is a KEY=value blob of DNS API credentials, which the field-name check can't see.

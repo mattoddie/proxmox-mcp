@@ -272,6 +272,20 @@ func TestRawTool(t *testing.T) {
 		eqAt(t, env.call(t, "proxmox_api_request", `{"path":"/cluster/acme/plugins/cf","redact":false}`), "data", data)
 	})
 
+	t.Run("only lets redact:false through with PROXMOX_ALLOW_UNREDACTED", func(t *testing.T) {
+		env.mock.Reply("GET", `^/access/users$`, `[{"userid":"a@pve","password":"x"}]`)
+		opts := toolOptions("all")
+		opts.AllowUnredacted = false
+		s := connect(t, env.client, opts)
+		for _, tool := range listAll(t, s) {
+			if tool.Name == "proxmox_api_request" && strings.Contains(js.Stringify(js.V(tool.InputSchema), ""), "redact") {
+				t.Fatal("the redact argument is offered")
+			}
+		}
+		eq(t, parseResult(t, callOn(t, s, "proxmox_api_request", `{"path":"/access/users","redact":false}`)), `[{"userid":"a@pve","password":"<redacted>"}]`)
+		eq(t, env.call(t, "proxmox_api_request", `{"path":"/access/users","redact":false}`), `[{"userid":"a@pve","password":"x"}]`)
+	})
+
 	t.Run("redacts secrets by default", func(t *testing.T) {
 		env.mock.Reply("GET", `^/access/users$`, `[{"userid":"a@pve","password":"x","keys":"y"}]`)
 		eq(t, env.call(t, "proxmox_api_request", `{"path":"/access/users"}`), `[{"userid":"a@pve","password":"<redacted>","keys":"y"}]`)

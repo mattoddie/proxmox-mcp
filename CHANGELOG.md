@@ -15,6 +15,7 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - **Breaking:** `proxmox_query_url_metadata` is now a write tool (`PROXMOX_ALLOW_WRITES`), because the node fetches any URL it is given, including internal addresses. `proxmox_list_acme_directories` still lists the known directories read-only, but fetching a `directory`'s metadata now needs write access for the same reason.
 - The check that `proxmox_update_vm_config` and `proxmox_update_container_config` need delete access to delete an `unusedN` entry (which destroys its volume) could be bypassed by separating keys with a vertical tab or NUL, which Proxmox also splits on. The VM, container and raw tools now share one check that splits the list on anything that can't be part of a key.
 - Request parameters may no longer contain control characters other than tab, newline and carriage return; such requests are refused before they are sent. Send binary guest file content base64-encoded.
+- **Breaking:** the raw API tool's `redact: false` argument let the model turn secret redaction off by itself. It now only exists when the operator sets the new `PROXMOX_ALLOW_UNREDACTED=true`; otherwise every raw response is redacted.
 - Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
 
 ## [0.3.0] - 2026-10-16

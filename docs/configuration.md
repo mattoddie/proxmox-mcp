@@ -65,6 +65,7 @@ How each method works:
 | `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. Also needed for anything that makes a node connect to a server you name: remote storage scans, `proxmox_query_url_metadata` and ACME directory lookups. |
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
+| `PROXMOX_ALLOW_UNREDACTED` | `false` | Offer the raw API tool's `redact: false` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
 | `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:

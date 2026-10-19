@@ -53,12 +53,15 @@ type Tools struct {
 	AllowDeletes bool
 	// AllowExec enables tools that run commands or write files in guests and on nodes; requires AllowWrites.
 	AllowExec bool
-	Toolsets  map[string]bool
+	// AllowUnredacted lets the raw API tool return responses without secret redaction
+	// (its `redact: false` argument); PROXMOX_ALLOW_UNREDACTED.
+	AllowUnredacted bool
+	Toolsets        map[string]bool
 }
 
 // AllTools enables every tool, for documentation and tests.
 func AllTools() Tools {
-	t := Tools{AllowWrites: true, AllowDeletes: true, AllowExec: true, Toolsets: map[string]bool{}}
+	t := Tools{AllowWrites: true, AllowDeletes: true, AllowExec: true, AllowUnredacted: true, Toolsets: map[string]bool{}}
 	for _, ts := range Toolsets {
 		t.Toolsets[ts] = true
 	}
@@ -285,6 +288,7 @@ func Load(env Env) (*Config, error) {
 	allowWrites := boolValue(get("PROXMOX_ALLOW_WRITES"), false)
 	allowDeletes := boolValue(get("PROXMOX_ALLOW_DELETES"), false)
 	allowExec := boolValue(get("PROXMOX_ALLOW_EXEC"), false)
+	allowUnredacted := boolValue(get("PROXMOX_ALLOW_UNREDACTED"), false)
 	if firstErr != nil {
 		return nil, firstErr
 	}
@@ -375,7 +379,7 @@ func Load(env Env) (*Config, error) {
 			TaskTimeoutMs:   taskTimeoutMs,
 			DefaultNode:     defaultNode,
 		},
-		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, Toolsets: toolsets},
+		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets},
 		Transport: transport,
 		HTTP: HTTP{
 			Host:                 host,

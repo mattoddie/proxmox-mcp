@@ -4898,7 +4898,7 @@ Call any Proxmox VE API endpoint directly, for anything the other tools don't co
 | `method` | `"GET"` \| `"POST"` \| `"PUT"` \| `"DELETE"` |  | HTTP method (default GET) |
 | `path` | string | yes | Path relative to /api2/json, starting with / |
 | `params` | object |  | API parameters (booleans are sent as 1/0, arrays as repeated keys) |
-| `redact` | boolean |  | Redact password/secret/key fields in the response (default true) |
+| `redact` | boolean |  | Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true) |
 
 ## Prompts
 

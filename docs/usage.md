@@ -141,7 +141,7 @@ Exec effectively gives the assistant root on every VM the token can reach. Read 
 - **`raw: true`** on many list and get tools returns the API's full objects when you need a field the summary leaves out.
 - **Secrets are redacted.** Values of fields that look like passwords, secrets, keys or tickets, such as `cipassword`, realm bind passwords and notification target secrets, show as `<redacted>`. This applies to raw objects too.
 
-There are deliberate exceptions. `proxmox_create_api_token` returns the new token's secret, because Proxmox only shows it once. The raw API tool returns unredacted data if called with `redact: false`. And `proxmox_guest_read_file` returns whatever the file contains.
+There are deliberate exceptions. `proxmox_create_api_token` returns the new token's secret, because Proxmox only shows it once. With `PROXMOX_ALLOW_UNREDACTED=true`, the raw API tool returns unredacted data if called with `redact: false`. And `proxmox_guest_read_file` returns whatever the file contains.
 
 ## The `extra` argument
 
@@ -167,7 +167,7 @@ Some `POST` and `PUT` requests destroy data as surely as a `DELETE`, so without 
 
 Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands, open consoles, send input or read or write files: every guest agent endpoint (including `exec`, `file-read`, `file-write` and `set-user-password`), the QEMU monitor, `sendkey`, console and shell proxies and websockets, migration tunnels, the node `execute` endpoint, backup `file-restore/download` (files out of a guest's backup) and any request that sets a `hookscript` or vzdump `script`. Read-only, it also refuses the `GET` requests that make a node connect to a server of the caller's choosing: remote storage scans (`scan/nfs`, `cifs`, `pbs`, `iscsi`, `glusterfs`), `query-url-metadata` and ACME `meta`/`tos` lookups with a `directory`. Paths with control characters, `..` or `./` segments, or a query string are refused, and the checks run on the path exactly as it will be sent.
 
-Responses are redacted unless the call passes `redact: false`, including the DNS API credentials in ACME plugin configs (only the key names are shown).
+Responses are always redacted, including the DNS API credentials in ACME plugin configs (only the key names are shown). The `redact: false` argument, which returns a response as is, only exists when the operator sets `PROXMOX_ALLOW_UNREDACTED=true`; the model can't turn redaction off by itself.
 
 ## Tips for good results
 

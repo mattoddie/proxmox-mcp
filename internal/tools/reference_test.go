@@ -59,6 +59,9 @@ func applyDeliberateChanges(ref *Obj) {
 		case "proxmox_query_url_metadata":
 			// A write tool now: the node fetches any URL it is given.
 			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
+		case "proxmox_api_request":
+			// redact is only offered with PROXMOX_ALLOW_UNREDACTED=true (as in AllTools).
+			tool.ObjAt("inputSchema").ObjAt("properties").ObjAt("redact").Set("description", "Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")
 		case "proxmox_list_acme_directories":
 			tool.Set("description", js.Str(tool.Get("description"))+" Fetching `directory` makes the node connect to that URL, so it needs write access.")
 		}

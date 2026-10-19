@@ -129,8 +129,11 @@ func TestConfig(t *testing.T) {
 		wantErr(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_DELETES", "true"), `also requires PROXMOX_ALLOW_WRITES`)
 		wantErr(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_EXEC", "true"), `also requires PROXMOX_ALLOW_WRITES`)
 		cfg := load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_WRITES", "1", "PROXMOX_ALLOW_DELETES", "yes", "PROXMOX_ALLOW_EXEC", "on", "PROXMOX_TOOLSETS", "cluster, VMS"))
-		if !cfg.Tools.AllowDeletes || !cfg.Tools.AllowExec {
+		if !cfg.Tools.AllowDeletes || !cfg.Tools.AllowExec || cfg.Tools.AllowUnredacted {
 			t.Fatalf("%+v", cfg.Tools)
+		}
+		if !load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_UNREDACTED", "true")).Tools.AllowUnredacted {
+			t.Fatal("PROXMOX_ALLOW_UNREDACTED")
 		}
 		var names []string
 		for ts := range cfg.Tools.Toolsets {
