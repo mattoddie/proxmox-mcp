@@ -2,7 +2,7 @@
 
 # The binary is static Go, so the build stage runs on the build machine's own
 # platform and cross-compiles: multi-arch builds don't need emulation.
-FROM --platform=$BUILDPLATFORM golang:1.26 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
