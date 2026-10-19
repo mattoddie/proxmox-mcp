@@ -178,6 +178,64 @@ func TestRawTool(t *testing.T) {
 		}
 	})
 
+	t.Run("needs write access for GETs that make the node connect out", func(t *testing.T) {
+		readOnly := connect(t, env.client, toolOptions("read"))
+		env.mock.Reset()
+		for _, tc := range []struct {
+			path   string
+			params *Obj
+		}{
+			{"/nodes/pve1/scan/nfs", js.O("server", "192.0.2.10")},
+			{"/nodes/pve1/scan/cifs", js.O("server", "192.0.2.10", "username", "u", "password", "p")},
+			{"/nodes/pve1/scan/pbs", js.O("server", "192.0.2.10", "username", "u@pbs", "password", "p")},
+			{"/nodes/pve1/scan/iscsi", js.O("portal", "192.0.2.10")},
+			{"/nodes/pve1/scan/glusterfs", js.O("server", "192.0.2.10")},
+			{"/nodes/pve1/scan/NFS/", js.O("server", "192.0.2.10")},
+			{"/nodes/pve1/query-url-metadata", js.O("url", "http://169.254.169.254/latest/meta-data/")},
+			{"/cluster/acme/meta", js.O("directory", "http://192.0.2.10/")},
+			{"/cluster/acme/tos", js.O("directory", "http://192.0.2.10/")},
+		} {
+			args := js.O("path", tc.path, "params", tc.params)
+			match(t, errorTextOf(t, callOn(t, readOnly, "proxmox_api_request", args)), `needs write access\. Set PROXMOX_ALLOW_WRITES=true`, tc.path)
+		}
+		if n := len(env.mock.Requests()); n != 0 {
+			t.Fatalf("%d requests reached the API", n)
+		}
+		// Local scans and the default ACME directory stay reads.
+		for _, path := range []string{"/nodes/pve1/scan/zfs", "/nodes/pve1/scan/lvm", "/cluster/acme/meta"} {
+			noMatch(t, resultText(callOn(t, readOnly, "proxmox_api_request", js.O("path", path))), `needs write access`, path)
+		}
+		// With writes on they go through.
+		write := connect(t, env.client, toolOptions("write"))
+		env.mock.Reply("GET", `^/nodes/pve1/scan/nfs$`, `[]`)
+		eq(t, parseResult(t, callOn(t, write, "proxmox_api_request", js.O("path", "/nodes/pve1/scan/nfs", "params", js.O("server", "nas")))), `[]`)
+	})
+
+	t.Run("needs exec access for backup file downloads and hook scripts", func(t *testing.T) {
+		noExec := connect(t, env.client, toolOptions("delete"))
+		env.mock.Reset()
+		for _, tc := range []struct {
+			method, path string
+			params       *Obj
+		}{
+			{"GET", "/nodes/pve1/storage/pbs/file-restore/download", js.O("volume", "pbs:backup/vm/100/2026-01-01T00:00:00Z", "filepath", "L2V0Yy9zaGFkb3c=")},
+			{"GET", "/nodes/pve1/storage/pbs/File-Restore//Download", js.O("volume", "x", "filepath", "x")},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("hookscript", "local:snippets/hook.sh")},
+			{"POST", "/nodes/pve1/lxc", js.O("vmid", 300, "ostemplate", "x", "hookscript", "local:snippets/hook.sh")},
+			{"POST", "/nodes/pve1/vzdump", js.O("vmid", 100, "script", "/root/hook.sh")},
+			{"PUT", "/cluster/backup/job1", js.O("script", "/root/hook.sh")},
+		} {
+			args := js.O("method", tc.method, "path", tc.path, "params", tc.params)
+			match(t, errorTextOf(t, callOn(t, noExec, "proxmox_api_request", args)), `PROXMOX_ALLOW_EXEC`, tc.method+" "+tc.path)
+		}
+		if n := len(env.mock.Requests()); n != 0 {
+			t.Fatalf("%d requests reached the API", n)
+		}
+		// A backup's file list is still a read.
+		env.mock.Reply("GET", `/file-restore/list$`, `[]`)
+		eq(t, parseResult(t, callOn(t, connect(t, env.client, toolOptions("read")), "proxmox_api_request", js.O("path", "/nodes/pve1/storage/pbs/file-restore/list", "params", js.O("volume", "x", "filepath", "/")))), `[]`)
+	})
+
 	t.Run("checks the normalised path that is actually sent", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/nodes/pve1/status$`, `{"ok":true}`)

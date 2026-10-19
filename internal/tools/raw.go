@@ -18,8 +18,9 @@ var (
 	// files in guests or on nodes; gated by PROXMOX_ALLOW_EXEC. Checked for every method, since
 	// agent file-read and exec-status are GETs. This covers every guest agent endpoint, consoles
 	// and shells (termproxy, vncshell, spiceshell, vncproxy, spiceproxy, vncwebsocket), migration
-	// tunnels, the QEMU monitor, sendkey (keystrokes into a console) and the node's bulk `execute`.
-	rawExecPathRe = regexp.MustCompile(`(?i)/agent\b|/(termproxy|vncshell|spiceshell|vncproxy|spiceproxy|vncwebsocket|mtunnel|mtunnelwebsocket|monitor|sendkey)\b|/nodes/[^/]+/execute\b`)
+	// tunnels, the QEMU monitor, sendkey (keystrokes into a console), the node's bulk `execute` and
+	// backup file-restore downloads (files out of a guest's backup).
+	rawExecPathRe = regexp.MustCompile(`(?i)/agent\b|/(termproxy|vncshell|spiceshell|vncproxy|spiceproxy|vncwebsocket|mtunnel|mtunnelwebsocket|monitor|sendkey)\b|/nodes/[^/]+/execute\b|/file-restore/download\b`)
 
 	// rawControlCharRe matches ASCII control characters: URL parsing may strip tab, CR and LF,
 	// so they could hide a blocked path.
@@ -81,6 +82,12 @@ func registerRaw(c *Context) {
 	// Appended, so the sentences above stay as they were.
 	if c.AllowWrites && !c.AllowDeletes {
 		desc += " Requests that destroy data without DELETE are refused too: wiping or initialising disks, restoring over a guest (force), deleting unusedN volumes, unlink with force, move_disk/move_volume with delete, purge or destroy-unreferenced-disks, and remote_migrate."
+	}
+	if !c.AllowWrites {
+		desc += " Remote storage scans (nfs, cifs, pbs, iscsi), query-url-metadata and ACME directory lookups make the node connect out, so they need write access."
+	}
+	if !c.AllowExec {
+		desc += " Backup file-restore downloads and hookscript/script parameters need exec access."
 	}
 
 	c.Define("proxmox_api_request", Def{
@@ -213,6 +220,18 @@ var rawRules = []rawRule{
 		return paramTruthy(p.Get("purge")) || paramTruthy(p.Get("destroy-unreferenced-disks"))
 	}, gate: Delete,
 		reason: "purges configuration or destroys unreferenced disks"},
+
+	// ---- exec-equivalent.
+	{path: regexp.MustCompile(`^/`), nonGET: true, when: rawParamSet("hookscript", "script"), gate: Exec,
+		reason: "sets a hook script, which runs as root on the node"},
+
+	// ---- write-equivalent even as GET: the node connects to a server of the caller's choosing.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/scan/(nfs|cifs|pbs|iscsi|glusterfs)/?$`), gate: Write,
+		reason: "makes the node contact another server, possibly with credentials"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/query-url-metadata/?$`), gate: Write,
+		reason: "makes the node fetch a URL of the caller's choosing"},
+	{path: regexp.MustCompile(`(?i)^/cluster/acme/(meta|tos)/?$`), when: rawParamSet("directory"), gate: Write,
+		reason: "makes the node fetch a URL of the caller's choosing"},
 }
 
 // rawGateError checks every rule that applies to a request and fails on the first one whose

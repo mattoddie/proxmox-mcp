@@ -706,6 +706,9 @@ func registerNodes(c *Context) {
 		Toolset:     "nodes",
 		Title:       "Query URL metadata",
 		Description: "Ask a node to look up a URL's file name, size and MIME type (HEAD request from the node). Useful before proxmox_download_to_storage to check the URL and pick the file name.",
+		// The node connects to any URL it is given (including internal addresses), so this is
+		// gated like proxmox_download_to_storage rather than treated as a read.
+		Write: true,
 		Input: []Prop{
 			P("node", nodeArg),
 			P("url", Str().D("The URL to inspect, e.g. https://cdimage.debian.org/.../debian-13.iso")),
@@ -1910,7 +1913,7 @@ func registerNodes(c *Context) {
 	c.Define("proxmox_list_acme_directories", Def{
 		Toolset:     "nodes",
 		Title:       "List ACME directories",
-		Description: "List the known ACME CA directories (Let's Encrypt production/staging...). With `directory`, also fetch that CA's metadata: terms-of-service URL (needed to register an account) and whether external account binding is required.",
+		Description: "List the known ACME CA directories (Let's Encrypt production/staging...). With `directory`, also fetch that CA's metadata: terms-of-service URL (needed to register an account) and whether external account binding is required. Fetching `directory` makes the node connect to that URL, so it needs write access.",
 		Input:       []Prop{P("directory", Str().Opt().D("Also fetch metadata for this directory URL"))},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			directories, err := client.Get(ctx, "/cluster/acme/directories", nil)
@@ -1919,6 +1922,10 @@ func registerNodes(c *Context) {
 			}
 			if !a.Truthy("directory") {
 				return js.O("directories", directories), nil
+			}
+			// Fetching a directory's metadata makes the node connect to the given URL.
+			if !c.AllowWrites {
+				return nil, proxmox.Errorf("Fetching metadata for `directory` makes the node connect to that URL and needs write access (PROXMOX_ALLOW_WRITES=true); without it only the known directories are listed")
 			}
 			meta, err := client.Get(ctx, "/cluster/acme/meta", js.O("directory", a.Get("directory")))
 			if err != nil {

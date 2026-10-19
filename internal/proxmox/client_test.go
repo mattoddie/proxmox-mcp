@@ -303,7 +303,24 @@ func TestClientWithToken(t *testing.T) {
 		html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<html>hi</html>")) }))
 		defer html.Close()
 		_, err := newClient(t, with(tokenEnv, "PROXMOX_URL", html.URL)).Get(ctx, "/version", nil)
-		mustMatch(t, err, `^GET /version returned a non-JSON response: <html>hi</html>$`)
+		mustMatch(t, err, `^GET /version returned a non-JSON response \(Content-Type text/html; charset=utf-8, 15 bytes\); check that PROXMOX_URL points at the Proxmox API$`)
+		if strings.Contains(err.Error(), "hi") {
+			t.Fatal("the body was echoed")
+		}
+	})
+
+	t.Run("does not echo a non-JSON error body", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("secret upstream page"))
+		}))
+		defer srv.Close()
+		_, err := newClient(t, with(tokenEnv, "PROXMOX_URL", srv.URL)).Get(ctx, "/version", nil)
+		mustMatch(t, err, `^GET /version failed with HTTP 502: Bad Gateway$`)
+		if strings.Contains(err.Error(), "secret") {
+			t.Fatal("the body was echoed")
+		}
 	})
 }
 

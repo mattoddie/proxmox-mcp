@@ -10,6 +10,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 - **Breaking:** the raw API tool (`proxmox_api_request`) is no longer enabled by default. `PROXMOX_TOOLSETS=all` (the default) now means every toolset except `raw`, because the raw tool can reach endpoints that the curated tools gate more finely. To keep using it, list it by name, for example `PROXMOX_TOOLSETS=all,raw`.
 - With writes on and deletes off, the raw API tool could still destroy data without a `DELETE`: `PUT …/disks/wipedisk`, `POST …/disks/initgpt`, restoring over an existing guest (`POST /nodes/{node}/qemu|lxc` with `force`), deleting `unusedN` volumes through a config `delete` list, `unlink` with `force`, `move_disk`/`move_volume` with `delete`, `purge`/`destroy-unreferenced-disks`, and `remote_migrate` (which copies a guest to another cluster). These now need `PROXMOX_ALLOW_DELETES`, like the curated tools that do the same.
+- Read-only, the raw API tool could make a node connect to a server of the caller's choosing with a `GET`: remote storage scans (`scan/nfs`, `cifs`, `pbs`, `iscsi`, `glusterfs`, which `proxmox_scan_storage` already gated), `query-url-metadata` and ACME `meta`/`tos` with a `directory`. These now need `PROXMOX_ALLOW_WRITES`.
+- The raw API tool now needs `PROXMOX_ALLOW_EXEC` for backup `file-restore/download` (it reads files out of a guest's backup) and for any request that sets `hookscript` or vzdump `script`, as the curated tools already did.
+- **Breaking:** `proxmox_query_url_metadata` is now a write tool (`PROXMOX_ALLOW_WRITES`), because the node fetches any URL it is given, including internal addresses. `proxmox_list_acme_directories` still lists the known directories read-only, but fetching a `directory`'s metadata now needs write access for the same reason.
+- Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
 
 ## [0.3.0] - 2026-10-16
 

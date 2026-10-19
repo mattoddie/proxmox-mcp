@@ -662,6 +662,15 @@ func (c *Client) send(ctx context.Context, method, path string, params *js.Obj, 
 	return res, data, nil
 }
 
+// describeBody summarises a response body by its type and size, without its content.
+func describeBody(res *http.Response, body []byte) string {
+	ct := res.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "none"
+	}
+	return fmt.Sprintf("(Content-Type %s, %d bytes)", ct, len(body))
+}
+
 // statusText is the HTTP reason phrase as the server sent it.
 func statusText(res *http.Response) string {
 	code := strconv.Itoa(res.StatusCode)
@@ -683,7 +692,9 @@ func (c *Client) parse(res *http.Response, body []byte, method, path string) (an
 		if reason == "" {
 			reason = jsonObj.Get("message")
 			if !js.Truthy(reason) {
-				reason = js.Slice16(text, 300)
+				// Not the body itself: whatever answered may not be Proxmox, and its page
+				// shouldn't end up in front of the model.
+				reason = http.StatusText(res.StatusCode) + " " + describeBody(res, body)
 			}
 		}
 		paramErrors := ""
@@ -721,7 +732,7 @@ func (c *Client) parse(res *http.Response, body []byte, method, path string) (an
 		if text == "" {
 			return js.Undef, js.NewObj(), nil
 		}
-		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned a non-JSON response: %s", method, path, js.Slice16(text, 200)), Status: res.StatusCode}
+		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned a non-JSON response %s; check that PROXMOX_URL points at the Proxmox API", method, path, describeBody(res, body)), Status: res.StatusCode}
 	}
 	data := parsed
 	if jsonObj != nil && jsonObj.Has("data") {
