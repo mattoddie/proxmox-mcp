@@ -155,7 +155,7 @@ Parameter names are Proxmox's own, as shown in the [API viewer](https://pve.prox
 
 ## The raw API tool
 
-`proxmox_api_request` (toolset `raw`) calls any path under `/api2/json`, such as `/nodes/pve1/qemu/100/firewall/options` or `/cluster/ha/status/current`. It's a fallback for things the other tools don't cover. It follows the same switches as everything else:
+`proxmox_api_request` (toolset `raw`) calls any path under `/api2/json`, such as `/nodes/pve1/qemu/100/firewall/options` or `/cluster/ha/status/current`. It's a fallback for things the other tools don't cover. It is **off by default**: `all` leaves the `raw` toolset out, so list it by name to enable it, for example `PROXMOX_TOOLSETS=all,raw`. It follows the same switches as everything else:
 
 | Settings | Allowed methods |
 |---|---|
@@ -165,7 +165,7 @@ Parameter names are Proxmox's own, as shown in the [API viewer](https://pve.prox
 
 Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands, open consoles, send input or read or write files: every guest agent endpoint (including `exec`, `file-read`, `file-write` and `set-user-password`), the QEMU monitor, `sendkey`, console and shell proxies and websockets, migration tunnels and the node `execute` endpoint. Paths with control characters, `..` or `./` segments, or a query string are refused, and the checks run on the path exactly as it will be sent.
 
-Responses are redacted unless the call passes `redact: false`, including the DNS API credentials in ACME plugin configs (only the key names are shown). Leave `raw` out of `PROXMOX_TOOLSETS` if you want the assistant limited to the curated tools.
+Responses are redacted unless the call passes `redact: false`, including the DNS API credentials in ACME plugin configs (only the key names are shown).
 
 ## Tips for good results
 

@@ -19,6 +19,11 @@ var Toolsets = []string{
 	"firewall", "ha", "sdn", "ceph", "pools", "replication", "notifications", "hardware", "raw",
 }
 
+// OptInToolsets are left out of "all" (and so of the default) and must be listed by name. The
+// raw API tool reaches every endpoint, including ones the curated tools gate more finely, so it
+// is never enabled without being asked for.
+var OptInToolsets = map[string]bool{"raw": true}
+
 // Proxmox holds the API connection settings.
 type Proxmox struct {
 	URL string
@@ -302,7 +307,9 @@ func Load(env Env) (*Config, error) {
 		}
 		if t == "all" {
 			for _, x := range Toolsets {
-				toolsets[x] = true
+				if !OptInToolsets[x] {
+					toolsets[x] = true
+				}
 			}
 			continue
 		}

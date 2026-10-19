@@ -63,7 +63,7 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("%+v", p)
 		}
 		tl := cfg.Tools
-		if tl.AllowWrites || tl.AllowDeletes || tl.AllowExec || len(tl.Toolsets) != len(Toolsets) {
+		if tl.AllowWrites || tl.AllowDeletes || tl.AllowExec || len(tl.Toolsets) != len(Toolsets)-1 || tl.Toolsets["raw"] {
 			t.Fatalf("%+v", tl)
 		}
 		h := cfg.HTTP
@@ -144,6 +144,23 @@ func TestConfig(t *testing.T) {
 		// Anything but 1/true/yes/on is false, as before.
 		if load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_WRITES", "maybe")).Tools.AllowWrites {
 			t.Fatal("maybe is false")
+		}
+	})
+
+	t.Run("leaves the raw toolset out of the default and of all", func(t *testing.T) {
+		for _, list := range []string{"", "all", "ALL, cluster"} {
+			ts := load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_TOOLSETS", list)).Tools.Toolsets
+			if ts["raw"] || !ts["cluster"] || !ts["hardware"] || len(ts) != len(Toolsets)-1 {
+				t.Fatalf("PROXMOX_TOOLSETS=%q: %v", list, ts)
+			}
+		}
+		for _, list := range []string{"all,raw", "raw, all", "RAW"} {
+			if !load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_TOOLSETS", list)).Tools.Toolsets["raw"] {
+				t.Fatalf("PROXMOX_TOOLSETS=%q should enable raw", list)
+			}
+		}
+		if ts := load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_TOOLSETS", "all,raw")).Tools.Toolsets; len(ts) != len(Toolsets) {
+			t.Fatal(ts)
 		}
 	})
 

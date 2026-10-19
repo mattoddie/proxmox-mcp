@@ -89,6 +89,22 @@ func TestToolGating(t *testing.T) {
 		}
 	})
 
+	t.Run("leaves the raw API tool out unless raw is listed in PROXMOX_TOOLSETS", func(t *testing.T) {
+		for _, list := range []string{"", "all"} {
+			cfg, err := config.Load(config.MapEnv(map[string]string{
+				"PROXMOX_URL": "http://pve.invalid", "PROXMOX_API_TOKEN": "root@pam!t=x", "PROXMOX_TOOLSETS": list,
+				"PROXMOX_ALLOW_WRITES": "true", "PROXMOX_ALLOW_DELETES": "true", "PROXMOX_ALLOW_EXEC": "true",
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := toolNames(t, connect(t, client, cfg.Tools))
+			if got["proxmox_api_request"] || !got["proxmox_list_guests"] {
+				t.Fatalf("PROXMOX_TOOLSETS=%q registered the raw tool", list)
+			}
+		}
+	})
+
 	t.Run("uses unique tool names with titles across all toolsets", func(t *testing.T) {
 		seen := map[string]bool{}
 		for _, tool := range listAll(t, connect(t, client, toolOptions("all"))) {

@@ -34,7 +34,7 @@ The best defence against all three is to limit what's possible, not to rely on t
 | Write switch | `PROXMOX_ALLOW_WRITES` (off by default) | When off, no write tools are registered and the raw API tool only allows `GET`. |
 | Delete switch | `PROXMOX_ALLOW_DELETES` (off by default) | When off, no delete tools are registered and the raw API tool refuses `DELETE`. |
 | Exec switch | `PROXMOX_ALLOW_EXEC` (off by default) | When off, no tools that run commands or read or write files inside guests are registered, nor QEMU monitor access, and the raw API tool refuses the equivalent endpoints: every guest agent endpoint, console and shell proxies (`termproxy`, `vncproxy`, `spiceproxy`, `vncwebsocket`, `vncshell`, `spiceshell`), `sendkey`, the QEMU monitor, migration tunnels and the node `execute` endpoint. See [Writes are not a hard boundary](#writes-are-not-a-hard-boundary). |
-| Toolsets | `PROXMOX_TOOLSETS` | Tools outside the listed toolsets don't exist. The model can't see or call them. |
+| Toolsets | `PROXMOX_TOOLSETS` | Tools outside the listed toolsets don't exist. The model can't see or call them. The raw API tool (`raw`) is never part of `all` and must be listed by name. |
 | Tool annotations | Built in | Each tool is marked read-only or destructive, so MCP clients can ask for your confirmation before running destructive tools. |
 | Server instructions | Built in | With writes on, the model is told to confirm with you before stopping, rebooting, migrating, restoring, reconfiguring or deleting, and with exec on, to show you the exact command first. This helps, but it isn't a security boundary. |
 | Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. |
@@ -105,13 +105,13 @@ Check what a token can actually do with `pveum user token permissions mcp@pve mc
 
 - Token with `PVEAuditor` on `/`, or a custom read-only role
 - Writes, deletes and exec off
-- Leave out `raw` and `access` if you don't need them
+- Leave out `access` if you don't need it (`raw` is already off unless you list it)
 
 **Hands-on admin:**
 
 - Token with `PVEAuditor` on `/` plus operator roles on `/vms` or a pool, `/storage` and `/sdn/zones` (see [Getting started](getting-started.md#option-b-operator-writes))
 - `PROXMOX_ALLOW_WRITES=true`, deletes and exec off
-- Only the toolsets you work with, and leave `raw` out
+- Only the toolsets you work with, without `raw`
 - Keep tool confirmations on in your MCP client, so you approve each destructive call
 - Protection turned on for important guests, so they can't be deleted by anyone
 

@@ -65,7 +65,7 @@ How each method works:
 | `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. |
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
-| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. |
+| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
 
@@ -147,7 +147,7 @@ Every tool's name, description and argument schema is sent to the model, which u
 | `replication` | Storage replication |
 | `notifications` | Notification targets and matchers |
 | `hardware` | PCI/USB devices, mappings, CPU models |
-| `raw` | Any API path. Handy, but gives broad access. |
+| `raw` | Any API path. Handy, but gives broad access. **Not part of `all`**: list it explicitly (`all,raw`) to enable it. |
 
 The [tool reference](tools.md) lists the tools in each toolset. A read-only setup registers far fewer tools than the full set. Some suggested sets:
 
@@ -158,7 +158,8 @@ The [tool reference](tools.md) lists the tools in each toolset. A read-only setu
 | Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` |
 | Security review | `cluster,nodes,access,firewall,tasks` |
 | Network and SDN | `cluster,nodes,sdn,firewall` |
-| Everything (default) | `all` |
+| Everything except the raw API tool (default) | `all` |
+| Everything, including the raw API tool | `all,raw` |
 
 ## Example configurations
 

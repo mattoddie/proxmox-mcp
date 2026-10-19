@@ -117,7 +117,7 @@ The token needs matching Proxmox permissions too. Read [Security](docs/security.
 | `replication` | Storage replication jobs, status and logs |
 | `notifications` | Notification targets and matchers |
 | `hardware` | PCI and USB devices, mediated devices, resource mappings, CPU models |
-| `raw` | An escape hatch that calls any Proxmox API path |
+| `raw` | An escape hatch that calls any Proxmox API path. Off unless `PROXMOX_TOOLSETS` lists `raw` (e.g. `all,raw`) |
 
 See the **[tool reference](docs/tools.md)** for every tool and argument. Ready-made prompts like `cluster_health_check`, `backup_audit` and `troubleshoot_guest` chain the tools together for common jobs.
 
