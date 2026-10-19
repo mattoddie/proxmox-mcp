@@ -156,7 +156,11 @@ func TestReferenceAccessLevels(t *testing.T) {
 				t.Fatalf("missing %v, extra %v", missing, extra)
 			}
 			raw := v.ObjAt("raw")
-			eqStr(t, got["proxmox_api_request"].Description, js.Str(raw.Get("description")), "raw tool description")
+			// The raw tool's description only gains sentences after the reference's (about the
+			// checks added since), so the reference must still be its start.
+			if desc, want := got["proxmox_api_request"].Description, js.Str(raw.Get("description")); !strings.HasPrefix(desc, want) {
+				t.Fatalf("raw tool description:\n got %q\nwant %q...", desc, want)
+			}
 			eq(t, annotations(got["proxmox_api_request"].Annotations), annotations(raw.Get("annotations")), "raw tool annotations")
 		})
 	}

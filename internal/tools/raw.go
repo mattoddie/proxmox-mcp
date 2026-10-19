@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -77,6 +78,10 @@ func registerRaw(c *Context) {
 	if !c.AllowExec {
 		desc += " Command execution, console and guest file endpoints (all guest agent endpoints, shells and consoles, monitor, sendkey) are blocked (PROXMOX_ALLOW_EXEC=false)."
 	}
+	// Appended, so the sentences above stay as they were.
+	if c.AllowWrites && !c.AllowDeletes {
+		desc += " Requests that destroy data without DELETE are refused too: wiping or initialising disks, restoring over a guest (force), deleting unusedN volumes, unlink with force, move_disk/move_volume with delete, purge or destroy-unreferenced-disks, and remote_migrate."
+	}
 
 	c.Define("proxmox_api_request", Def{
 		Toolset:     "raw",
@@ -142,6 +147,9 @@ func registerRaw(c *Context) {
 				return nil, errors.New("This endpoint runs commands, opens a console, sends input or reads/writes files in a guest or on a node. Set PROXMOX_ALLOW_EXEC=true to allow it.")
 			}
 			params, _ := a.Get("params").(*Obj)
+			if err := rawGateError(c, method, []string{decoded, sent}, params); err != nil {
+				return nil, err
+			}
 			data, err := client.Request(ctx, method, path, params)
 			if err != nil {
 				return nil, err
@@ -153,4 +161,84 @@ func registerRaw(c *Context) {
 			return proxmox.RedactSecrets(data, proxmox.RedactOptions{AcmePluginData: rawAcmeRe.MatchString(sent)}), nil
 		},
 	})
+}
+
+// rawRule is an endpoint (or parameter) the raw tool must gate beyond its HTTP method, because
+// the curated tools treat it as a delete, a write or exec.
+type rawRule struct {
+	path *regexp.Regexp
+	// nonGET restricts the rule to POST, PUT and DELETE.
+	nonGET bool
+	// when, if set, decides from the parameters whether the rule applies.
+	when   func(p *Obj) bool
+	gate   Gate
+	reason string
+}
+
+func rawParamTrue(key string) func(*Obj) bool {
+	return func(p *Obj) bool { return paramTruthy(p.Get(key)) }
+}
+
+func rawParamSet(keys ...string) func(*Obj) bool {
+	return func(p *Obj) bool {
+		for _, k := range keys {
+			if p.Present(k) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// rawRules: matched case-insensitively against the decoded path and the path that is sent,
+// with repeated slashes collapsed.
+var rawRules = []rawRule{
+	// ---- delete-equivalent: these destroy data without using DELETE.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/disks/(wipedisk|initgpt)/?$`), gate: Delete,
+		reason: "wipes a disk or replaces its partition table, destroying its data"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)/?$`), nonGET: true, when: rawParamTrue("force"), gate: Delete,
+		reason: "restores over an existing guest (force), destroying its disks and config"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)(/|$)`), nonGET: true, when: func(p *Obj) bool { return deletesUnusedVolume(p.Get("delete")) }, gate: Delete,
+		reason: "deletes an unusedN entry, which destroys its volume"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/qemu/[^/]+/unlink/?$`), when: rawParamTrue("force"), gate: Delete,
+		reason: "unlinks disks with force, which destroys the volumes"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu/[^/]+/move_disk|lxc/[^/]+/move_volume)/?$`), when: rawParamTrue("delete"), gate: Delete,
+		reason: "deletes the source volume after moving it"},
+	// Remote migration copies the guest's disks and config to another cluster of the caller's
+	// choosing (with delete=1 it also removes the original). That is data leaving the cluster
+	// and possibly a destroyed guest, not command execution, so it sits with deletes.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)/[^/]+/remote_migrate/?$`), gate: Delete,
+		reason: "migrates the guest to another cluster (copying its data out, and with delete=1 removing the original)"},
+	{path: regexp.MustCompile(`^/`), nonGET: true, when: func(p *Obj) bool {
+		return paramTruthy(p.Get("purge")) || paramTruthy(p.Get("destroy-unreferenced-disks"))
+	}, gate: Delete,
+		reason: "purges configuration or destroys unreferenced disks"},
+}
+
+// rawGateError checks every rule that applies to a request and fails on the first one whose
+// setting is off.
+func rawGateError(c *Context, method string, paths []string, params *Obj) error {
+	for _, r := range rawRules {
+		if (r.nonGET && method == "GET") || (r.when != nil && !r.when(params)) {
+			continue
+		}
+		matched := false
+		for _, p := range paths {
+			if r.path.MatchString(rawSlashesRe.ReplaceAllString(p, "/")) {
+				matched = true
+			}
+		}
+		if !matched {
+			continue
+		}
+		switch {
+		case r.gate == Write && !c.AllowWrites:
+			return fmt.Errorf("This request %s, so it needs write access. Set PROXMOX_ALLOW_WRITES=true to allow it.", r.reason)
+		case r.gate == Delete && !c.AllowDeletes:
+			return fmt.Errorf("This request %s, so it needs delete access. Set PROXMOX_ALLOW_DELETES=true to allow it.", r.reason)
+		case r.gate == Exec && !c.AllowExec:
+			return fmt.Errorf("This request %s, so it needs exec access. Set PROXMOX_ALLOW_EXEC=true to allow it.", r.reason)
+		}
+	}
+	return nil
 }

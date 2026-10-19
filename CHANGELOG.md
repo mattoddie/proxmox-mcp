@@ -9,6 +9,7 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 ### Security
 
 - **Breaking:** the raw API tool (`proxmox_api_request`) is no longer enabled by default. `PROXMOX_TOOLSETS=all` (the default) now means every toolset except `raw`, because the raw tool can reach endpoints that the curated tools gate more finely. To keep using it, list it by name, for example `PROXMOX_TOOLSETS=all,raw`.
+- With writes on and deletes off, the raw API tool could still destroy data without a `DELETE`: `PUT …/disks/wipedisk`, `POST …/disks/initgpt`, restoring over an existing guest (`POST /nodes/{node}/qemu|lxc` with `force`), deleting `unusedN` volumes through a config `delete` list, `unlink` with `force`, `move_disk`/`move_volume` with `delete`, `purge`/`destroy-unreferenced-disks`, and `remote_migrate` (which copies a guest to another cluster). These now need `PROXMOX_ALLOW_DELETES`, like the curated tools that do the same.
 
 ## [0.3.0] - 2026-10-16
 

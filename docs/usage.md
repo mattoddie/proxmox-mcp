@@ -163,6 +163,8 @@ Parameter names are Proxmox's own, as shown in the [API viewer](https://pve.prox
 | `PROXMOX_ALLOW_WRITES=true` | `GET`, `POST`, `PUT` |
 | `+ PROXMOX_ALLOW_DELETES=true` | All, including `DELETE` |
 
+Some `POST` and `PUT` requests destroy data as surely as a `DELETE`, so without `PROXMOX_ALLOW_DELETES` the raw tool refuses those too, as the curated tools do: wiping a disk (`disks/wipedisk`) or writing a new partition table (`disks/initgpt`), restoring over an existing guest (`POST /nodes/{node}/qemu|lxc` with `force`), deleting an `unusedN` volume through a guest's `delete` list, `unlink` with `force`, `move_disk`/`move_volume` with `delete`, any request with `purge` or `destroy-unreferenced-disks`, and `remote_migrate`. Remote migration sits with deletes because it copies a guest's disks and configuration to another cluster of the caller's choosing and can remove the original.
+
 Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands, open consoles, send input or read or write files: every guest agent endpoint (including `exec`, `file-read`, `file-write` and `set-user-password`), the QEMU monitor, `sendkey`, console and shell proxies and websockets, migration tunnels and the node `execute` endpoint. Paths with control characters, `..` or `./` segments, or a query string are refused, and the checks run on the path exactly as it will be sent.
 
 Responses are redacted unless the call passes `redact: false`, including the DNS API credentials in ACME plugin configs (only the key names are shown).

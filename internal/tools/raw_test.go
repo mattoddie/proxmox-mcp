@@ -109,6 +109,75 @@ func TestRawTool(t *testing.T) {
 		}
 	})
 
+	t.Run("needs delete access for requests that destroy data without DELETE", func(t *testing.T) {
+		cases := []struct {
+			method, path string
+			params       *Obj
+		}{
+			{"PUT", "/nodes/pve1/disks/wipedisk", js.O("disk", "/dev/sdb")},
+			{"POST", "/nodes/pve1/disks/initgpt", js.O("disk", "/dev/sdb")},
+			{"POST", "/nodes/pve1//disks/INITGPT/", js.O("disk", "/dev/sdb")},
+			{"POST", "/nodes/pve1/disks/%77ipedisk", js.O("disk", "/dev/sdb")},
+			{"POST", "/nodes/pve1/qemu", js.O("vmid", 100, "archive", "local:backup/vzdump-qemu-100.vma.zst", "force", 1)},
+			{"POST", "/nodes/pve1/qemu", js.O("vmid", 100, "archive", "x", "force", "true")},
+			{"POST", "/nodes/pve1/qemu", js.O("vmid", 100, "archive", "x", "force", true)},
+			{"POST", "/nodes/pve1/lxc", js.O("vmid", 200, "ostemplate", "x", "restore", 1, "force", "yes")},
+			{"POST", "/nodes/pve1/lxc", js.O("vmid", 200, "ostemplate", "x", "restore", 1, "force", []any{"0", "1"})},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("delete", "unused0")},
+			{"POST", "/nodes/pve1/qemu/100/config", js.O("delete", "net1,unused3")},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("delete", "net1\vunused0")},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("delete", []any{"net1", "unused0"})},
+			{"PUT", "/nodes/pve1/lxc/200/config", js.O("delete", "mp0;unused1")},
+			{"PUT", "/nodes/pve1/qemu/100/unlink", js.O("idlist", "scsi1", "force", 1)},
+			{"POST", "/nodes/pve1/qemu/100/move_disk", js.O("disk", "scsi0", "storage", "b", "delete", 1)},
+			{"POST", "/nodes/pve1/lxc/200/move_volume", js.O("volume", "rootfs", "storage", "b", "delete", "on")},
+			{"POST", "/nodes/pve1/qemu/100/remote_migrate", js.O("target-endpoint", "host=192.0.2.9,apitoken=x", "target-bridge", "vmbr0", "target-storage", "local")},
+			{"POST", "/nodes/pve1/lxc/200/remote_migrate", js.O("target-endpoint", "host=192.0.2.9")},
+			{"POST", "/nodes/pve1/qemu/100/status/stop", js.O("purge", 1)},
+			{"POST", "/cluster/anything", js.O("destroy-unreferenced-disks", 1)},
+		}
+		noDelete := connect(t, env.client, toolOptions("write"))
+		env.mock.Reset()
+		for _, tc := range cases {
+			args := js.O("method", tc.method, "path", tc.path, "params", tc.params)
+			match(t, errorTextOf(t, callOn(t, noDelete, "proxmox_api_request", args)), `needs delete access\. Set PROXMOX_ALLOW_DELETES=true`, tc.method+" "+tc.path)
+		}
+		if n := len(env.mock.Requests()); n != 0 {
+			t.Fatalf("%d requests reached the API", n)
+		}
+		// Allowed with deletes on.
+		withDelete := connect(t, env.client, toolOptions("delete"))
+		for _, tc := range cases {
+			args := js.O("method", tc.method, "path", tc.path, "params", tc.params)
+			if res := callOn(t, withDelete, "proxmox_api_request", args); res.IsError {
+				t.Fatalf("%s %s with deletes: %s", tc.method, tc.path, resultText(res))
+			}
+		}
+		// The safe variants stay plain writes.
+		env.mock.Reset()
+		for _, tc := range []struct {
+			method, path string
+			params       *Obj
+		}{
+			{"POST", "/nodes/pve1/qemu", js.O("vmid", 101, "archive", "x")},
+			{"POST", "/nodes/pve1/qemu", js.O("vmid", 101, "archive", "x", "force", 0)},
+			{"POST", "/nodes/pve1/lxc", js.O("vmid", 201, "ostemplate", "x", "restore", 1, "force", "false")},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("delete", "net1,scsi1")},
+			{"PUT", "/nodes/pve1/qemu/100/config", js.O("delete", "unusedx")},
+			{"PUT", "/nodes/pve1/qemu/100/unlink", js.O("idlist", "scsi1")},
+			{"POST", "/nodes/pve1/qemu/100/move_disk", js.O("disk", "scsi0", "storage", "b", "delete", 0)},
+			{"POST", "/nodes/pve1/qemu/100/migrate", js.O("target", "pve2")},
+		} {
+			args := js.O("method", tc.method, "path", tc.path, "params", tc.params)
+			if res := callOn(t, noDelete, "proxmox_api_request", args); res.IsError {
+				t.Fatalf("%s %s: %s", tc.method, tc.path, resultText(res))
+			}
+		}
+		if n := len(env.mock.Requests()); n != 8 {
+			t.Fatalf("%d requests reached the API, want 8", n)
+		}
+	})
+
 	t.Run("checks the normalised path that is actually sent", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/nodes/pve1/status$`, `{"ok":true}`)
