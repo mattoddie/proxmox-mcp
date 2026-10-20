@@ -56,12 +56,12 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name smoke -p 8080:8080 \
-            -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' -e MCP_AUTH_TOKEN=ci \
+            -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' -e MCP_AUTH_TOKEN=ci-smoke-test-token \
             proxmox-mcp:ci
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/health && break; sleep 1; done
           echo
           tools=$(curl -fsS -X POST http://localhost:8080/mcp \
-            -H 'Authorization: Bearer ci' -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer ci-smoke-test-token' -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools | length')
           echo "Tools registered: $tools"

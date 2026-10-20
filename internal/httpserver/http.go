@@ -58,32 +58,61 @@ func tokenMatches(header, token string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1
 }
 
-var portSuffix = regexp.MustCompile(`:\d+$`)
+// splitHostPort splits "host", "host:port", "[v6]" or "[v6]:port" (lower-cased) into a hostname
+// without brackets and a port ("" when none is given). A bare IPv6 address has no port.
+func splitHostPort(s string) (host, port string) {
+	s = strings.ToLower(s)
+	if h, p, err := net.SplitHostPort(s); err == nil {
+		return strings.Trim(h, "[]"), p
+	}
+	return strings.Trim(s, "[]"), ""
+}
 
-// hostAllowed reports whether host (a Host header value or an Origin's host, lower-cased) or
-// its hostname is on the allow-list.
-func hostAllowed(allowed []string, host string) bool {
-	hostname := portSuffix.ReplaceAllString(host, "")
+// hostAllowed reports whether a Host header value is on the allow-list. An entry without a port
+// matches any port (the port the server is reached on varies behind Docker and proxies); an
+// entry with one matches only that port.
+func hostAllowed(allowed []string, hostHeader string) bool {
+	host, port := splitHostPort(hostHeader)
+	if host == "" {
+		return false
+	}
 	for _, a := range allowed {
-		if a == host || a == hostname {
+		ah, ap := splitHostPort(a)
+		if ah == host && (ap == "" || ap == port) {
 			return true
 		}
 	}
 	return false
 }
 
-// originHost is an Origin header's host[:port], lower-cased, or "" for "null" or an unparsable origin.
-func originHost(origin string) string {
+// originAllowed reports whether an Origin header value is on the allow-list. Only http and https
+// origins can match. An entry without a port matches only the scheme's default port, so a page
+// on another port of an allowed host (another app on localhost, say) is refused; list host:port
+// to allow one.
+func originAllowed(allowed []string, origin string) bool {
 	u, err := url.Parse(origin)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return ""
+	if err != nil || u.Host == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" {
+		return false
 	}
-	host := strings.ToLower(u.Host)
-	// Like a browser's URL parser, drop the scheme's default port.
-	if (u.Scheme == "https" && strings.HasSuffix(host, ":443")) || (u.Scheme == "http" && strings.HasSuffix(host, ":80")) {
-		host = host[:strings.LastIndex(host, ":")]
+	scheme := strings.ToLower(u.Scheme)
+	defaultPort := map[string]string{"http": "80", "https": "443"}[scheme]
+	if defaultPort == "" {
+		return false
 	}
-	return host
+	host, port := splitHostPort(u.Host)
+	if port == "" {
+		port = defaultPort
+	}
+	for _, a := range allowed {
+		ah, ap := splitHostPort(a)
+		if ap == "" {
+			ap = defaultPort
+		}
+		if ah == host && ap == port {
+			return true
+		}
+	}
+	return false
 }
 
 // Handler serves /mcp (stateless Streamable HTTP, so the container can be restarted or scaled
@@ -113,7 +142,7 @@ func Handler(cfg config.HTTP, server *mcp.Server) http.Handler {
 			// Browsers send Origin on cross-site requests; refuse pages served from other hosts (DNS rebinding, CSRF).
 			if origins, sent := r.Header["Origin"]; sent {
 				origin := strings.Join(origins, ", ")
-				if oh := originHost(origin); oh == "" || !hostAllowed(cfg.AllowedHosts, oh) {
+				if len(origins) != 1 || !originAllowed(cfg.AllowedHosts, origin) {
 					rpcError(w, http.StatusForbidden, "Origin "+origin+" is not allowed")
 					return
 				}
@@ -160,8 +189,8 @@ func Addr(cfg config.HTTP) string {
 // Listen checks the auth settings and opens the listener, so a missing token fails before
 // anything is served.
 func Listen(cfg config.HTTP) (net.Listener, error) {
-	if cfg.AuthToken == "" && !cfg.AllowUnauthenticated {
-		return nil, config.ErrAuthTokenRequired
+	if err := config.CheckHTTPAuth(cfg); err != nil {
+		return nil, err
 	}
 	return net.Listen("tcp", Addr(cfg))
 }

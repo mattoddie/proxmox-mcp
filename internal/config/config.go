@@ -91,6 +91,31 @@ type Config struct {
 // ErrAuthTokenRequired is returned for the http transport without MCP_AUTH_TOKEN.
 var ErrAuthTokenRequired = errors.New("MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); set MCP_ALLOW_UNAUTHENTICATED=true only behind something else that authenticates")
 
+// MinAuthTokenLength is the shortest MCP_AUTH_TOKEN accepted; `openssl rand -hex 32` gives 64.
+const MinAuthTokenLength = 16
+
+// CheckHTTPAuth validates the http transport's auth settings: a token of at least
+// MinAuthTokenLength characters, or MCP_ALLOW_UNAUTHENTICATED=true together with a Host
+// allow-list.
+func CheckHTTPAuth(h HTTP) error {
+	if h.AuthToken == "" {
+		if !h.AllowUnauthenticated {
+			return ErrAuthTokenRequired
+		}
+		if len(h.AllowedHosts) == 0 {
+			return ErrUnauthenticatedNeedsHosts
+		}
+		return nil
+	}
+	if len(h.AuthToken) < MinAuthTokenLength {
+		return fmt.Errorf("MCP_AUTH_TOKEN must be at least %d characters long (generate one with: openssl rand -hex 32)", MinAuthTokenLength)
+	}
+	return nil
+}
+
+// ErrUnauthenticatedNeedsHosts is returned for MCP_ALLOW_UNAUTHENTICATED=true without MCP_ALLOWED_HOSTS.
+var ErrUnauthenticatedNeedsHosts = errors.New("MCP_ALLOW_UNAUTHENTICATED=true also requires MCP_ALLOWED_HOSTS: without a token, the Host allow-list is what stops a web page from reaching the server through DNS rebinding. List the host names clients use, e.g. MCP_ALLOWED_HOSTS=mcp.example.lan,localhost")
+
 // Env looks up a variable; os.LookupEnv in production, a map in tests.
 type Env func(string) (string, bool)
 
@@ -112,6 +137,9 @@ func read(env Env, name string) (string, error) {
 	v, _ := env(name)
 	return strings.TrimSpace(v), nil
 }
+
+// Lookup reads one variable the way Load does: trimmed, honouring <NAME>_FILE.
+func Lookup(env Env, name string) (string, error) { return read(env, name) }
 
 // errText is an OS error's message without Go's "open <path>: " prefix, which the caller already shows.
 func errText(err error) string {
@@ -340,8 +368,10 @@ func Load(env Env) (*Config, error) {
 	if firstErr != nil {
 		return nil, firstErr
 	}
-	if transport == "http" && authToken == "" && !allowUnauthenticated {
-		return nil, ErrAuthTokenRequired
+	if transport == "http" {
+		if err := CheckHTTPAuth(HTTP{AuthToken: authToken, AllowUnauthenticated: allowUnauthenticated, AllowedHosts: allowedHosts}); err != nil {
+			return nil, err
+		}
 	}
 
 	timeoutMs, err := positiveInt("PROXMOX_TIMEOUT_MS", get("PROXMOX_TIMEOUT_MS"), 30000)

@@ -38,8 +38,8 @@ The best defence against all three is to limit what's possible, not to rely on t
 | Tool annotations | Built in | Each tool is marked read-only or destructive, so MCP clients can ask for your confirmation before running destructive tools. |
 | Server instructions | Built in | With writes on, the model is told to confirm with you before stopping, rebooting, migrating, restoring, reconfiguring or deleting, and with exec on, to show you the exact command first. This helps, but it isn't a security boundary. |
 | Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. The raw API tool can only skip redaction (`redact: false`) when `PROXMOX_ALLOW_UNREDACTED=true`. |
-| Endpoint auth | `MCP_AUTH_TOKEN` | Bearer token required on every request. Checked in constant time. The HTTP transport won't start without one unless you explicitly set `MCP_ALLOW_UNAUTHENTICATED=true`. |
-| Host allow-list | `MCP_ALLOWED_HOSTS` | Rejects requests with an unexpected `Host` header, or with an `Origin` header from another host. This blocks DNS-rebinding and cross-site attacks from browser pages. |
+| Endpoint auth | `MCP_AUTH_TOKEN` | Bearer token required on every request, at least 16 characters. Checked in constant time. The HTTP transport won't start without one unless you explicitly set `MCP_ALLOW_UNAUTHENTICATED=true`, which also requires `MCP_ALLOWED_HOSTS`. |
+| Host allow-list | `MCP_ALLOWED_HOSTS` | Rejects requests with an unexpected `Host` header, or with an `Origin` header that isn't on the list (including an empty or `null` one, and a page on another port of an allowed host unless that `host:port` is listed). This blocks DNS-rebinding and cross-site attacks from browser pages. |
 | Typed arguments win | Built in | `extra` can only add parameters a tool doesn't set itself. It can't override a typed or checked one, such as `vmid`, `force` or `delete`, or turn a create into a restore with `archive` or `restore`. |
 | Container | Built in | Runs as a non-root user. The default `compose.yaml` uses a read-only root filesystem, `cap_drop: [ALL]` and `no-new-privileges`. |
 
@@ -125,7 +125,7 @@ Check what a token can actually do with `pveum user token permissions mcp@pve mc
 
 ## Network exposure
 
-- Set `MCP_AUTH_TOKEN` to a long random value, even on a home network. The HTTP transport refuses to start without one. `MCP_ALLOW_UNAUTHENTICATED=true` is only for a server that nothing can reach except an authenticating proxy.
+- Set `MCP_AUTH_TOKEN` to a long random value, even on a home network. The HTTP transport refuses to start without one, or with one shorter than 16 characters. `MCP_ALLOW_UNAUTHENTICATED=true` is only for a server that nothing can reach except an authenticating proxy, and it needs `MCP_ALLOWED_HOSTS` too.
 - Outside Docker the server listens on `127.0.0.1` unless you set `MCP_HTTP_HOST`. The image listens on all interfaces inside the container, so choose where to publish the port.
 - Publish the port only where it's needed: on a LAN address, or on `127.0.0.1` behind a reverse proxy.
 - Put TLS in front of it if traffic crosses a network you don't trust. See [Deployment](deployment.md#tls-with-a-reverse-proxy).

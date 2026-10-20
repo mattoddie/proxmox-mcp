@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -108,7 +109,13 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: httpserver.Handler(cfg.HTTP, server), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{
+		Handler:           httpserver.Handler(cfg.HTTP, server),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// No WriteTimeout: a tool call waiting for a Proxmox task can take minutes.
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -118,17 +125,41 @@ func serve() error {
 	return httpserver.Serve(srv, ln, cfg.HTTP)
 }
 
+// healthcheckAddr is where the server listening on MCP_HTTP_HOST can be reached locally: that
+// address itself, or loopback when it listens on every interface.
+func healthcheckAddr(host, port string) string {
+	switch strings.Trim(host, "[]") {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	return net.JoinHostPort(strings.Trim(host, "[]"), port)
+}
+
 // healthcheck asks the local HTTP server for /health; with stdio there is nothing to check.
 func healthcheck() error {
-	if os.Getenv("MCP_TRANSPORT") == "stdio" {
+	get := func(name string) (string, error) { return config.Lookup(os.LookupEnv, name) }
+	transport, err := get("MCP_TRANSPORT")
+	if err != nil {
+		return err
+	}
+	if transport == "stdio" {
 		return nil
 	}
-	port := os.Getenv("MCP_HTTP_PORT")
+	host, err := get("MCP_HTTP_HOST")
+	if err != nil {
+		return err
+	}
+	port, err := get("MCP_HTTP_PORT")
+	if err != nil {
+		return err
+	}
 	if port == "" {
 		port = "8080"
 	}
 	c := &http.Client{Timeout: 3 * time.Second}
-	resp, err := c.Get("http://127.0.0.1:" + port + "/health")
+	resp, err := c.Get("http://" + healthcheckAddr(host, port) + "/health")
 	if err != nil {
 		return err
 	}

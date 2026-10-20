@@ -16,7 +16,15 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - The check that `proxmox_update_vm_config` and `proxmox_update_container_config` need delete access to delete an `unusedN` entry (which destroys its volume) could be bypassed by separating keys with a vertical tab or NUL, which Proxmox also splits on. The VM, container and raw tools now share one check that splits the list on anything that can't be part of a key.
 - Request parameters may no longer contain control characters other than tab, newline and carriage return; such requests are refused before they are sent. Send binary guest file content base64-encoded.
 - **Breaking:** the raw API tool's `redact: false` argument let the model turn secret redaction off by itself. It now only exists when the operator sets the new `PROXMOX_ALLOW_UNREDACTED=true`; otherwise every raw response is redacted.
+- **Breaking:** `MCP_ALLOW_UNAUTHENTICATED=true` now also requires `MCP_ALLOWED_HOSTS`, and the server refuses to start without it. With no token, the Host allow-list is the only thing stopping a web page from reaching the server through DNS rebinding.
+- **Breaking:** `MCP_AUTH_TOKEN` must be at least 16 characters long. `openssl rand -hex 32` gives 64.
+- `MCP_ALLOWED_HOSTS` port handling is stricter for `Origin`: an entry without a port now only matches the scheme's default port, so `localhost` no longer lets a page on `http://localhost:3000` through; list `localhost:3000` to allow it. `Host` entries without a port still match any port, and entries with a port match only that port. More than one `Origin` header is rejected.
+- The HTTP server now has a 60-second read timeout and a 120-second idle timeout, so slow or idle clients can't hold connections open indefinitely. There is still no write timeout, because a tool waiting for a Proxmox task can take minutes.
 - Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
+
+### Fixed
+
+- `proxmox-mcp healthcheck` (the Docker health check) always connected to `127.0.0.1`, so it failed for a server listening on a specific address. It now connects to `MCP_HTTP_HOST`, or to loopback when that is unset, `0.0.0.0` or `::`, and honours `MCP_HTTP_PORT_FILE` and `MCP_HTTP_HOST_FILE`.
 
 ## [0.3.0] - 2026-10-16
 

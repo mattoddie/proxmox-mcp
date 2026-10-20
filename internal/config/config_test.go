@@ -80,13 +80,20 @@ func TestConfig(t *testing.T) {
 		wantErr(t, env(base...), `^MCP_AUTH_TOKEN is required for the http transport \(generate one with: openssl rand -hex 32\); set MCP_ALLOW_UNAUTHENTICATED=true only behind something else that authenticates$`)
 		wantErr(t, env(append(base, "MCP_AUTH_TOKEN", "  ")...), `MCP_AUTH_TOKEN is required`)
 		wantErr(t, env(append(base, "MCP_ALLOW_UNAUTHENTICATED", "false")...), `MCP_AUTH_TOKEN is required`)
-		if load(t, env(append(base, "MCP_AUTH_TOKEN", "t")...)).HTTP.AuthToken != "t" {
+		if load(t, env(append(base, "MCP_AUTH_TOKEN", "xxxxxxxxxxxxxxxx")...)).HTTP.AuthToken != "xxxxxxxxxxxxxxxx" {
 			t.Fatal("token")
 		}
-		open := load(t, env(append(base, "MCP_ALLOW_UNAUTHENTICATED", "true")...))
+		// Short tokens can be guessed.
+		wantErr(t, env(append(base, "MCP_AUTH_TOKEN", "t")...), `^MCP_AUTH_TOKEN must be at least 16 characters long`)
+		wantErr(t, env(append(base, "MCP_AUTH_TOKEN", "xxxxxxxxxxxxxxx")...), `at least 16 characters`)
+		// Without a token, only a Host allow-list stops DNS rebinding.
+		wantErr(t, env(append(base, "MCP_ALLOW_UNAUTHENTICATED", "true")...), `^MCP_ALLOW_UNAUTHENTICATED=true also requires MCP_ALLOWED_HOSTS`)
+		open := load(t, env(append(base, "MCP_ALLOW_UNAUTHENTICATED", "true", "MCP_ALLOWED_HOSTS", "mcp.lan")...))
 		if !open.HTTP.AllowUnauthenticated || open.HTTP.AuthToken != "" {
 			t.Fatalf("%+v", open.HTTP)
 		}
+		// stdio ignores the HTTP settings.
+		load(t, env("PROXMOX_URL", "https://pve", "MCP_AUTH_TOKEN", "short", "MCP_ALLOW_UNAUTHENTICATED", "true"))
 		// stdio doesn't listen anywhere, so it needs no token.
 		if load(t, env("PROXMOX_URL", "https://pve")).HTTP.AuthToken != "" {
 			t.Fatal("stdio")
@@ -179,11 +186,11 @@ func TestConfig(t *testing.T) {
 	t.Run("reads secrets from _FILE variables", func(t *testing.T) {
 		dir := t.TempDir()
 		secret := filepath.Join(dir, "secret")
-		if err := os.WriteFile(secret, []byte("  s3cret\n"), 0o600); err != nil {
+		if err := os.WriteFile(secret, []byte("  s3cret-s3cret-s3cret\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		cfg := load(t, plain("PROXMOX_URL", "https://pve", "PROXMOX_TOKEN_ID", "a@pam!b", "PROXMOX_TOKEN_SECRET_FILE", secret, "PROXMOX_TOKEN_SECRET", "ignored", "MCP_TRANSPORT", "http", "MCP_AUTH_TOKEN_FILE", secret))
-		if cfg.Proxmox.TokenSecret != "s3cret" || cfg.HTTP.AuthToken != "s3cret" {
+		if cfg.Proxmox.TokenSecret != "s3cret-s3cret-s3cret" || cfg.HTTP.AuthToken != "s3cret-s3cret-s3cret" {
 			t.Fatalf("%+v %+v", cfg.Proxmox, cfg.HTTP)
 		}
 		wantErr(t, plain("PROXMOX_URL_FILE", filepath.Join(dir, "missing")), `^Could not read PROXMOX_URL_FILE \(.*missing\): no such file or directory$`)
