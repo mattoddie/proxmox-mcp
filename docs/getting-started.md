@@ -118,12 +118,12 @@ PROXMOX_URL=https://192.168.1.10:8006
 PROXMOX_TOKEN_ID=mcp@pve!mcp
 PROXMOX_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MCP_AUTH_TOKEN=a-long-random-string   # required; generate one with: openssl rand -hex 32
-PROXMOX_TLS_FINGERPRINT=AB:CD:...      # recommended: the node certificate's SHA-256 fingerprint
+PROXMOX_TLS_FINGERPRINT=AB:CD:...      # the node certificate's SHA-256 fingerprint (or PROXMOX_VERIFY_SSL, see below)
 ```
 
 You can also paste the token as one value, the way Proxmox shows it: `PROXMOX_API_TOKEN=mcp@pve!mcp=xxxxxxxx-…`.
 
-The server won't start in HTTP mode without `MCP_AUTH_TOKEN`. For `PROXMOX_TLS_FINGERPRINT`, open **Node → System → Certificates** in the Proxmox web UI, select the certificate the web UI uses (`pveproxy-ssl.pem` if there is one, otherwise `pve-ssl.pem`) and copy the SHA-256 fingerprint from **View Certificate**. Without it (or another way to verify the certificate, see [Configuration](configuration.md#verifying-the-proxmox-certificate)) the server logs a warning that the connection to Proxmox isn't verified.
+The server won't start in HTTP mode without `MCP_AUTH_TOKEN` (at least 16 characters). For `PROXMOX_TLS_FINGERPRINT`, open **Node → System → Certificates** in the Proxmox web UI, select the certificate the web UI uses (`pveproxy-ssl.pem` if there is one, otherwise `pve-ssl.pem`) and copy the SHA-256 fingerprint from **View Certificate**. With an `https://` URL the server won't start until you've chosen how to check the certificate: the fingerprint, another way to verify it (see [Configuration](configuration.md#verifying-the-proxmox-certificate)), or `PROXMOX_VERIFY_SSL=false` to skip verification, which logs a warning that the connection to Proxmox isn't verified.
 
 Start it:
 

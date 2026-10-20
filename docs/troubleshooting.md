@@ -35,6 +35,8 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 | `MCP_AUTH_TOKEN must be at least 16 characters long …` | Use a longer token, such as the output of `openssl rand -hex 32`. |
 | `MCP_ALLOW_UNAUTHENTICATED=true also requires MCP_ALLOWED_HOSTS …` | Set `MCP_ALLOWED_HOSTS` to the host names clients use to reach the server (for example the reverse proxy's public name), or use a token instead. |
 | `MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); …` | Set `MCP_AUTH_TOKEN` in `.env` to the output of `openssl rand -hex 32`, and send it from your MCP client. Only if something in front of the server already authenticates every request, set `MCP_ALLOW_UNAUTHENTICATED=true` instead. |
+| `PROXMOX_URL uses https, but no way to check the Proxmox certificate is configured …` | Set `PROXMOX_TLS_FINGERPRINT` to the node certificate's SHA-256 fingerprint (recommended), `PROXMOX_CA_FILE`, `PROXMOX_VERIFY_SSL=true` for a trusted certificate, or `PROXMOX_VERIFY_SSL=false` to skip verification. See [Configuration](configuration.md#verifying-the-proxmox-certificate). |
+| `PROXMOX_URL must not contain a user name or password …` | Remove `user:pass@` from the URL and use an API token or `PROXMOX_USERNAME`/`PROXMOX_PASSWORD`. |
 | `PROXMOX_TLS_FINGERPRINT must be a SHA-256 fingerprint …` | Copy the **SHA-256** fingerprint (32 colon-separated pairs), not SHA-1, from **Node → System → Certificates**. |
 | `PROXMOX_TLS_FINGERPRINT needs an https:// PROXMOX_URL` | Pinning only applies to `https://`. Fix the URL or remove the fingerprint. |
 

@@ -196,7 +196,7 @@ With the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```sh
 make build
-PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector bin/proxmox-mcp
+PROXMOX_URL=https://pve1:8006 PROXMOX_VERIFY_SSL=false PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector bin/proxmox-mcp
 ```
 
 Or build the image and point Claude Code at it:

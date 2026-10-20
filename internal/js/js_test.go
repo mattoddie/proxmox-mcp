@@ -2,6 +2,7 @@ package js
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -75,5 +76,21 @@ func TestStrAndEncode(t *testing.T) {
 	}
 	if LocaleCompare("pve10", "pve2") >= 0 || LocaleCompare("B", "a") <= 0 || LocaleCompare("a", "A") >= 0 || LocaleCompare("a-b", "ab") >= 0 {
 		t.Error("LocaleCompare")
+	}
+}
+
+func TestParseDepthLimit(t *testing.T) {
+	nested := func(n int) []byte {
+		return []byte(strings.Repeat(`[{"a":`, n/2) + "1" + strings.Repeat(`}]`, n/2))
+	}
+	if _, err := Parse(nested(MaxDepth)); err != nil {
+		t.Fatalf("%d levels: %v", MaxDepth, err)
+	}
+	if _, err := Parse(nested(MaxDepth + 2)); err == nil || !strings.Contains(err.Error(), "nested more than 256 levels") {
+		t.Fatal(err)
+	}
+	// A hostile body is refused quickly rather than recursing a million frames deep.
+	if _, err := Parse([]byte(strings.Repeat("[", 1_000_000))); err == nil {
+		t.Fatal("deep array accepted")
 	}
 }

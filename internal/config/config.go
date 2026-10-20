@@ -138,6 +138,27 @@ func read(env Env, name string) (string, error) {
 	return strings.TrimSpace(v), nil
 }
 
+// readSecret is read for a value that may legitimately start or end with spaces, such as a
+// password: the environment value is kept as is, and a _FILE only loses its final line break.
+func readSecret(env Env, name string) (string, error) {
+	if file, _ := env(name + "_FILE"); file != "" {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("Could not read %s_FILE (%s): %s", name, file, errText(err))
+		}
+		s := strings.TrimSuffix(string(b), "\n")
+		return strings.TrimSuffix(s, "\r"), nil
+	}
+	v, _ := env(name)
+	return v, nil
+}
+
+// ErrTLSChoiceRequired is returned for an https PROXMOX_URL with no way to check the certificate chosen.
+var ErrTLSChoiceRequired = errors.New("PROXMOX_URL uses https, but no way to check the Proxmox certificate is configured. Proxmox ships a self-signed certificate, so choose one: " +
+	"PROXMOX_TLS_FINGERPRINT=<SHA-256 fingerprint> (recommended; shown under Node > System > Certificates, or run on the node: openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -fingerprint -sha256), " +
+	"PROXMOX_CA_FILE=<CA certificate file>, PROXMOX_VERIFY_SSL=true for a publicly trusted certificate, " +
+	"or PROXMOX_VERIFY_SSL=false to skip verification (insecure: the token or password can be intercepted)")
+
 // Lookup reads one variable the way Load does: trimmed, honouring <NAME>_FILE.
 func Lookup(env Env, name string) (string, error) { return read(env, name) }
 
@@ -264,6 +285,10 @@ func Load(env Env) (*Config, error) {
 	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
 		return nil, fmt.Errorf("PROXMOX_URL must use https:// (or http://), got %s", rawURL)
 	}
+	if parsed.User != nil {
+		// Not echoed: the URL holds a password.
+		return nil, errors.New("PROXMOX_URL must not contain a user name or password (user:pass@); use an API token (PROXMOX_API_TOKEN) or PROXMOX_USERNAME and PROXMOX_PASSWORD")
+	}
 	https := strings.EqualFold(parsed.Scheme, "https")
 
 	tokenID, tokenSecret, err := parseToken(env)
@@ -271,7 +296,10 @@ func Load(env Env) (*Config, error) {
 		return nil, err
 	}
 	username := get("PROXMOX_USERNAME")
-	password := get("PROXMOX_PASSWORD")
+	password, err := readSecret(env, "PROXMOX_PASSWORD")
+	if err != nil {
+		return nil, err
+	}
 	if username != "" && !strings.Contains(username, "@") {
 		realm := get("PROXMOX_REALM")
 		if realm == "" {
@@ -392,9 +420,15 @@ func Load(env Env) (*Config, error) {
 		return nil, err
 	}
 	defaultNode := get("PROXMOX_DEFAULT_NODE")
-	verify := caCert != "" || boolValue(get("PROXMOX_VERIFY_SSL"), false)
+	verifySetting := get("PROXMOX_VERIFY_SSL")
+	verify := caCert != "" || boolValue(verifySetting, false)
 	if firstErr != nil {
 		return nil, firstErr
+	}
+	// Proxmox ships a self-signed certificate, so an unverified connection used to be the silent
+	// default. Now the operator has to choose: pin it, trust a CA, verify, or explicitly not.
+	if https && verifySetting == "" && caCert == "" && len(fingerprints) == 0 {
+		return nil, ErrTLSChoiceRequired
 	}
 
 	cfg := &Config{

@@ -54,13 +54,14 @@ Claude Desktop starts local MCP servers over stdio, so use [stdio mode](#stdio-m
       "args": [
         "run", "-i", "--rm",
         "-e", "MCP_TRANSPORT=stdio",
-        "-e", "PROXMOX_URL", "-e", "PROXMOX_TOKEN_ID", "-e", "PROXMOX_TOKEN_SECRET",
+        "-e", "PROXMOX_URL", "-e", "PROXMOX_TOKEN_ID", "-e", "PROXMOX_TOKEN_SECRET", "-e", "PROXMOX_TLS_FINGERPRINT",
         "ghcr.io/mattoddie/proxmox-mcp:latest"
       ],
       "env": {
         "PROXMOX_URL": "https://192.168.1.10:8006",
         "PROXMOX_TOKEN_ID": "mcp@pve!mcp",
-        "PROXMOX_TOKEN_SECRET": "your-token-secret"
+        "PROXMOX_TOKEN_SECRET": "your-token-secret",
+        "PROXMOX_TLS_FINGERPRINT": "AB:CD:..."
       }
     }
   }
@@ -146,6 +147,7 @@ docker run -i --rm \
   -e PROXMOX_URL=https://192.168.1.10:8006 \
   -e PROXMOX_TOKEN_ID='mcp@pve!mcp' \
   -e PROXMOX_TOKEN_SECRET=your-token-secret \
+  -e PROXMOX_TLS_FINGERPRINT=AB:CD:... \
   ghcr.io/mattoddie/proxmox-mcp:latest
 ```
 

@@ -19,7 +19,7 @@ import (
 func server(t *testing.T, kv ...string) (*httptest.Server, config.HTTP) {
 	t.Helper()
 	m := map[string]string{
-		"PROXMOX_URL": "https://pve.invalid", "PROXMOX_TOKEN_ID": "root@pam!test", "PROXMOX_TOKEN_SECRET": "x",
+		"PROXMOX_URL": "https://pve.invalid", "PROXMOX_VERIFY_SSL": "false", "PROXMOX_TOKEN_ID": "root@pam!test", "PROXMOX_TOKEN_SECRET": "x",
 		"MCP_TRANSPORT": "http",
 	}
 	for i := 0; i+1 < len(kv); i += 2 {

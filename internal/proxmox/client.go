@@ -151,11 +151,26 @@ type Client struct {
 	cfg config.Proxmox
 	hc  *http.Client
 
-	mu       sync.Mutex // guards ticket
+	mu       sync.Mutex // guards ticket and the login backoff
 	ticket   *ticket
 	loginMu  sync.Mutex // one login at a time; waiters reuse its result
 	loginGen int
+	// After Proxmox rejects the credentials, logins are not retried until loginRetryAt, so a
+	// wrong password isn't sent again on every tool call (and doesn't trip lockouts).
+	loginFailures int
+	loginRetryAt  time.Time
+	loginErr      error
 }
+
+// Login backoff after rejected credentials: 5s, doubling up to 5 minutes.
+const (
+	loginBackoffMin = 5 * time.Second
+	loginBackoffMax = 5 * time.Minute
+)
+
+// maxResponseBytes bounds a Proxmox response body; the largest real ones (big task logs, node
+// reports) are a few MiB. A variable so tests can lower it.
+var maxResponseBytes = 64 << 20
 
 type ticket struct {
 	value, csrf string
@@ -576,16 +591,48 @@ func (c *Client) login(ctx context.Context, force bool) error {
 		c.mu.Unlock()
 		return nil
 	}
+	if wait := time.Until(c.loginRetryAt); wait > 0 && c.loginErr != nil {
+		err := c.loginErr
+		c.mu.Unlock()
+		return &Error{Message: fmt.Sprintf("%s (not retrying for %s)", errMessage(err), wait.Round(time.Second)), Status: errStatus(err)}
+	}
 	c.mu.Unlock()
 	t, err := c.doLogin(ctx)
 	if err != nil {
+		var pe *Error
+		if errors.As(err, &pe) && pe.Status >= 400 && pe.Status < 500 {
+			// The credentials were refused; network errors and 5xx are retried as before.
+			c.mu.Lock()
+			c.loginFailures++
+			backoff := loginBackoffMin << min(c.loginFailures-1, 10)
+			c.loginRetryAt = time.Now().Add(min(backoff, loginBackoffMax))
+			c.loginErr = err
+			c.mu.Unlock()
+		}
 		return err
 	}
 	c.mu.Lock()
 	c.ticket = t
 	c.loginGen++
+	c.loginFailures, c.loginErr = 0, nil
 	c.mu.Unlock()
 	return nil
+}
+
+func errMessage(err error) string {
+	var pe *Error
+	if errors.As(err, &pe) {
+		return pe.Message
+	}
+	return err.Error()
+}
+
+func errStatus(err error) int {
+	var pe *Error
+	if errors.As(err, &pe) {
+		return pe.Status
+	}
+	return 0
 }
 
 func (c *Client) doLogin(ctx context.Context) (*ticket, error) {
@@ -676,9 +723,12 @@ func (c *Client) send(ctx context.Context, method, path string, params *js.Obj, 
 	}
 	defer res.Body.Close()
 	// A timeout or dropped connection while reading the body is reported like one before the headers.
-	data, err := io.ReadAll(res.Body)
+	data, err := io.ReadAll(io.LimitReader(res.Body, int64(maxResponseBytes)+1))
 	if err != nil {
 		return nil, nil, c.networkError(err)
+	}
+	if len(data) > maxResponseBytes {
+		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned more than %d MiB; refusing to read the rest", method, path, maxResponseBytes>>20), Status: res.StatusCode}
 	}
 	return res, data, nil
 }

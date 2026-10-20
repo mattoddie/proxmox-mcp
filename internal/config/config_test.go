@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 )
 
-var tokenEnv = map[string]string{"PROXMOX_TOKEN_ID": "root@pam!test", "PROXMOX_TOKEN_SECRET": "00000000-1111-2222-3333-444444444444"}
+// PROXMOX_VERIFY_SSL=false is set throughout (the URLs are https), except where a test is about it.
+var tokenEnv = map[string]string{"PROXMOX_TOKEN_ID": "root@pam!test", "PROXMOX_TOKEN_SECRET": "00000000-1111-2222-3333-444444444444", "PROXMOX_VERIFY_SSL": "false"}
 
 func env(kv ...string) Env {
 	m := map[string]string{}
@@ -23,7 +25,7 @@ func env(kv ...string) Env {
 }
 
 func plain(kv ...string) Env {
-	m := map[string]string{}
+	m := map[string]string{"PROXMOX_VERIFY_SSL": "false"}
 	for i := 0; i+1 < len(kv); i += 2 {
 		m[kv[i]] = kv[i+1]
 	}
@@ -154,6 +156,59 @@ func TestConfig(t *testing.T) {
 		// Anything but 1/true/yes/on is false, as before.
 		if load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_WRITES", "maybe")).Tools.AllowWrites {
 			t.Fatal("maybe is false")
+		}
+	})
+
+	t.Run("makes the operator choose how to check an https certificate", func(t *testing.T) {
+		base := map[string]string{"PROXMOX_URL": "https://pve:8006", "PROXMOX_API_TOKEN": "root@pam!t=x"}
+		e := func(kv ...string) Env {
+			m := map[string]string{}
+			for k, v := range base {
+				m[k] = v
+			}
+			for i := 0; i+1 < len(kv); i += 2 {
+				m[kv[i]] = kv[i+1]
+			}
+			return MapEnv(m)
+		}
+		wantErr(t, e(), `^PROXMOX_URL uses https, but no way to check the Proxmox certificate is configured\..*PROXMOX_TLS_FINGERPRINT=.*PROXMOX_CA_FILE=.*PROXMOX_VERIFY_SSL=true.*PROXMOX_VERIFY_SSL=false`)
+		wantErr(t, e("PROXMOX_VERIFY_SSL", " "), `no way to check the Proxmox certificate`)
+		if load(t, e("PROXMOX_VERIFY_SSL", "false")).Proxmox.VerifySSL {
+			t.Fatal("explicitly off")
+		}
+		if !load(t, e("PROXMOX_VERIFY_SSL", "true")).Proxmox.VerifySSL {
+			t.Fatal("on")
+		}
+		load(t, e("PROXMOX_TLS_FINGERPRINT", strings.Repeat("ab", 32)))
+		ca := filepath.Join(t.TempDir(), "ca.pem")
+		if err := os.WriteFile(ca, []byte("-----BEGIN CERTIFICATE-----\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		load(t, e("PROXMOX_CA_FILE", ca))
+		// Plain http has no certificate to check.
+		load(t, e("PROXMOX_URL", "http://pve:8006"))
+	})
+
+	t.Run("refuses credentials in PROXMOX_URL without echoing them", func(t *testing.T) {
+		for _, u := range []string{"https://root:hunter2@pve:8006", "https://root@pve:8006", "http://:hunter2@pve"} {
+			_, err := Load(env("PROXMOX_URL", u))
+			if err == nil || !strings.Contains(err.Error(), "must not contain a user name or password") || strings.Contains(err.Error(), "hunter2") {
+				t.Fatalf("%s: %v", u, err)
+			}
+		}
+	})
+
+	t.Run("keeps a password's leading and trailing spaces", func(t *testing.T) {
+		pw := load(t, plain("PROXMOX_URL", "https://pve", "PROXMOX_USERNAME", "admin@pve", "PROXMOX_PASSWORD", "  pass word ")).Proxmox.Password
+		if pw != "  pass word " {
+			t.Fatalf("%q", pw)
+		}
+		file := filepath.Join(t.TempDir(), "pw")
+		if err := os.WriteFile(file, []byte(" pw \r\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if pw := load(t, plain("PROXMOX_URL", "https://pve", "PROXMOX_USERNAME", "admin@pve", "PROXMOX_PASSWORD_FILE", file)).Proxmox.Password; pw != " pw " {
+			t.Fatalf("%q", pw)
 		}
 	})
 

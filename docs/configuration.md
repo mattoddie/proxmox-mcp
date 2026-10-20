@@ -16,9 +16,9 @@ The server checks the configuration at startup. If something is wrong, it exits 
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXMOX_URL` | **required** | URL of any cluster node, or a load balancer in front of them, including the port: `https://pve1.example.lan:8006`. A trailing `/api2/json` is removed if you include it. |
+| `PROXMOX_URL` | **required** | URL of any cluster node, or a load balancer in front of them, including the port: `https://pve1.example.lan:8006`. A trailing `/api2/json` is removed if you include it. It must not contain a user name or password. `http://` works but logs a warning, because the token or password then travels in cleartext. |
 | `PROXMOX_TLS_FINGERPRINT` | | **Recommended with the default self-signed certificate.** The SHA-256 fingerprint of the node's certificate, as `AA:BB:…` (32 pairs) or 64 hex digits. The server then only talks to a node presenting that certificate, whether or not `PROXMOX_VERIFY_SSL` is on. Separate several with commas, for example the old and new certificate during a renewal, or each node's certificate behind a load balancer. See [Verifying the Proxmox certificate](#verifying-the-proxmox-certificate). |
-| `PROXMOX_VERIFY_SSL` | `false` | Verify the node's certificate chain and hostname. It's `false` by default because of the self-signed certificate Proxmox ships with; pin that with `PROXMOX_TLS_FINGERPRINT` instead. Set it to `true` if the node has a trusted certificate (for example from ACME), or set `PROXMOX_CA_FILE`. With an `https://` URL, verification off and no fingerprint or CA, the server logs a warning at startup. |
+| `PROXMOX_VERIFY_SSL` | unset | Verify the node's certificate chain and hostname. Set it to `true` if the node has a trusted certificate (for example from ACME). Proxmox ships a self-signed certificate, so with an `https://` URL the server **refuses to start** unless you choose how to check it: `PROXMOX_TLS_FINGERPRINT` (recommended), `PROXMOX_CA_FILE`, `PROXMOX_VERIFY_SSL=true`, or `PROXMOX_VERIFY_SSL=false` to skip verification. With `false` and no fingerprint or CA, the server logs a warning at startup. |
 | `PROXMOX_CA_FILE` | | Path to a PEM file with the CA certificate(s) to trust (in addition to the system CAs). Setting it turns certificate verification on, whatever `PROXMOX_VERIFY_SSL` says. Use the cluster's own CA, `/etc/pve/pve-root-ca.pem` on any node, to verify the default node certificates. |
 | `PROXMOX_TIMEOUT_MS` | `30000` | Timeout for each API request, in milliseconds. |
 | `PROXMOX_TASK_TIMEOUT_MS` | `120000` | How long tools wait for a Proxmox task (start, clone, migrate, backup…) to finish before returning. A task that takes longer keeps running and the tool returns its task ID. See [Usage](usage.md#tasks-and-wait). |
@@ -26,7 +26,7 @@ The server checks the configuration at startup. If something is wrong, it exits 
 
 ### Verifying the Proxmox certificate
 
-Without verification, a machine that can intercept the traffic between proxmox-mcp and the node can read the API token or password. Pick one of these:
+Without verification, a machine that can intercept the traffic between proxmox-mcp and the node can read the API token or password. With an `https://` URL the server won't start until you pick one of these:
 
 - **Pin the certificate (simplest).** Copy the SHA-256 fingerprint from **Node → System → Certificates**, select the certificate the web UI uses (`pveproxy-ssl.pem` if there is one, otherwise `pve-ssl.pem`), **View Certificate**. Or run this on the node:
 
@@ -37,6 +37,7 @@ Without verification, a machine that can intercept the traffic between proxmox-m
   Then set `PROXMOX_TLS_FINGERPRINT=AA:BB:…`. This is how Proxmox's own clients trust self-signed certificates, for example a Proxmox Backup Server storage. When the certificate changes (renewal, a new ACME certificate, a reinstalled node), update the fingerprint, or list the old and new ones while you switch over.
 - **Trust the cluster CA** with `PROXMOX_CA_FILE=/path/to/pve-root-ca.pem` (copied from `/etc/pve/pve-root-ca.pem`). Covers every node's default certificate.
 - **Use a trusted certificate** (for example from Proxmox's built-in ACME support) and set `PROXMOX_VERIFY_SSL=true`.
+- **Skip verification** with `PROXMOX_VERIFY_SSL=false`. Only on a network you trust: the server logs a warning at startup.
 
 Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`. Anything else counts as `false`.
 
@@ -101,7 +102,7 @@ The HTTP server exposes these endpoints:
 
 ## Docker secrets (`_FILE` variables)
 
-Every variable can also be read from a file: set `<NAME>_FILE` to the file's path. Leading and trailing whitespace is trimmed. This works with [Docker secrets](https://docs.docker.com/compose/how-tos/use-secrets/) and Kubernetes secret volumes:
+Every variable can also be read from a file: set `<NAME>_FILE` to the file's path. Leading and trailing whitespace is trimmed, except for `PROXMOX_PASSWORD_FILE`, where only the final line break is removed so a password can start or end with a space (`PROXMOX_PASSWORD` itself is never trimmed either). This works with [Docker secrets](https://docs.docker.com/compose/how-tos/use-secrets/) and Kubernetes secret volumes:
 
 ```yaml
 services:

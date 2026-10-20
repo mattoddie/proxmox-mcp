@@ -20,10 +20,15 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - **Breaking:** `MCP_AUTH_TOKEN` must be at least 16 characters long. `openssl rand -hex 32` gives 64.
 - `MCP_ALLOWED_HOSTS` port handling is stricter for `Origin`: an entry without a port now only matches the scheme's default port, so `localhost` no longer lets a page on `http://localhost:3000` through; list `localhost:3000` to allow it. `Host` entries without a port still match any port, and entries with a port match only that port. More than one `Origin` header is rejected.
 - The HTTP server now has a 60-second read timeout and a 120-second idle timeout, so slow or idle clients can't hold connections open indefinitely. There is still no write timeout, because a tool waiting for a Proxmox task can take minutes.
+- **Breaking:** with an `https://` `PROXMOX_URL`, the server no longer connects without verifying the certificate by default. If `PROXMOX_VERIFY_SSL` is unset and neither `PROXMOX_TLS_FINGERPRINT` nor `PROXMOX_CA_FILE` is set, it refuses to start and explains the options. Pin the certificate with `PROXMOX_TLS_FINGERPRINT` (recommended), trust a CA with `PROXMOX_CA_FILE`, set `PROXMOX_VERIFY_SSL=true` for a trusted certificate, or set `PROXMOX_VERIFY_SSL=false` to keep the old behaviour (with the startup warning). `example.env` no longer sets `PROXMOX_VERIFY_SSL=false`.
+- `PROXMOX_URL` may no longer contain a user name or password (`user:pass@`), and a plain `http://` URL now logs a warning that credentials travel in cleartext.
+- After Proxmox rejects the username and password, the server waits before logging in again (5 seconds, doubling up to 5 minutes) instead of retrying on every tool call. It still logs in again only after a `401`, never a `403`.
+- Proxmox responses larger than 64 MiB are refused instead of read into memory, and JSON nested more than 256 levels deep is rejected.
 - Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
 
 ### Fixed
 
+- `PROXMOX_PASSWORD` was trimmed, so a password starting or ending with a space couldn't log in. It is now used as given; from `PROXMOX_PASSWORD_FILE` only the final line break is removed.
 - `proxmox-mcp healthcheck` (the Docker health check) always connected to `127.0.0.1`, so it failed for a server listening on a specific address. It now connects to `MCP_HTTP_HOST`, or to loopback when that is unset, `0.0.0.0` or `::`, and honours `MCP_HTTP_PORT_FILE` and `MCP_HTTP_HOST_FILE`.
 
 ## [0.3.0] - 2026-10-16

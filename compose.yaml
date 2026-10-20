@@ -1,5 +1,7 @@
 # Copy example.env to .env and fill it in, then: docker compose up -d
 # The http transport needs MCP_AUTH_TOKEN in .env (generate one with: openssl rand -hex 32).
+# With an https:// PROXMOX_URL, .env must also say how to check the Proxmox certificate:
+# PROXMOX_TLS_FINGERPRINT (recommended), PROXMOX_CA_FILE, or PROXMOX_VERIFY_SSL=true/false.
 services:
   proxmox-mcp:
     image: ghcr.io/mattoddie/proxmox-mcp:latest

@@ -67,7 +67,7 @@ Some tools that look harmless are gated for the same reason: `proxmox_scan_stora
 
 ### About TLS to Proxmox
 
-`PROXMOX_VERIFY_SSL` defaults to `false` because Proxmox nodes ship with self-signed certificates, and turning it on would break most installs. But without verification a machine that can intercept traffic between proxmox-mcp and the node could read the API token, so the server logs a warning at startup. Fix it in one of three ways (see [Configuration](configuration.md#verifying-the-proxmox-certificate)):
+Proxmox nodes ship with self-signed certificates, so verifying the usual way would fail on most installs, but without verification a machine that can intercept traffic between proxmox-mcp and the node could read the API token. With an `https://` URL the server therefore refuses to start until you choose. Verify it in one of three ways (see [Configuration](configuration.md#verifying-the-proxmox-certificate)), or set `PROXMOX_VERIFY_SSL=false` to skip verification knowingly, in which case the server logs a warning at startup:
 
 - **Pin the node's certificate** with `PROXMOX_TLS_FINGERPRINT`, its SHA-256 fingerprint from **Node → System → Certificates**. This works with the self-signed certificate and is how Proxmox's own clients trust one.
 - Point `PROXMOX_CA_FILE` at the cluster CA, `/etc/pve/pve-root-ca.pem` (this turns verification on by itself).

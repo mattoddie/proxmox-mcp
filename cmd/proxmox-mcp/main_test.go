@@ -12,6 +12,7 @@ import (
 
 func TestServeRefusesHTTPWithoutAToken(t *testing.T) {
 	t.Setenv("PROXMOX_URL", "https://pve.invalid")
+	t.Setenv("PROXMOX_VERIFY_SSL", "false")
 	t.Setenv("PROXMOX_TOKEN_ID", "root@pam!test")
 	t.Setenv("PROXMOX_TOKEN_SECRET", "x")
 	t.Setenv("MCP_TRANSPORT", "http")

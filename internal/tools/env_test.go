@@ -369,7 +369,7 @@ func toolNames(t testing.TB, s *mcp.ClientSession) map[string]bool {
 // testClient is a client for a URL that is never contacted.
 func testClient(t testing.TB) *proxmox.Client {
 	t.Helper()
-	cfg, err := config.Load(config.MapEnv(map[string]string{"PROXMOX_URL": "https://pve.invalid", "PROXMOX_TOKEN_ID": proxmoxtest.TokenID, "PROXMOX_TOKEN_SECRET": proxmoxtest.TokenSecret}))
+	cfg, err := config.Load(config.MapEnv(map[string]string{"PROXMOX_URL": "https://pve.invalid", "PROXMOX_VERIFY_SSL": "false", "PROXMOX_TOKEN_ID": proxmoxtest.TokenID, "PROXMOX_TOKEN_SECRET": proxmoxtest.TokenSecret}))
 	if err != nil {
 		t.Fatal(err)
 	}
