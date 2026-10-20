@@ -59,11 +59,11 @@ The exec switch blocks the endpoints that run commands or open consoles directly
 - **QEMU `args`** passes arbitrary options to the QEMU process on the node (Proxmox only lets `root@pam` set it).
 - **Container bind mounts** (`mpN` pointing at a host path) and device passthrough give a container access to the node's files and devices (also `root@pam` only).
 - **`cicustom`** points cloud-init at a snippet on storage, which can run anything inside the VM on its next boot, if the token can also write snippets to that storage.
-- **Hook scripts** run as root on the node at guest or backup events. proxmox-mcp asks for exec permission for `hookscript` and vzdump `script`, but only Proxmox's own permission checks hold if the raw API tool is enabled.
+- **Hook scripts** run as root on the node at guest or backup events. proxmox-mcp asks for exec permission for `hookscript` and vzdump `script`, in the raw API tool too, but the script itself has to be put on storage first, and only Proxmox's own permission checks govern that.
 
 So keep the hard limit where it belongs: give the token only the privileges you're willing to let the assistant use, and **don't use `root@pam`**. With a dedicated, least-privilege token, `PROXMOX_ALLOW_WRITES` without exec is a meaningful restriction; with root it's a guard rail.
 
-Some tools that look harmless are gated for the same reason: `proxmox_scan_storage` for `nfs`, `cifs`, `pbs` and `iscsi` makes the node connect to any server you name, possibly with credentials, so it needs write access; `proxmox_init_disk_gpt` destroys a disk's partition table, so like `proxmox_wipe_disk` it needs delete access.
+Some tools that look harmless are gated for the same reason: `proxmox_scan_storage` for `nfs`, `cifs`, `pbs` and `iscsi`, `proxmox_query_url_metadata` and ACME directory lookups make the node connect to any server you name (possibly with credentials, or to internal addresses), so they need write access; `proxmox_init_disk_gpt` destroys a disk's partition table, so like `proxmox_wipe_disk` it needs delete access. The raw API tool applies the same rules to the equivalent endpoints.
 
 ### About TLS to Proxmox
 
