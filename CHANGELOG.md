@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
 ### Security
 
 - **Breaking:** the raw API tool (`proxmox_api_request`) is no longer enabled by default. `PROXMOX_TOOLSETS=all` (the default) now means every toolset except `raw`, because the raw tool can reach endpoints that the curated tools gate more finely. To keep using it, list it by name, for example `PROXMOX_TOOLSETS=all,raw`.
@@ -87,7 +89,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mattoddie/proxmox-mcp/releases/tag/v0.1.0
