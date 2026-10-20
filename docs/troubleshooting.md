@@ -32,7 +32,11 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 | `Could not read PROXMOX_TOKEN_SECRET_FILE (…)` | The secret file isn't mounted where the variable points. |
 | `Could not read PROXMOX_CA_FILE (…)` | The certificate file isn't mounted where the variable points. |
 | `MCP_HTTP_PORT must be a positive integer` | Fix the value. The same applies to the `_TIMEOUT_MS` variables. |
+| `MCP_AUTH_TOKEN must be at least 16 characters long …` | Use a longer token, such as the output of `openssl rand -hex 32`. |
+| `MCP_ALLOW_UNAUTHENTICATED=true also requires MCP_ALLOWED_HOSTS …` | Set `MCP_ALLOWED_HOSTS` to the host names clients use to reach the server (for example the reverse proxy's public name), or use a token instead. |
 | `MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); …` | Set `MCP_AUTH_TOKEN` in `.env` to the output of `openssl rand -hex 32`, and send it from your MCP client. Only if something in front of the server already authenticates every request, set `MCP_ALLOW_UNAUTHENTICATED=true` instead. |
+| `PROXMOX_URL uses https, but no way to check the Proxmox certificate is configured …` | Set `PROXMOX_TLS_FINGERPRINT` to the node certificate's SHA-256 fingerprint (recommended), `PROXMOX_CA_FILE`, `PROXMOX_VERIFY_SSL=true` for a trusted certificate, or `PROXMOX_VERIFY_SSL=false` to skip verification. See [Configuration](configuration.md#verifying-the-proxmox-certificate). |
+| `PROXMOX_URL must not contain a user name or password …` | Remove `user:pass@` from the URL and use an API token or `PROXMOX_USERNAME`/`PROXMOX_PASSWORD`. |
 | `PROXMOX_TLS_FINGERPRINT must be a SHA-256 fingerprint …` | Copy the **SHA-256** fingerprint (32 colon-separated pairs), not SHA-1, from **Node → System → Certificates**. |
 | `PROXMOX_TLS_FINGERPRINT needs an https:// PROXMOX_URL` | Pinning only applies to `https://`. Fix the URL or remove the fingerprint. |
 
@@ -42,7 +46,7 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 2. **Right host?** The port is published on the machine running Docker. If Docker runs on another machine (for example with `DOCKER_HOST`), `localhost` won't work.
 3. **Right path?** The endpoint is `/mcp`, so the URL is `http://<docker-host>:8080/mcp`.
 4. **`401 Unauthorized`:** the client isn't sending `Authorization: Bearer <MCP_AUTH_TOKEN>`, or the token doesn't match. Watch for stray quotes or spaces in `.env`.
-5. **`403 Host … is not allowed`:** add the hostname the client uses to `MCP_ALLOWED_HOSTS`, or unset it. A **`403 Origin … is not allowed`** means that, with `MCP_ALLOWED_HOSTS` set, requests from a browser page on another host are refused. Add that page's host if you really mean to call the server from it.
+5. **`403 Host … is not allowed`:** add the hostname the client uses to `MCP_ALLOWED_HOSTS`, or unset it. A **`403 Origin … is not allowed`** means that, with `MCP_ALLOWED_HOSTS` set, requests from a browser page on another host are refused. Add that page's host if you really mean to call the server from it; for a page on a non-default port, list it as `host:port`.
 6. **`405 Method not allowed`:** the client tried to open an SSE stream with `GET`. The server is stateless and only accepts `POST`. Make sure the client is set to *Streamable HTTP* (often called `http`), not `sse`.
 7. **Started outside Docker but unreachable from other machines:** the server listens on `127.0.0.1` by default. Set `MCP_HTTP_HOST=0.0.0.0` (or a LAN address), with `MCP_AUTH_TOKEN` set.
 

@@ -65,9 +65,9 @@ mkdir proxmox-mcp && cd proxmox-mcp
 curl -fsSLO https://raw.githubusercontent.com/mattoddie/proxmox-mcp/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/mattoddie/proxmox-mcp/main/example.env -o .env
 # Edit .env: set PROXMOX_URL, PROXMOX_TOKEN_ID (mcp@pve!mcp), PROXMOX_TOKEN_SECRET,
-# a random MCP_AUTH_TOKEN (required; e.g. `openssl rand -hex 32`) and, recommended,
-# PROXMOX_TLS_FINGERPRINT (the node certificate's SHA-256 fingerprint, from
-# Node > System > Certificates) so the connection to Proxmox is verified
+# a random MCP_AUTH_TOKEN (required; e.g. `openssl rand -hex 32`) and how to check the
+# Proxmox certificate (required for https): PROXMOX_TLS_FINGERPRINT (recommended; the
+# SHA-256 fingerprint from Node > System > Certificates), or PROXMOX_VERIFY_SSL=false
 docker compose up -d
 ```
 
@@ -117,7 +117,7 @@ The token needs matching Proxmox permissions too. Read [Security](docs/security.
 | `replication` | Storage replication jobs, status and logs |
 | `notifications` | Notification targets and matchers |
 | `hardware` | PCI and USB devices, mediated devices, resource mappings, CPU models |
-| `raw` | An escape hatch that calls any Proxmox API path |
+| `raw` | An escape hatch that calls any Proxmox API path. Off unless `PROXMOX_TOOLSETS` lists `raw` (e.g. `all,raw`) |
 
 See the **[tool reference](docs/tools.md)** for every tool and argument. Ready-made prompts like `cluster_health_check`, `backup_audit` and `troubleshoot_guest` chain the tools together for common jobs.
 

@@ -21,7 +21,7 @@ docs-check:
 	go run ./cmd/gen-tool-docs -check
 
 vulncheck:
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 image:
 	docker build --build-arg VERSION=$(VERSION) -t proxmox-mcp:$(VERSION) .

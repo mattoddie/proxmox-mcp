@@ -54,7 +54,7 @@ See [docs/development.md](docs/development.md) for the architecture, the mock an
 
 ## Pull request guidelines
 
-- CI must be green. It runs gofmt, go vet and the tests (with the race detector), checks the generated docs, builds the image for amd64 and arm64, and smoke-tests the container.
+- CI must be green. It runs gofmt, go vet and the tests (with the race detector), checks the generated docs, runs `govulncheck` (`make vulncheck`), builds the image for amd64 and arm64, and smoke-tests the container.
 - Match the existing style: `gofmt`, small focused functions, and comments that explain *why* rather than *what*.
 - **No new dependencies without discussion.** The project deliberately stays small. The only direct dependency is the official Go MCP SDK (`github.com/modelcontextprotocol/go-sdk`).
 - Never include real token secrets, passwords, hostnames, MAC addresses, public IPs or other personal infrastructure data in code, tests, fixtures or screenshots. Use obviously fake values like `pve1`, `BC:24:11:00:00:01` and `192.0.2.1`.

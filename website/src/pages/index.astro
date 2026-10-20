@@ -44,8 +44,8 @@ const clients = ["Claude Code", "Claude Desktop", "VS Code", "Cursor", "Codex", 
 const raw = GITHUB.replace("github.com", "raw.githubusercontent.com");
 const composeSnippet = `curl -fsSLO ${raw}/main/compose.yaml
 curl -fsSL ${raw}/main/example.env -o .env
-# set PROXMOX_URL, PROXMOX_TOKEN_ID,
-# PROXMOX_TOKEN_SECRET and MCP_AUTH_TOKEN in .env
+# set PROXMOX_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET,
+# PROXMOX_TLS_FINGERPRINT and MCP_AUTH_TOKEN in .env
 docker compose up -d`;
 // The illustrated cluster under the hero (example data). Each node is a small rack with
 // three guest slots and an IO-wait meter; db-01 moves from pve2's second slot to pve3's
@@ -386,7 +386,7 @@ const connectSnippet = `claude mcp add --transport http proxmox \\
           <h3>Proxmox VE 8 and 9, one node or many</h3>
           <ul class="chips">{setups.map((c) => <li>{c}</li>)}</ul>
           <p class="muted">
-            API token or username and password. Self-signed certificates work out of the box. Guests are found by VMID on whichever node
+            API token or username and password. Self-signed certificates work: pin the certificate's fingerprint, or point at your own CA. Guests are found by VMID on whichever node
             they're on. <a href="/docs/compatibility/">Compatibility →</a>
           </p>
         </div>

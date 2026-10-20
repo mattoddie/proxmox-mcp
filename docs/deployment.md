@@ -34,7 +34,7 @@ docker compose ps             # shows "healthy" once the health check passes
 docker compose down           # stop
 ```
 
-The image has a built-in health check that calls `/health` every 30 seconds. It only checks that the server is running, not that Proxmox is reachable.
+The image has a built-in health check that calls `/health` every 30 seconds. It only checks that the server is running, not that Proxmox is reachable. It connects to `MCP_HTTP_HOST` on `MCP_HTTP_PORT`, or to loopback when the server listens on all interfaces (`0.0.0.0`, `::` or unset).
 
 To listen on one interface only, such as a LAN address or localhost when you use a reverse proxy, change the port mapping to `"192.168.1.20:8080:8080"` or `"127.0.0.1:8080:8080"`.
 
@@ -174,7 +174,7 @@ Docker is the supported way to run proxmox-mcp, but the server is a single stati
 git clone https://github.com/mattoddie/proxmox-mcp.git
 cd proxmox-mcp
 make build   # or: go build -o bin/proxmox-mcp ./cmd/proxmox-mcp
-PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' bin/proxmox-mcp   # stdio by default
+PROXMOX_URL=https://pve1:8006 PROXMOX_TLS_FINGERPRINT=AB:CD:... PROXMOX_API_TOKEN='mcp@pve!mcp=...' bin/proxmox-mcp   # stdio by default
 MCP_TRANSPORT=http MCP_AUTH_TOKEN=... PROXMOX_URL=... PROXMOX_API_TOKEN=... bin/proxmox-mcp   # listens on 127.0.0.1:8080
 ```
 

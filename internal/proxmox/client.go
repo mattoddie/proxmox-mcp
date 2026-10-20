@@ -151,11 +151,26 @@ type Client struct {
 	cfg config.Proxmox
 	hc  *http.Client
 
-	mu       sync.Mutex // guards ticket
+	mu       sync.Mutex // guards ticket and the login backoff
 	ticket   *ticket
 	loginMu  sync.Mutex // one login at a time; waiters reuse its result
 	loginGen int
+	// After Proxmox rejects the credentials, logins are not retried until loginRetryAt, so a
+	// wrong password isn't sent again on every tool call (and doesn't trip lockouts).
+	loginFailures int
+	loginRetryAt  time.Time
+	loginErr      error
 }
+
+// Login backoff after rejected credentials: 5s, doubling up to 5 minutes.
+const (
+	loginBackoffMin = 5 * time.Second
+	loginBackoffMax = 5 * time.Minute
+)
+
+// maxResponseBytes bounds a Proxmox response body; the largest real ones (big task logs, node
+// reports) are a few MiB. A variable so tests can lower it.
+var maxResponseBytes = 64 << 20
 
 type ticket struct {
 	value, csrf string
@@ -576,16 +591,48 @@ func (c *Client) login(ctx context.Context, force bool) error {
 		c.mu.Unlock()
 		return nil
 	}
+	if wait := time.Until(c.loginRetryAt); wait > 0 && c.loginErr != nil {
+		err := c.loginErr
+		c.mu.Unlock()
+		return &Error{Message: fmt.Sprintf("%s (not retrying for %s)", errMessage(err), wait.Round(time.Second)), Status: errStatus(err)}
+	}
 	c.mu.Unlock()
 	t, err := c.doLogin(ctx)
 	if err != nil {
+		var pe *Error
+		if errors.As(err, &pe) && pe.Status >= 400 && pe.Status < 500 {
+			// The credentials were refused; network errors and 5xx are retried as before.
+			c.mu.Lock()
+			c.loginFailures++
+			backoff := loginBackoffMin << min(c.loginFailures-1, 10)
+			c.loginRetryAt = time.Now().Add(min(backoff, loginBackoffMax))
+			c.loginErr = err
+			c.mu.Unlock()
+		}
 		return err
 	}
 	c.mu.Lock()
 	c.ticket = t
 	c.loginGen++
+	c.loginFailures, c.loginErr = 0, nil
 	c.mu.Unlock()
 	return nil
+}
+
+func errMessage(err error) string {
+	var pe *Error
+	if errors.As(err, &pe) {
+		return pe.Message
+	}
+	return err.Error()
+}
+
+func errStatus(err error) int {
+	var pe *Error
+	if errors.As(err, &pe) {
+		return pe.Status
+	}
+	return 0
 }
 
 func (c *Client) doLogin(ctx context.Context) (*ticket, error) {
@@ -614,10 +661,31 @@ func (c *Client) doLogin(ctx context.Context) (*ticket, error) {
 	return &ticket{value: js.Str(data.Get("ticket")), csrf: js.Str(data.Get("CSRFPreventionToken")), at: time.Now()}, nil
 }
 
+// paramControlRe matches control characters other than tab, newline and carriage return, which
+// multi-line values (descriptions, certificates, notes) legitimately contain.
+var paramControlRe = regexp.MustCompile(`[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`)
+
+// checkParamChars refuses parameters with control characters. Proxmox splits lists on some of
+// them (NUL, \v), so they could hide an entry from a check made on this side, and no
+// legitimate text parameter needs them.
+func checkParamChars(params []Param) error {
+	for _, p := range params {
+		if paramControlRe.MatchString(p.Key) || paramControlRe.MatchString(p.Value) {
+			return Errorf("Parameter %q contains a control character (only tab, newline and carriage return are allowed; send binary data base64-encoded)", strings.ToValidUTF8(paramControlRe.ReplaceAllString(p.Key, "?"), "?"))
+		}
+	}
+	return nil
+}
+
 // send makes one request and reads the whole body.
 func (c *Client) send(ctx context.Context, method, path string, params *js.Obj, auth bool) (*http.Response, []byte, error) {
 	target := c.APIURL(path)
 	encoded := EncodeParams(params)
+	if auth {
+		if err := checkParamChars(encoded); err != nil {
+			return nil, nil, err
+		}
+	}
 	var body io.Reader
 	if method == "GET" || method == "DELETE" {
 		if len(encoded) > 0 {
@@ -655,11 +723,23 @@ func (c *Client) send(ctx context.Context, method, path string, params *js.Obj, 
 	}
 	defer res.Body.Close()
 	// A timeout or dropped connection while reading the body is reported like one before the headers.
-	data, err := io.ReadAll(res.Body)
+	data, err := io.ReadAll(io.LimitReader(res.Body, int64(maxResponseBytes)+1))
 	if err != nil {
 		return nil, nil, c.networkError(err)
 	}
+	if len(data) > maxResponseBytes {
+		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned more than %d MiB; refusing to read the rest", method, path, maxResponseBytes>>20), Status: res.StatusCode}
+	}
 	return res, data, nil
+}
+
+// describeBody summarises a response body by its type and size, without its content.
+func describeBody(res *http.Response, body []byte) string {
+	ct := res.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "none"
+	}
+	return fmt.Sprintf("(Content-Type %s, %d bytes)", ct, len(body))
 }
 
 // statusText is the HTTP reason phrase as the server sent it.
@@ -683,7 +763,9 @@ func (c *Client) parse(res *http.Response, body []byte, method, path string) (an
 		if reason == "" {
 			reason = jsonObj.Get("message")
 			if !js.Truthy(reason) {
-				reason = js.Slice16(text, 300)
+				// Not the body itself: whatever answered may not be Proxmox, and its page
+				// shouldn't end up in front of the model.
+				reason = http.StatusText(res.StatusCode) + " " + describeBody(res, body)
 			}
 		}
 		paramErrors := ""
@@ -721,7 +803,7 @@ func (c *Client) parse(res *http.Response, body []byte, method, path string) (an
 		if text == "" {
 			return js.Undef, js.NewObj(), nil
 		}
-		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned a non-JSON response: %s", method, path, js.Slice16(text, 200)), Status: res.StatusCode}
+		return nil, nil, &Error{Message: fmt.Sprintf("%s %s returned a non-JSON response %s; check that PROXMOX_URL points at the Proxmox API", method, path, describeBody(res, body)), Status: res.StatusCode}
 	}
 	data := parsed
 	if jsonObj != nil && jsonObj.Has("data") {

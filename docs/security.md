@@ -32,14 +32,14 @@ The best defence against all three is to limit what's possible, not to rely on t
 |---|---|---|
 | Proxmox permissions | The token's roles and ACLs | The hard limit. A token with only `PVEAuditor` can't change anything, whatever proxmox-mcp is configured to allow. Proxmox checks every request. |
 | Write switch | `PROXMOX_ALLOW_WRITES` (off by default) | When off, no write tools are registered and the raw API tool only allows `GET`. |
-| Delete switch | `PROXMOX_ALLOW_DELETES` (off by default) | When off, no delete tools are registered and the raw API tool refuses `DELETE`. |
-| Exec switch | `PROXMOX_ALLOW_EXEC` (off by default) | When off, no tools that run commands or read or write files inside guests are registered, nor QEMU monitor access, and the raw API tool refuses the equivalent endpoints: every guest agent endpoint, console and shell proxies (`termproxy`, `vncproxy`, `spiceproxy`, `vncwebsocket`, `vncshell`, `spiceshell`), `sendkey`, the QEMU monitor, migration tunnels and the node `execute` endpoint. See [Writes are not a hard boundary](#writes-are-not-a-hard-boundary). |
-| Toolsets | `PROXMOX_TOOLSETS` | Tools outside the listed toolsets don't exist. The model can't see or call them. |
+| Delete switch | `PROXMOX_ALLOW_DELETES` (off by default) | When off, no delete tools are registered and the raw API tool refuses `DELETE`, plus the `POST`/`PUT` requests that destroy data (wiping or initialising disks, restoring over a guest, deleting `unusedN` volumes, `unlink` or disk moves that delete, `purge`, `destroy-unreferenced-disks` and `remote_migrate`). See [The raw API tool](usage.md#the-raw-api-tool). |
+| Exec switch | `PROXMOX_ALLOW_EXEC` (off by default) | When off, no tools that run commands or read or write files inside guests are registered, nor QEMU monitor access, and the raw API tool refuses the equivalent endpoints: every guest agent endpoint, console and shell proxies (`termproxy`, `vncproxy`, `spiceproxy`, `vncwebsocket`, `vncshell`, `spiceshell`), `sendkey`, the QEMU monitor, migration tunnels, the node `execute` endpoint, backup file-restore downloads and `hookscript`/`script` parameters. See [Writes are not a hard boundary](#writes-are-not-a-hard-boundary). |
+| Toolsets | `PROXMOX_TOOLSETS` | Tools outside the listed toolsets don't exist. The model can't see or call them. The raw API tool (`raw`) is never part of `all` and must be listed by name. |
 | Tool annotations | Built in | Each tool is marked read-only or destructive, so MCP clients can ask for your confirmation before running destructive tools. |
 | Server instructions | Built in | With writes on, the model is told to confirm with you before stopping, rebooting, migrating, restoring, reconfiguring or deleting, and with exec on, to show you the exact command first. This helps, but it isn't a security boundary. |
-| Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. |
-| Endpoint auth | `MCP_AUTH_TOKEN` | Bearer token required on every request. Checked in constant time. The HTTP transport won't start without one unless you explicitly set `MCP_ALLOW_UNAUTHENTICATED=true`. |
-| Host allow-list | `MCP_ALLOWED_HOSTS` | Rejects requests with an unexpected `Host` header, or with an `Origin` header from another host. This blocks DNS-rebinding and cross-site attacks from browser pages. |
+| Secret redaction | Built in | Passwords, secrets, keys and tickets are `<redacted>` in tool output, including raw objects. The raw API tool can only skip redaction (`redact: false`) when `PROXMOX_ALLOW_UNREDACTED=true`. |
+| Endpoint auth | `MCP_AUTH_TOKEN` | Bearer token required on every request, at least 16 characters. Checked in constant time. The HTTP transport won't start without one unless you explicitly set `MCP_ALLOW_UNAUTHENTICATED=true`, which also requires `MCP_ALLOWED_HOSTS`. |
+| Host allow-list | `MCP_ALLOWED_HOSTS` | Rejects requests with an unexpected `Host` header, or with an `Origin` header that isn't on the list (including an empty or `null` one, and a page on another port of an allowed host unless that `host:port` is listed). This blocks DNS-rebinding and cross-site attacks from browser pages. |
 | Typed arguments win | Built in | `extra` can only add parameters a tool doesn't set itself. It can't override a typed or checked one, such as `vmid`, `force` or `delete`, or turn a create into a restore with `archive` or `restore`. |
 | Container | Built in | Runs as a non-root user. The default `compose.yaml` uses a read-only root filesystem, `cap_drop: [ALL]` and `no-new-privileges`. |
 
@@ -59,15 +59,15 @@ The exec switch blocks the endpoints that run commands or open consoles directly
 - **QEMU `args`** passes arbitrary options to the QEMU process on the node (Proxmox only lets `root@pam` set it).
 - **Container bind mounts** (`mpN` pointing at a host path) and device passthrough give a container access to the node's files and devices (also `root@pam` only).
 - **`cicustom`** points cloud-init at a snippet on storage, which can run anything inside the VM on its next boot, if the token can also write snippets to that storage.
-- **Hook scripts** run as root on the node at guest or backup events. proxmox-mcp asks for exec permission for `hookscript` and vzdump `script`, but only Proxmox's own permission checks hold if the raw API tool is enabled.
+- **Hook scripts** run as root on the node at guest or backup events. proxmox-mcp asks for exec permission for `hookscript` and vzdump `script`, in the raw API tool too, but the script itself has to be put on storage first, and only Proxmox's own permission checks govern that.
 
 So keep the hard limit where it belongs: give the token only the privileges you're willing to let the assistant use, and **don't use `root@pam`**. With a dedicated, least-privilege token, `PROXMOX_ALLOW_WRITES` without exec is a meaningful restriction; with root it's a guard rail.
 
-Some tools that look harmless are gated for the same reason: `proxmox_scan_storage` for `nfs`, `cifs`, `pbs` and `iscsi` makes the node connect to any server you name, possibly with credentials, so it needs write access; `proxmox_init_disk_gpt` destroys a disk's partition table, so like `proxmox_wipe_disk` it needs delete access.
+Some tools that look harmless are gated for the same reason: `proxmox_scan_storage` for `nfs`, `cifs`, `pbs` and `iscsi`, `proxmox_query_url_metadata` and ACME directory lookups make the node connect to any server you name (possibly with credentials, or to internal addresses), so they need write access; `proxmox_init_disk_gpt` destroys a disk's partition table, so like `proxmox_wipe_disk` it needs delete access. The raw API tool applies the same rules to the equivalent endpoints.
 
 ### About TLS to Proxmox
 
-`PROXMOX_VERIFY_SSL` defaults to `false` because Proxmox nodes ship with self-signed certificates, and turning it on would break most installs. But without verification a machine that can intercept traffic between proxmox-mcp and the node could read the API token, so the server logs a warning at startup. Fix it in one of three ways (see [Configuration](configuration.md#verifying-the-proxmox-certificate)):
+Proxmox nodes ship with self-signed certificates, so verifying the usual way would fail on most installs, but without verification a machine that can intercept traffic between proxmox-mcp and the node could read the API token. With an `https://` URL the server therefore refuses to start until you choose. Verify it in one of three ways (see [Configuration](configuration.md#verifying-the-proxmox-certificate)), or set `PROXMOX_VERIFY_SSL=false` to skip verification knowingly, in which case the server logs a warning at startup:
 
 - **Pin the node's certificate** with `PROXMOX_TLS_FINGERPRINT`, its SHA-256 fingerprint from **Node → System → Certificates**. This works with the self-signed certificate and is how Proxmox's own clients trust one.
 - Point `PROXMOX_CA_FILE` at the cluster CA, `/etc/pve/pve-root-ca.pem` (this turns verification on by itself).
@@ -105,13 +105,13 @@ Check what a token can actually do with `pveum user token permissions mcp@pve mc
 
 - Token with `PVEAuditor` on `/`, or a custom read-only role
 - Writes, deletes and exec off
-- Leave out `raw` and `access` if you don't need them
+- Leave out `access` if you don't need it (`raw` is already off unless you list it)
 
 **Hands-on admin:**
 
 - Token with `PVEAuditor` on `/` plus operator roles on `/vms` or a pool, `/storage` and `/sdn/zones` (see [Getting started](getting-started.md#option-b-operator-writes))
 - `PROXMOX_ALLOW_WRITES=true`, deletes and exec off
-- Only the toolsets you work with, and leave `raw` out
+- Only the toolsets you work with, without `raw`
 - Keep tool confirmations on in your MCP client, so you approve each destructive call
 - Protection turned on for important guests, so they can't be deleted by anyone
 
@@ -125,7 +125,7 @@ Check what a token can actually do with `pveum user token permissions mcp@pve mc
 
 ## Network exposure
 
-- Set `MCP_AUTH_TOKEN` to a long random value, even on a home network. The HTTP transport refuses to start without one. `MCP_ALLOW_UNAUTHENTICATED=true` is only for a server that nothing can reach except an authenticating proxy.
+- Set `MCP_AUTH_TOKEN` to a long random value, even on a home network. The HTTP transport refuses to start without one, or with one shorter than 16 characters. `MCP_ALLOW_UNAUTHENTICATED=true` is only for a server that nothing can reach except an authenticating proxy, and it needs `MCP_ALLOWED_HOSTS` too.
 - Outside Docker the server listens on `127.0.0.1` unless you set `MCP_HTTP_HOST`. The image listens on all interfaces inside the container, so choose where to publish the port.
 - Publish the port only where it's needed: on a LAN address, or on `127.0.0.1` behind a reverse proxy.
 - Put TLS in front of it if traffic crosses a network you don't trust. See [Deployment](deployment.md#tls-with-a-reverse-proxy).

@@ -46,7 +46,34 @@ func loadReference(t *testing.T) reference {
 			toolsets[name] = current
 		}
 	}
-	return reference{all: all.(*Obj), toolsets: toolsets}
+	ref := all.(*Obj)
+	applyDeliberateChanges(ref)
+	return reference{all: ref, toolsets: toolsets}
+}
+
+// applyDeliberateChanges edits the reference for the changes made on purpose since the
+// TypeScript server (each is in the CHANGELOG), so everything else is still held to it.
+func applyDeliberateChanges(ref *Obj) {
+	for _, tool := range ref.Objs("tools") {
+		switch tool.Get("name") {
+		case "proxmox_query_url_metadata":
+			// A write tool now: the node fetches any URL it is given.
+			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
+		case "proxmox_api_request":
+			// redact is only offered with PROXMOX_ALLOW_UNREDACTED=true (as in AllTools).
+			tool.ObjAt("inputSchema").ObjAt("properties").ObjAt("redact").Set("description", "Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")
+		case "proxmox_list_acme_directories":
+			tool.Set("description", js.Str(tool.Get("description"))+" Fetching `directory` makes the node connect to that URL, so it needs write access.")
+		}
+	}
+	read := ref.ObjAt("variants").ObjAt("read")
+	var tools []any
+	for _, n := range read.Strs("tools") {
+		if n != "proxmox_query_url_metadata" {
+			tools = append(tools, n)
+		}
+	}
+	read.Set("tools", tools)
 }
 
 // listTools returns the tools a server with opts lists, by name, with their schemas decoded
@@ -156,7 +183,11 @@ func TestReferenceAccessLevels(t *testing.T) {
 				t.Fatalf("missing %v, extra %v", missing, extra)
 			}
 			raw := v.ObjAt("raw")
-			eqStr(t, got["proxmox_api_request"].Description, js.Str(raw.Get("description")), "raw tool description")
+			// The raw tool's description only gains sentences after the reference's (about the
+			// checks added since), so the reference must still be its start.
+			if desc, want := got["proxmox_api_request"].Description, js.Str(raw.Get("description")); !strings.HasPrefix(desc, want) {
+				t.Fatalf("raw tool description:\n got %q\nwant %q...", desc, want)
+			}
 			eq(t, annotations(got["proxmox_api_request"].Annotations), annotations(raw.Get("annotations")), "raw tool annotations")
 		})
 	}

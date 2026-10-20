@@ -16,9 +16,9 @@ The server checks the configuration at startup. If something is wrong, it exits 
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXMOX_URL` | **required** | URL of any cluster node, or a load balancer in front of them, including the port: `https://pve1.example.lan:8006`. A trailing `/api2/json` is removed if you include it. |
+| `PROXMOX_URL` | **required** | URL of any cluster node, or a load balancer in front of them, including the port: `https://pve1.example.lan:8006`. A trailing `/api2/json` is removed if you include it. It must not contain a user name or password. `http://` works but logs a warning, because the token or password then travels in cleartext. |
 | `PROXMOX_TLS_FINGERPRINT` | | **Recommended with the default self-signed certificate.** The SHA-256 fingerprint of the node's certificate, as `AA:BB:…` (32 pairs) or 64 hex digits. The server then only talks to a node presenting that certificate, whether or not `PROXMOX_VERIFY_SSL` is on. Separate several with commas, for example the old and new certificate during a renewal, or each node's certificate behind a load balancer. See [Verifying the Proxmox certificate](#verifying-the-proxmox-certificate). |
-| `PROXMOX_VERIFY_SSL` | `false` | Verify the node's certificate chain and hostname. It's `false` by default because of the self-signed certificate Proxmox ships with; pin that with `PROXMOX_TLS_FINGERPRINT` instead. Set it to `true` if the node has a trusted certificate (for example from ACME), or set `PROXMOX_CA_FILE`. With an `https://` URL, verification off and no fingerprint or CA, the server logs a warning at startup. |
+| `PROXMOX_VERIFY_SSL` | unset | Verify the node's certificate chain and hostname. Set it to `true` if the node has a trusted certificate (for example from ACME). Proxmox ships a self-signed certificate, so with an `https://` URL the server **refuses to start** unless you choose how to check it: `PROXMOX_TLS_FINGERPRINT` (recommended), `PROXMOX_CA_FILE`, `PROXMOX_VERIFY_SSL=true`, or `PROXMOX_VERIFY_SSL=false` to skip verification. With `false` and no fingerprint or CA, the server logs a warning at startup. |
 | `PROXMOX_CA_FILE` | | Path to a PEM file with the CA certificate(s) to trust (in addition to the system CAs). Setting it turns certificate verification on, whatever `PROXMOX_VERIFY_SSL` says. Use the cluster's own CA, `/etc/pve/pve-root-ca.pem` on any node, to verify the default node certificates. |
 | `PROXMOX_TIMEOUT_MS` | `30000` | Timeout for each API request, in milliseconds. |
 | `PROXMOX_TASK_TIMEOUT_MS` | `120000` | How long tools wait for a Proxmox task (start, clone, migrate, backup…) to finish before returning. A task that takes longer keeps running and the tool returns its task ID. See [Usage](usage.md#tasks-and-wait). |
@@ -26,7 +26,7 @@ The server checks the configuration at startup. If something is wrong, it exits 
 
 ### Verifying the Proxmox certificate
 
-Without verification, a machine that can intercept the traffic between proxmox-mcp and the node can read the API token or password. Pick one of these:
+Without verification, a machine that can intercept the traffic between proxmox-mcp and the node can read the API token or password. With an `https://` URL the server won't start until you pick one of these:
 
 - **Pin the certificate (simplest).** Copy the SHA-256 fingerprint from **Node → System → Certificates**, select the certificate the web UI uses (`pveproxy-ssl.pem` if there is one, otherwise `pve-ssl.pem`), **View Certificate**. Or run this on the node:
 
@@ -37,6 +37,7 @@ Without verification, a machine that can intercept the traffic between proxmox-m
   Then set `PROXMOX_TLS_FINGERPRINT=AA:BB:…`. This is how Proxmox's own clients trust self-signed certificates, for example a Proxmox Backup Server storage. When the certificate changes (renewal, a new ACME certificate, a reinstalled node), update the fingerprint, or list the old and new ones while you switch over.
 - **Trust the cluster CA** with `PROXMOX_CA_FILE=/path/to/pve-root-ca.pem` (copied from `/etc/pve/pve-root-ca.pem`). Covers every node's default certificate.
 - **Use a trusted certificate** (for example from Proxmox's built-in ACME support) and set `PROXMOX_VERIFY_SSL=true`.
+- **Skip verification** with `PROXMOX_VERIFY_SSL=false`. Only on a network you trust: the server logs a warning at startup.
 
 Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`. Anything else counts as `false`.
 
@@ -62,10 +63,11 @@ How each method works:
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. |
+| `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. Also needed for anything that makes a node connect to a server you name: remote storage scans, `proxmox_query_url_metadata` and ACME directory lookups. |
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
-| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. |
+| `PROXMOX_ALLOW_UNREDACTED` | `false` | Offer the raw API tool's `redact: false` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
+| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
 
@@ -87,9 +89,9 @@ Tools that aren't allowed are **not registered at all**. The assistant can't see
 | `MCP_TRANSPORT` | `http` in the Docker image (`stdio` when the binary is run directly) | `http` for Streamable HTTP, or `stdio`. |
 | `MCP_HTTP_HOST` | `127.0.0.1` (`0.0.0.0` in the Docker image) | Address to listen on (HTTP only). Outside Docker the server only listens on localhost unless you set this. |
 | `MCP_HTTP_PORT` | `8080` | Port to listen on (HTTP only). |
-| `MCP_AUTH_TOKEN` | **required** for `http` | Every request to `/mcp` must send `Authorization: Bearer <token>`. With the `http` transport the server refuses to start without it, unless `MCP_ALLOW_UNAUTHENTICATED=true`. Generate one with `openssl rand -hex 32`. Not needed for `stdio`. |
-| `MCP_ALLOW_UNAUTHENTICATED` | `false` | Serve `/mcp` without a token. **Only** set this when something else in front of the server authenticates every request, such as an authenticating reverse proxy, and nothing else can reach the port. The server logs a warning at startup when it's on. |
-| `MCP_ALLOWED_HOSTS` | | Comma-separated allow-list of `Host` header values, such as `proxmox-mcp.lan,proxmox-mcp.lan:8080` (case-insensitive). Requests with any other `Host`, and requests whose `Origin` header (sent by browsers) names another host, are rejected. This protects against DNS-rebinding and cross-site attacks from web pages in your browser. |
+| `MCP_AUTH_TOKEN` | **required** for `http` | Every request to `/mcp` must send `Authorization: Bearer <token>`. With the `http` transport the server refuses to start without it, unless `MCP_ALLOW_UNAUTHENTICATED=true`, and refuses tokens shorter than 16 characters. Generate one with `openssl rand -hex 32`. Not needed for `stdio`. |
+| `MCP_ALLOW_UNAUTHENTICATED` | `false` | Serve `/mcp` without a token. **Only** set this when something else in front of the server authenticates every request, such as an authenticating reverse proxy, and nothing else can reach the port. It also requires `MCP_ALLOWED_HOSTS` (the server refuses to start without it), because without a token the Host check is what stops DNS rebinding. The server logs a warning at startup when it's on. |
+| `MCP_ALLOWED_HOSTS` | | Comma-separated allow-list of hosts, as `host` or `host:port`, such as `proxmox-mcp.lan,localhost` (case-insensitive). Requests with any other `Host` header, and requests with an `Origin` header (sent by browsers) that isn't on the list, are rejected. For `Host`, an entry without a port matches any port. For `Origin`, an entry without a port only matches the scheme's default port (`http://localhost` but not `http://localhost:3000`); list `host:port` to allow a page on another port. An empty or `null` `Origin` is rejected. This protects against DNS-rebinding and cross-site attacks from web pages in your browser. |
 
 The HTTP server exposes these endpoints:
 
@@ -100,7 +102,7 @@ The HTTP server exposes these endpoints:
 
 ## Docker secrets (`_FILE` variables)
 
-Every variable can also be read from a file: set `<NAME>_FILE` to the file's path. Leading and trailing whitespace is trimmed. This works with [Docker secrets](https://docs.docker.com/compose/how-tos/use-secrets/) and Kubernetes secret volumes:
+Every variable can also be read from a file: set `<NAME>_FILE` to the file's path. Leading and trailing whitespace is trimmed, except for `PROXMOX_PASSWORD_FILE`, where only the final line break is removed so a password can start or end with a space (`PROXMOX_PASSWORD` itself is never trimmed either). This works with [Docker secrets](https://docs.docker.com/compose/how-tos/use-secrets/) and Kubernetes secret volumes:
 
 ```yaml
 services:
@@ -147,7 +149,7 @@ Every tool's name, description and argument schema is sent to the model, which u
 | `replication` | Storage replication |
 | `notifications` | Notification targets and matchers |
 | `hardware` | PCI/USB devices, mappings, CPU models |
-| `raw` | Any API path. Handy, but gives broad access. |
+| `raw` | Any API path. Handy, but gives broad access. **Not part of `all`**: list it explicitly (`all,raw`) to enable it. |
 
 The [tool reference](tools.md) lists the tools in each toolset. A read-only setup registers far fewer tools than the full set. Some suggested sets:
 
@@ -158,7 +160,8 @@ The [tool reference](tools.md) lists the tools in each toolset. A read-only setu
 | Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` |
 | Security review | `cluster,nodes,access,firewall,tasks` |
 | Network and SDN | `cluster,nodes,sdn,firewall` |
-| Everything (default) | `all` |
+| Everything except the raw API tool (default) | `all` |
+| Everything, including the raw API tool | `all,raw` |
 
 ## Example configurations
 

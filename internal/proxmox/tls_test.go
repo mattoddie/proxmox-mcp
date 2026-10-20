@@ -122,7 +122,7 @@ func TestTLSPinning(t *testing.T) {
 		_, err := get("PROXMOX_TLS_FINGERPRINT", strings.Repeat("AB:", 31)+"CD")
 		mustMatch(t, err, `^Could not reach Proxmox at https://127\.0\.0\.1:\d+: TLS certificate fingerprint mismatch: the server presented SHA-256 `+fingerprint+`, which is not in PROXMOX_TLS_FINGERPRINT \(Proxmox uses a self-signed certificate`)
 		// Not pinned, verification off: accepted (the startup warning covers this case).
-		wantVersion(get())
+		wantVersion(get("PROXMOX_VERIFY_SSL", "false"))
 		// Not pinned, verification on: the self-signed certificate is refused with a hint about pinning.
 		_, err = get("PROXMOX_VERIFY_SSL", "true")
 		mustMatch(t, err, `DEPTH_ZERO_SELF_SIGNED_CERT \(Proxmox uses a self-signed certificate by default; pin it with PROXMOX_TLS_FINGERPRINT`)

@@ -311,11 +311,15 @@ func V(v any) any { return normalize(v) }
 
 // ---------------------------------------------------------------- parsing
 
+// MaxDepth is how deeply objects and arrays may nest in Parse. Real Proxmox responses nest a
+// few levels; the limit stops a hostile body from exhausting the stack.
+const MaxDepth = 256
+
 // Parse decodes JSON into *Obj, []any, float64, string, bool and nil.
 func Parse(data []byte) (any, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
-	v, err := parseValue(dec)
+	v, err := parseValue(dec, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -325,13 +329,16 @@ func Parse(data []byte) (any, error) {
 	return v, nil
 }
 
-func parseValue(dec *json.Decoder) (any, error) {
+func parseValue(dec *json.Decoder, depth int) (any, error) {
 	tok, err := dec.Token()
 	if err != nil {
 		return nil, err
 	}
 	switch t := tok.(type) {
 	case json.Delim:
+		if depth >= MaxDepth {
+			return nil, fmt.Errorf("invalid JSON: nested more than %d levels deep", MaxDepth)
+		}
 		switch t {
 		case '{':
 			o := NewObj()
@@ -341,7 +348,7 @@ func parseValue(dec *json.Decoder) (any, error) {
 					return nil, err
 				}
 				k, _ := kt.(string)
-				v, err := parseValue(dec)
+				v, err := parseValue(dec, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -354,7 +361,7 @@ func parseValue(dec *json.Decoder) (any, error) {
 		case '[':
 			arr := []any{}
 			for dec.More() {
-				v, err := parseValue(dec)
+				v, err := parseValue(dec, depth+1)
 				if err != nil {
 					return nil, err
 				}

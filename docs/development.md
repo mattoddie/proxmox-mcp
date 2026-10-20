@@ -14,7 +14,7 @@ This page is for people working on proxmox-mcp itself. Start with [CONTRIBUTING.
 
 ## Setup
 
-You need Go (the version in `go.mod`; `go` downloads the pinned toolchain itself) and Docker for building the image. The image is a static binary on [distroless](https://github.com/GoogleContainerTools/distroless) `static-debian13:nonroot`.
+You need Go (the version in `go.mod`; `go` downloads the pinned toolchain itself) and Docker for building the image. The image is a static binary on [distroless](https://github.com/GoogleContainerTools/distroless) `static-debian13:nonroot`. Both base images in the Dockerfile are pinned by digest (Dependabot updates them), and the build image's Go version matches the `toolchain` in `go.mod`.
 
 ```sh
 git clone https://github.com/mattoddie/proxmox-mcp.git
@@ -29,7 +29,7 @@ make test           # runs all tests against a mock Proxmox API
 | `make lint` | `gofmt` and `go vet` (CI runs this) |
 | `make docs` | Regenerate [`docs/tools.md`](tools.md) from the tool definitions |
 | `make docs-check` | Fail if `docs/tools.md` is out of date (CI runs this) |
-| `make vulncheck` | Scan the dependencies with `govulncheck` |
+| `make vulncheck` | Scan the dependencies with `govulncheck` (pinned; CI runs it too) |
 | `make image` | Build the Docker image |
 
 The binary has subcommands: `proxmox-mcp` (or `proxmox-mcp serve`) runs the server, `proxmox-mcp healthcheck` is the image's health check and `proxmox-mcp version` prints the version, which release builds set with `-ldflags`.
@@ -196,7 +196,7 @@ With the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```sh
 make build
-PROXMOX_URL=https://pve1:8006 PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector bin/proxmox-mcp
+PROXMOX_URL=https://pve1:8006 PROXMOX_VERIFY_SSL=false PROXMOX_API_TOKEN='mcp@pve!mcp=...' npx @modelcontextprotocol/inspector bin/proxmox-mcp
 ```
 
 Or build the image and point Claude Code at it:

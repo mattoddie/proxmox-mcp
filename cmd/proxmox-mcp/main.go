@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -89,7 +90,10 @@ func serve() error {
 	}
 	log.Printf("proxmox-mcp %s: Proxmox %s, auth %s, writes %s, toolsets %d, transport %s", tools.Version, cfg.Proxmox.URL, auth, writes, len(t.Toolsets), cfg.Transport)
 	p := cfg.Proxmox
-	if strings.HasPrefix(p.URL, "https:") && !p.VerifySSL && p.CACert == "" && len(p.TLSFingerprints) == 0 {
+	if strings.HasPrefix(strings.ToLower(p.URL), "http:") {
+		log.Printf("WARNING: PROXMOX_URL uses plain http://, so the API token or password and every response travel in cleartext. Use https:// (port 8006) unless this is a trusted local link.")
+	}
+	if strings.HasPrefix(strings.ToLower(p.URL), "https:") && !p.VerifySSL && p.CACert == "" && len(p.TLSFingerprints) == 0 {
 		log.Printf("WARNING: the Proxmox TLS certificate is not verified (PROXMOX_VERIFY_SSL=false), so the API token or password can be intercepted. " +
 			"Pin the certificate with PROXMOX_TLS_FINGERPRINT (shown under Node > System > Certificates), set PROXMOX_CA_FILE, or use a trusted certificate with PROXMOX_VERIFY_SSL=true.")
 	}
@@ -108,7 +112,13 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: httpserver.Handler(cfg.HTTP, server), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{
+		Handler:           httpserver.Handler(cfg.HTTP, server),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// No WriteTimeout: a tool call waiting for a Proxmox task can take minutes.
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -118,17 +128,41 @@ func serve() error {
 	return httpserver.Serve(srv, ln, cfg.HTTP)
 }
 
+// healthcheckAddr is where the server listening on MCP_HTTP_HOST can be reached locally: that
+// address itself, or loopback when it listens on every interface.
+func healthcheckAddr(host, port string) string {
+	switch strings.Trim(host, "[]") {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	return net.JoinHostPort(strings.Trim(host, "[]"), port)
+}
+
 // healthcheck asks the local HTTP server for /health; with stdio there is nothing to check.
 func healthcheck() error {
-	if os.Getenv("MCP_TRANSPORT") == "stdio" {
+	get := func(name string) (string, error) { return config.Lookup(os.LookupEnv, name) }
+	transport, err := get("MCP_TRANSPORT")
+	if err != nil {
+		return err
+	}
+	if transport == "stdio" {
 		return nil
 	}
-	port := os.Getenv("MCP_HTTP_PORT")
+	host, err := get("MCP_HTTP_HOST")
+	if err != nil {
+		return err
+	}
+	port, err := get("MCP_HTTP_PORT")
+	if err != nil {
+		return err
+	}
 	if port == "" {
 		port = "8080"
 	}
 	c := &http.Client{Timeout: 3 * time.Second}
-	resp, err := c.Get("http://127.0.0.1:" + port + "/health")
+	resp, err := c.Get("http://" + healthcheckAddr(host, port) + "/health")
 	if err != nil {
 		return err
 	}

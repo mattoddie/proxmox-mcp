@@ -320,21 +320,6 @@ func containersRate(v float64) any {
 
 func containersBytes(v float64) any { return proxmox.FormatBytes(js.Round(v)) }
 
-var containersUnusedRe = regexp.MustCompile(`(^|[,;\s])unused\d+`)
-
-// containersCheckGatedParams guards options that reach beyond a plain config write: deleting
-// an unusedN key destroys that volume, and a hookscript runs as root on the node at every
-// lifecycle event.
-func containersCheckGatedParams(c *Context, params *Obj) error {
-	if !c.AllowDeletes && containersUnusedRe.MatchString(js.Str(or(params.Get("delete"), ""))) {
-		return errors.New("Deleting an unusedN entry permanently destroys its volume and needs delete permission (PROXMOX_ALLOW_DELETES)")
-	}
-	if !c.AllowExec && !js.IsUndef(params.Get("hookscript")) {
-		return errors.New("hookscript runs a script as root on the node, so setting it needs exec permission (PROXMOX_ALLOW_EXEC)")
-	}
-	return nil
-}
-
 func containersNextVmid(ctx context.Context, c *Context) (any, error) {
 	v, err := c.Client.Get(ctx, "/cluster/nextid", nil)
 	if err != nil {
@@ -770,7 +755,7 @@ func registerContainers(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			if err := containersCheckGatedParams(c, body); err != nil {
+			if err := checkGuestConfigGates(c, body, ""); err != nil {
 				return nil, err
 			}
 			upid, err := client.Post(ctx, "/nodes/"+js.EncodeURIComponent(node)+"/lxc", body)
@@ -933,7 +918,7 @@ func registerContainers(c *Context) {
 			if len(updated) == 0 {
 				return nil, errors.New("Nothing to change")
 			}
-			if err := containersCheckGatedParams(c, params); err != nil {
+			if err := checkGuestConfigGates(c, params, ""); err != nil {
 				return nil, err
 			}
 			if _, err := client.Put(ctx, base+"/config", params); err != nil {

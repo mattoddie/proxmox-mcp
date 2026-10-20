@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -17,8 +18,9 @@ var (
 	// files in guests or on nodes; gated by PROXMOX_ALLOW_EXEC. Checked for every method, since
 	// agent file-read and exec-status are GETs. This covers every guest agent endpoint, consoles
 	// and shells (termproxy, vncshell, spiceshell, vncproxy, spiceproxy, vncwebsocket), migration
-	// tunnels, the QEMU monitor, sendkey (keystrokes into a console) and the node's bulk `execute`.
-	rawExecPathRe = regexp.MustCompile(`(?i)/agent\b|/(termproxy|vncshell|spiceshell|vncproxy|spiceproxy|vncwebsocket|mtunnel|mtunnelwebsocket|monitor|sendkey)\b|/nodes/[^/]+/execute\b`)
+	// tunnels, the QEMU monitor, sendkey (keystrokes into a console), the node's bulk `execute` and
+	// backup file-restore downloads (files out of a guest's backup).
+	rawExecPathRe = regexp.MustCompile(`(?i)/agent\b|/(termproxy|vncshell|spiceshell|vncproxy|spiceproxy|vncwebsocket|mtunnel|mtunnelwebsocket|monitor|sendkey)\b|/nodes/[^/]+/execute\b|/file-restore/download\b`)
 
 	// rawControlCharRe matches ASCII control characters: URL parsing may strip tab, CR and LF,
 	// so they could hide a blocked path.
@@ -77,6 +79,26 @@ func registerRaw(c *Context) {
 	if !c.AllowExec {
 		desc += " Command execution, console and guest file endpoints (all guest agent endpoints, shells and consoles, monitor, sendkey) are blocked (PROXMOX_ALLOW_EXEC=false)."
 	}
+	// Appended, so the sentences above stay as they were.
+	if c.AllowWrites && !c.AllowDeletes {
+		desc += " Requests that destroy data without DELETE are refused too: wiping or initialising disks, restoring over a guest (force), deleting unusedN volumes, unlink with force, move_disk/move_volume with delete, purge or destroy-unreferenced-disks, and remote_migrate."
+	}
+	if !c.AllowWrites {
+		desc += " Remote storage scans (nfs, cifs, pbs, iscsi), query-url-metadata and ACME directory lookups make the node connect out, so they need write access."
+	}
+	if !c.AllowExec {
+		desc += " Backup file-restore downloads and hookscript/script parameters need exec access."
+	}
+	input := []Prop{
+		P("method", Enum("GET", "POST", "PUT", "DELETE").Opt().D("HTTP method (default GET)")),
+		P("path", Str().D("Path relative to /api2/json, starting with /")),
+		P("params", Rec(Union(Str(), Num(), Bool(), Arr(Union(Str(), Num())))).Opt().D("API parameters (booleans are sent as 1/0, arrays as repeated keys)")),
+	}
+	// Turning redaction off is the operator's decision, not the model's: the argument only
+	// exists with PROXMOX_ALLOW_UNREDACTED=true.
+	if c.AllowUnredacted {
+		input = append(input, P("redact", Bool().Opt().D("Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")))
+	}
 
 	c.Define("proxmox_api_request", Def{
 		Toolset:     "raw",
@@ -84,12 +106,7 @@ func registerRaw(c *Context) {
 		Description: desc,
 		ReadOnly:    boolPtr(!c.AllowWrites),
 		Destructive: boolPtr(c.AllowWrites),
-		Input: []Prop{
-			P("method", Enum("GET", "POST", "PUT", "DELETE").Opt().D("HTTP method (default GET)")),
-			P("path", Str().D("Path relative to /api2/json, starting with /")),
-			P("params", Rec(Union(Str(), Num(), Bool(), Arr(Union(Str(), Num())))).Opt().D("API parameters (booleans are sent as 1/0, arrays as repeated keys)")),
-			P("redact", Bool().Opt().D("Redact password/secret/key fields in the response (default true)")),
-		},
+		Input:       input,
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			method := js.Str(or(a.Get("method"), "GET"))
 			if method != "GET" && !c.AllowWrites {
@@ -142,15 +159,110 @@ func registerRaw(c *Context) {
 				return nil, errors.New("This endpoint runs commands, opens a console, sends input or reads/writes files in a guest or on a node. Set PROXMOX_ALLOW_EXEC=true to allow it.")
 			}
 			params, _ := a.Get("params").(*Obj)
+			if err := rawGateError(c, method, []string{decoded, sent}, params); err != nil {
+				return nil, err
+			}
 			data, err := client.Request(ctx, method, path, params)
 			if err != nil {
 				return nil, err
 			}
-			if a.Get("redact") == false {
+			if c.AllowUnredacted && a.Get("redact") == false {
 				return data, nil
 			}
 			// ACME plugin `data` is a KEY=value blob of DNS API credentials, which the field-name check can't see.
 			return proxmox.RedactSecrets(data, proxmox.RedactOptions{AcmePluginData: rawAcmeRe.MatchString(sent)}), nil
 		},
 	})
+}
+
+// rawRule is an endpoint (or parameter) the raw tool must gate beyond its HTTP method, because
+// the curated tools treat it as a delete, a write or exec.
+type rawRule struct {
+	path *regexp.Regexp
+	// nonGET restricts the rule to POST, PUT and DELETE.
+	nonGET bool
+	// when, if set, decides from the parameters whether the rule applies.
+	when   func(p *Obj) bool
+	gate   Gate
+	reason string
+}
+
+func rawParamTrue(key string) func(*Obj) bool {
+	return func(p *Obj) bool { return paramTruthy(p.Get(key)) }
+}
+
+func rawParamSet(keys ...string) func(*Obj) bool {
+	return func(p *Obj) bool {
+		for _, k := range keys {
+			if p.Present(k) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// rawRules: matched case-insensitively against the decoded path and the path that is sent,
+// with repeated slashes collapsed.
+var rawRules = []rawRule{
+	// ---- delete-equivalent: these destroy data without using DELETE.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/disks/(wipedisk|initgpt)/?$`), gate: Delete,
+		reason: "wipes a disk or replaces its partition table, destroying its data"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)/?$`), nonGET: true, when: rawParamTrue("force"), gate: Delete,
+		reason: "restores over an existing guest (force), destroying its disks and config"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)(/|$)`), nonGET: true, when: func(p *Obj) bool { return deletesUnusedVolume(p.Get("delete")) }, gate: Delete,
+		reason: "deletes an unusedN entry, which destroys its volume"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/qemu/[^/]+/unlink/?$`), when: rawParamTrue("force"), gate: Delete,
+		reason: "unlinks disks with force, which destroys the volumes"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu/[^/]+/move_disk|lxc/[^/]+/move_volume)/?$`), when: rawParamTrue("delete"), gate: Delete,
+		reason: "deletes the source volume after moving it"},
+	// Remote migration copies the guest's disks and config to another cluster of the caller's
+	// choosing (with delete=1 it also removes the original). That is data leaving the cluster
+	// and possibly a destroyed guest, not command execution, so it sits with deletes.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)/[^/]+/remote_migrate/?$`), gate: Delete,
+		reason: "migrates the guest to another cluster (copying its data out, and with delete=1 removing the original)"},
+	{path: regexp.MustCompile(`^/`), nonGET: true, when: func(p *Obj) bool {
+		return paramTruthy(p.Get("purge")) || paramTruthy(p.Get("destroy-unreferenced-disks"))
+	}, gate: Delete,
+		reason: "purges configuration or destroys unreferenced disks"},
+
+	// ---- exec-equivalent.
+	{path: regexp.MustCompile(`^/`), nonGET: true, when: rawParamSet("hookscript", "script"), gate: Exec,
+		reason: "sets a hook script, which runs as root on the node"},
+
+	// ---- write-equivalent even as GET: the node connects to a server of the caller's choosing.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/scan/(nfs|cifs|pbs|iscsi|glusterfs)/?$`), gate: Write,
+		reason: "makes the node contact another server, possibly with credentials"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/query-url-metadata/?$`), gate: Write,
+		reason: "makes the node fetch a URL of the caller's choosing"},
+	{path: regexp.MustCompile(`(?i)^/cluster/acme/(meta|tos)/?$`), when: rawParamSet("directory"), gate: Write,
+		reason: "makes the node fetch a URL of the caller's choosing"},
+}
+
+// rawGateError checks every rule that applies to a request and fails on the first one whose
+// setting is off.
+func rawGateError(c *Context, method string, paths []string, params *Obj) error {
+	for _, r := range rawRules {
+		if (r.nonGET && method == "GET") || (r.when != nil && !r.when(params)) {
+			continue
+		}
+		matched := false
+		for _, p := range paths {
+			if r.path.MatchString(rawSlashesRe.ReplaceAllString(p, "/")) {
+				matched = true
+			}
+		}
+		if !matched {
+			continue
+		}
+		switch {
+		case r.gate == Write && !c.AllowWrites:
+			return fmt.Errorf("This request %s, so it needs write access. Set PROXMOX_ALLOW_WRITES=true to allow it.", r.reason)
+		case r.gate == Delete && !c.AllowDeletes:
+			return fmt.Errorf("This request %s, so it needs delete access. Set PROXMOX_ALLOW_DELETES=true to allow it.", r.reason)
+		case r.gate == Exec && !c.AllowExec:
+			return fmt.Errorf("This request %s, so it needs exec access. Set PROXMOX_ALLOW_EXEC=true to allow it.", r.reason)
+		}
+	}
+	return nil
 }

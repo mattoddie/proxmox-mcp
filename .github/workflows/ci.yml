@@ -32,6 +32,8 @@ jobs:
           CGO_ENABLED: "1"
       - name: Check docs/tools.md is up to date
         run: make docs-check
+      - name: Check for known vulnerabilities
+        run: make vulncheck
 
   docker:
     name: Docker image
@@ -56,12 +58,12 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name smoke -p 8080:8080 \
-            -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' -e MCP_AUTH_TOKEN=ci \
+            -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_VERIFY_SSL=false -e PROXMOX_API_TOKEN='ci@pam!ci=ci' -e MCP_AUTH_TOKEN=ci-smoke-test-token \
             proxmox-mcp:ci
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/health && break; sleep 1; done
           echo
           tools=$(curl -fsS -X POST http://localhost:8080/mcp \
-            -H 'Authorization: Bearer ci' -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer ci-smoke-test-token' -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools | length')
           echo "Tools registered: $tools"
@@ -74,9 +76,15 @@ jobs:
           docker logs smoke
           docker rm -f smoke
           # The http transport must refuse to start without MCP_AUTH_TOKEN.
-          if docker run --rm -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci; then
+          if docker run --rm -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_VERIFY_SSL=false -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci; then
             echo "Started without MCP_AUTH_TOKEN"; exit 1
           fi
+          # An https PROXMOX_URL needs a choice of how to check the certificate.
+          if docker run --rm -e MCP_TRANSPORT=stdio -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci </dev/null; then
+            echo "Started without a TLS choice"; exit 1
+          fi
+          # With one, stdio starts and exits cleanly when stdin closes.
+          docker run --rm -e MCP_TRANSPORT=stdio -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_VERIFY_SSL=false -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci </dev/null
 
       - name: Build all platforms
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

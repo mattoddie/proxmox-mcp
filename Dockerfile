@@ -2,7 +2,7 @@
 
 # The binary is static Go, so the build stage runs on the build machine's own
 # platform and cross-compiles: multi-arch builds don't need emulation.
-FROM --platform=$BUILDPLATFORM golang:1.27 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 
 # Distroless: no shell, no package manager, just CA certificates, tzdata and a
 # non-root user (65532), so there is very little for CVE scanners to find.
-FROM gcr.io/distroless/static-debian13:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 LABEL org.opencontainers.image.title="proxmox-mcp" \
       org.opencontainers.image.description="MCP server for Proxmox VE" \
       org.opencontainers.image.source="https://github.com/mattoddie/proxmox-mcp" \

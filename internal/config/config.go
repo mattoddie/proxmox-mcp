@@ -19,6 +19,11 @@ var Toolsets = []string{
 	"firewall", "ha", "sdn", "ceph", "pools", "replication", "notifications", "hardware", "raw",
 }
 
+// OptInToolsets are left out of "all" (and so of the default) and must be listed by name. The
+// raw API tool reaches every endpoint, including ones the curated tools gate more finely, so it
+// is never enabled without being asked for.
+var OptInToolsets = map[string]bool{"raw": true}
+
 // Proxmox holds the API connection settings.
 type Proxmox struct {
 	URL string
@@ -48,12 +53,15 @@ type Tools struct {
 	AllowDeletes bool
 	// AllowExec enables tools that run commands or write files in guests and on nodes; requires AllowWrites.
 	AllowExec bool
-	Toolsets  map[string]bool
+	// AllowUnredacted lets the raw API tool return responses without secret redaction
+	// (its `redact: false` argument); PROXMOX_ALLOW_UNREDACTED.
+	AllowUnredacted bool
+	Toolsets        map[string]bool
 }
 
 // AllTools enables every tool, for documentation and tests.
 func AllTools() Tools {
-	t := Tools{AllowWrites: true, AllowDeletes: true, AllowExec: true, Toolsets: map[string]bool{}}
+	t := Tools{AllowWrites: true, AllowDeletes: true, AllowExec: true, AllowUnredacted: true, Toolsets: map[string]bool{}}
 	for _, ts := range Toolsets {
 		t.Toolsets[ts] = true
 	}
@@ -83,6 +91,31 @@ type Config struct {
 // ErrAuthTokenRequired is returned for the http transport without MCP_AUTH_TOKEN.
 var ErrAuthTokenRequired = errors.New("MCP_AUTH_TOKEN is required for the http transport (generate one with: openssl rand -hex 32); set MCP_ALLOW_UNAUTHENTICATED=true only behind something else that authenticates")
 
+// MinAuthTokenLength is the shortest MCP_AUTH_TOKEN accepted; `openssl rand -hex 32` gives 64.
+const MinAuthTokenLength = 16
+
+// CheckHTTPAuth validates the http transport's auth settings: a token of at least
+// MinAuthTokenLength characters, or MCP_ALLOW_UNAUTHENTICATED=true together with a Host
+// allow-list.
+func CheckHTTPAuth(h HTTP) error {
+	if h.AuthToken == "" {
+		if !h.AllowUnauthenticated {
+			return ErrAuthTokenRequired
+		}
+		if len(h.AllowedHosts) == 0 {
+			return ErrUnauthenticatedNeedsHosts
+		}
+		return nil
+	}
+	if len(h.AuthToken) < MinAuthTokenLength {
+		return fmt.Errorf("MCP_AUTH_TOKEN must be at least %d characters long (generate one with: openssl rand -hex 32)", MinAuthTokenLength)
+	}
+	return nil
+}
+
+// ErrUnauthenticatedNeedsHosts is returned for MCP_ALLOW_UNAUTHENTICATED=true without MCP_ALLOWED_HOSTS.
+var ErrUnauthenticatedNeedsHosts = errors.New("MCP_ALLOW_UNAUTHENTICATED=true also requires MCP_ALLOWED_HOSTS: without a token, the Host allow-list is what stops a web page from reaching the server through DNS rebinding. List the host names clients use, e.g. MCP_ALLOWED_HOSTS=mcp.example.lan,localhost")
+
 // Env looks up a variable; os.LookupEnv in production, a map in tests.
 type Env func(string) (string, bool)
 
@@ -104,6 +137,30 @@ func read(env Env, name string) (string, error) {
 	v, _ := env(name)
 	return strings.TrimSpace(v), nil
 }
+
+// readSecret is read for a value that may legitimately start or end with spaces, such as a
+// password: the environment value is kept as is, and a _FILE only loses its final line break.
+func readSecret(env Env, name string) (string, error) {
+	if file, _ := env(name + "_FILE"); file != "" {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("Could not read %s_FILE (%s): %s", name, file, errText(err))
+		}
+		s := strings.TrimSuffix(string(b), "\n")
+		return strings.TrimSuffix(s, "\r"), nil
+	}
+	v, _ := env(name)
+	return v, nil
+}
+
+// ErrTLSChoiceRequired is returned for an https PROXMOX_URL with no way to check the certificate chosen.
+var ErrTLSChoiceRequired = errors.New("PROXMOX_URL uses https, but no way to check the Proxmox certificate is configured. Proxmox ships a self-signed certificate, so choose one: " +
+	"PROXMOX_TLS_FINGERPRINT=<SHA-256 fingerprint> (recommended; shown under Node > System > Certificates, or run on the node: openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -fingerprint -sha256), " +
+	"PROXMOX_CA_FILE=<CA certificate file>, PROXMOX_VERIFY_SSL=true for a publicly trusted certificate, " +
+	"or PROXMOX_VERIFY_SSL=false to skip verification (insecure: the token or password can be intercepted)")
+
+// Lookup reads one variable the way Load does: trimmed, honouring <NAME>_FILE.
+func Lookup(env Env, name string) (string, error) { return read(env, name) }
 
 // errText is an OS error's message without Go's "open <path>: " prefix, which the caller already shows.
 func errText(err error) string {
@@ -228,6 +285,10 @@ func Load(env Env) (*Config, error) {
 	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
 		return nil, fmt.Errorf("PROXMOX_URL must use https:// (or http://), got %s", rawURL)
 	}
+	if parsed.User != nil {
+		// Not echoed: the URL holds a password.
+		return nil, errors.New("PROXMOX_URL must not contain a user name or password (user:pass@); use an API token (PROXMOX_API_TOKEN) or PROXMOX_USERNAME and PROXMOX_PASSWORD")
+	}
 	https := strings.EqualFold(parsed.Scheme, "https")
 
 	tokenID, tokenSecret, err := parseToken(env)
@@ -235,7 +296,10 @@ func Load(env Env) (*Config, error) {
 		return nil, err
 	}
 	username := get("PROXMOX_USERNAME")
-	password := get("PROXMOX_PASSWORD")
+	password, err := readSecret(env, "PROXMOX_PASSWORD")
+	if err != nil {
+		return nil, err
+	}
 	if username != "" && !strings.Contains(username, "@") {
 		realm := get("PROXMOX_REALM")
 		if realm == "" {
@@ -280,6 +344,7 @@ func Load(env Env) (*Config, error) {
 	allowWrites := boolValue(get("PROXMOX_ALLOW_WRITES"), false)
 	allowDeletes := boolValue(get("PROXMOX_ALLOW_DELETES"), false)
 	allowExec := boolValue(get("PROXMOX_ALLOW_EXEC"), false)
+	allowUnredacted := boolValue(get("PROXMOX_ALLOW_UNREDACTED"), false)
 	if firstErr != nil {
 		return nil, firstErr
 	}
@@ -302,7 +367,9 @@ func Load(env Env) (*Config, error) {
 		}
 		if t == "all" {
 			for _, x := range Toolsets {
-				toolsets[x] = true
+				if !OptInToolsets[x] {
+					toolsets[x] = true
+				}
 			}
 			continue
 		}
@@ -329,8 +396,10 @@ func Load(env Env) (*Config, error) {
 	if firstErr != nil {
 		return nil, firstErr
 	}
-	if transport == "http" && authToken == "" && !allowUnauthenticated {
-		return nil, ErrAuthTokenRequired
+	if transport == "http" {
+		if err := CheckHTTPAuth(HTTP{AuthToken: authToken, AllowUnauthenticated: allowUnauthenticated, AllowedHosts: allowedHosts}); err != nil {
+			return nil, err
+		}
 	}
 
 	timeoutMs, err := positiveInt("PROXMOX_TIMEOUT_MS", get("PROXMOX_TIMEOUT_MS"), 30000)
@@ -351,9 +420,15 @@ func Load(env Env) (*Config, error) {
 		return nil, err
 	}
 	defaultNode := get("PROXMOX_DEFAULT_NODE")
-	verify := caCert != "" || boolValue(get("PROXMOX_VERIFY_SSL"), false)
+	verifySetting := get("PROXMOX_VERIFY_SSL")
+	verify := caCert != "" || boolValue(verifySetting, false)
 	if firstErr != nil {
 		return nil, firstErr
+	}
+	// Proxmox ships a self-signed certificate, so an unverified connection used to be the silent
+	// default. Now the operator has to choose: pin it, trust a CA, verify, or explicitly not.
+	if https && verifySetting == "" && caCert == "" && len(fingerprints) == 0 {
+		return nil, ErrTLSChoiceRequired
 	}
 
 	cfg := &Config{
@@ -368,7 +443,7 @@ func Load(env Env) (*Config, error) {
 			TaskTimeoutMs:   taskTimeoutMs,
 			DefaultNode:     defaultNode,
 		},
-		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, Toolsets: toolsets},
+		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets},
 		Transport: transport,
 		HTTP: HTTP{
 			Host:                 host,

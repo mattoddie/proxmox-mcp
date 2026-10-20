@@ -106,6 +106,10 @@ func TestNodesStatusAndStatistics(t *testing.T) {
 		eqAt(t, m, "size", "1 GiB")
 		eqAt(t, m, "filename", "debian.iso")
 		eq(t, env.mock.RequestsTo(nodesN+"/query-url-metadata", "")[0].Query, `{"url":"https://x/debian.iso","verify-certificates":"0"}`)
+		// The node fetches whatever URL it is given, so the tool needs writes.
+		if toolNames(t, connect(t, env.client, toolOptions("read")))["proxmox_query_url_metadata"] {
+			t.Fatal("proxmox_query_url_metadata is registered read-only")
+		}
 	})
 }
 
@@ -541,6 +545,16 @@ func TestNodesClusterACME(t *testing.T) {
 		eqAt(t, r, "meta.termsOfService", "https://le/tos")
 		eqAt(t, r, "meta.externalAccountRequired", false)
 		eq(t, env.mock.RequestsTo("/cluster/acme/meta", "")[0].Query, `{"directory":"https://le/dir"}`)
+
+		// Read-only, the node must not be sent to fetch a URL of the caller's choosing.
+		env.mock.Reset()
+		env.mock.Reply("GET", `^/cluster/acme/directories$`, `[]`)
+		ro := connect(t, env.client, toolOptions("read"))
+		match(t, errorTextOf(t, callOn(t, ro, "proxmox_list_acme_directories", `{"directory":"http://192.0.2.10/"}`)), `needs write access`)
+		if len(env.mock.RequestsTo("/cluster/acme/meta", "")) != 0 || len(env.mock.RequestsTo("/cluster/acme/tos", "")) != 0 {
+			t.Fatal("the directory was fetched read-only")
+		}
+		eq(t, parseResult(t, callOn(t, ro, "proxmox_list_acme_directories", `{}`)), `{"directories":[]}`)
 	})
 
 	nodesRun(t, env, "falls back to the terms of service on older versions", func(t *testing.T) {

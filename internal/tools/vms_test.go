@@ -584,6 +584,10 @@ func TestVmsPermissionGates(t *testing.T) {
 			return errorTextOf(t, callOn(t, s, "proxmox_update_vm_config", `{"vmid":100,`+args+`}`))
 		}
 		match(t, raw(`"delete":["unused0"]`), `delete permission`)
+		// Proxmox also splits the list on \v and NUL, so those can't hide an unusedN key.
+		for _, sep := range []string{`\u000b`, `\u0000`, `|`, `.`, ` `} {
+			match(t, raw(`"delete":["net1`+sep+`unused0"]`), `delete permission`, sep)
+		}
 		match(t, raw(`"extra":{"delete":"net1,unused1"}`), "extra must not set `delete`")
 		match(t, raw(`"extra":{"hookscript":"local:snippets/x.sh"}`), `exec permission`)
 		createVM := func(extra string) string {

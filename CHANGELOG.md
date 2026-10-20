@@ -6,6 +6,35 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Security
+
+- **Breaking:** the raw API tool (`proxmox_api_request`) is no longer enabled by default. `PROXMOX_TOOLSETS=all` (the default) now means every toolset except `raw`, because the raw tool can reach endpoints that the curated tools gate more finely. To keep using it, list it by name, for example `PROXMOX_TOOLSETS=all,raw`.
+- With writes on and deletes off, the raw API tool could still destroy data without a `DELETE`: `PUT …/disks/wipedisk`, `POST …/disks/initgpt`, restoring over an existing guest (`POST /nodes/{node}/qemu|lxc` with `force`), deleting `unusedN` volumes through a config `delete` list, `unlink` with `force`, `move_disk`/`move_volume` with `delete`, `purge`/`destroy-unreferenced-disks`, and `remote_migrate` (which copies a guest to another cluster). These now need `PROXMOX_ALLOW_DELETES`, like the curated tools that do the same.
+- Read-only, the raw API tool could make a node connect to a server of the caller's choosing with a `GET`: remote storage scans (`scan/nfs`, `cifs`, `pbs`, `iscsi`, `glusterfs`, which `proxmox_scan_storage` already gated), `query-url-metadata` and ACME `meta`/`tos` with a `directory`. These now need `PROXMOX_ALLOW_WRITES`.
+- The raw API tool now needs `PROXMOX_ALLOW_EXEC` for backup `file-restore/download` (it reads files out of a guest's backup) and for any request that sets `hookscript` or vzdump `script`, as the curated tools already did.
+- **Breaking:** `proxmox_query_url_metadata` is now a write tool (`PROXMOX_ALLOW_WRITES`), because the node fetches any URL it is given, including internal addresses. `proxmox_list_acme_directories` still lists the known directories read-only, but fetching a `directory`'s metadata now needs write access for the same reason.
+- The check that `proxmox_update_vm_config` and `proxmox_update_container_config` need delete access to delete an `unusedN` entry (which destroys its volume) could be bypassed by separating keys with a vertical tab or NUL, which Proxmox also splits on. The VM, container and raw tools now share one check that splits the list on anything that can't be part of a key.
+- Request parameters may no longer contain control characters other than tab, newline and carriage return; such requests are refused before they are sent. Send binary guest file content base64-encoded.
+- **Breaking:** the raw API tool's `redact: false` argument let the model turn secret redaction off by itself. It now only exists when the operator sets the new `PROXMOX_ALLOW_UNREDACTED=true`; otherwise every raw response is redacted.
+- **Breaking:** `MCP_ALLOW_UNAUTHENTICATED=true` now also requires `MCP_ALLOWED_HOSTS`, and the server refuses to start without it. With no token, the Host allow-list is the only thing stopping a web page from reaching the server through DNS rebinding.
+- **Breaking:** `MCP_AUTH_TOKEN` must be at least 16 characters long. `openssl rand -hex 32` gives 64.
+- `MCP_ALLOWED_HOSTS` port handling is stricter for `Origin`: an entry without a port now only matches the scheme's default port, so `localhost` no longer lets a page on `http://localhost:3000` through; list `localhost:3000` to allow it. `Host` entries without a port still match any port, and entries with a port match only that port. More than one `Origin` header is rejected.
+- The HTTP server now has a 60-second read timeout and a 120-second idle timeout, so slow or idle clients can't hold connections open indefinitely. There is still no write timeout, because a tool waiting for a Proxmox task can take minutes.
+- **Breaking:** with an `https://` `PROXMOX_URL`, the server no longer connects without verifying the certificate by default. If `PROXMOX_VERIFY_SSL` is unset and neither `PROXMOX_TLS_FINGERPRINT` nor `PROXMOX_CA_FILE` is set, it refuses to start and explains the options. Pin the certificate with `PROXMOX_TLS_FINGERPRINT` (recommended), trust a CA with `PROXMOX_CA_FILE`, set `PROXMOX_VERIFY_SSL=true` for a trusted certificate, or set `PROXMOX_VERIFY_SSL=false` to keep the old behaviour (with the startup warning). `example.env` no longer sets `PROXMOX_VERIFY_SSL=false`.
+- `PROXMOX_URL` may no longer contain a user name or password (`user:pass@`), and a plain `http://` URL now logs a warning that credentials travel in cleartext.
+- After Proxmox rejects the username and password, the server waits before logging in again (5 seconds, doubling up to 5 minutes) instead of retrying on every tool call. It still logs in again only after a `401`, never a `403`.
+- Proxmox responses larger than 64 MiB are refused instead of read into memory, and JSON nested more than 256 levels deep is rejected.
+- Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
+
+### Changed
+
+- Built with Go 1.27 (`toolchain go1.27.2`, matching the `golang:1.27` build image). The Dockerfile pins both base images by digest, and CI runs `govulncheck` (pinned to v1.9.0).
+
+### Fixed
+
+- `PROXMOX_PASSWORD` was trimmed, so a password starting or ending with a space couldn't log in. It is now used as given; from `PROXMOX_PASSWORD_FILE` only the final line break is removed.
+- `proxmox-mcp healthcheck` (the Docker health check) always connected to `127.0.0.1`, so it failed for a server listening on a specific address. It now connects to `MCP_HTTP_HOST`, or to loopback when that is unset, `0.0.0.0` or `::`, and honours `MCP_HTTP_PORT_FILE` and `MCP_HTTP_HOST_FILE`.
+
 ## [0.3.0] - 2026-10-16
 
 ### Changed

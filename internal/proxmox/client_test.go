@@ -299,11 +299,55 @@ func TestClientWithToken(t *testing.T) {
 		}
 	})
 
+	t.Run("bounds the response size", func(t *testing.T) {
+		defer proxmox.SetMaxResponseBytes(1024)()
+		big := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"data":"` + strings.Repeat("x", 2048) + `"}`))
+		}))
+		defer big.Close()
+		_, err := newClient(t, with(tokenEnv, "PROXMOX_URL", big.URL)).Get(ctx, "/version", nil)
+		mustMatch(t, err, `^GET /version returned more than 0 MiB; refusing to read the rest$`)
+	})
+
+	t.Run("refuses control characters in parameters", func(t *testing.T) {
+		before := len(mock.Requests())
+		for _, v := range []string{"net1\vunused0", "a\x00b", "x\x1b[0m", "\x7f"} {
+			_, err := client.Put(ctx, "/nodes/pve1/qemu/100/config", js.O("delete", v))
+			mustMatch(t, err, `^Parameter "delete" contains a control character`)
+		}
+		_, err := client.Get(ctx, "/version", js.O("a\x01", "x"))
+		mustMatch(t, err, `^Parameter "a\?" contains a control character`)
+		if len(mock.Requests()) != before {
+			t.Fatal("a request was sent")
+		}
+		// Multi-line text is fine.
+		if _, err := client.Put(ctx, "/nodes/pve1/qemu/100/config", js.O("description", "line 1\r\nline 2\tend")); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("reports non-JSON responses", func(t *testing.T) {
 		html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<html>hi</html>")) }))
 		defer html.Close()
 		_, err := newClient(t, with(tokenEnv, "PROXMOX_URL", html.URL)).Get(ctx, "/version", nil)
-		mustMatch(t, err, `^GET /version returned a non-JSON response: <html>hi</html>$`)
+		mustMatch(t, err, `^GET /version returned a non-JSON response \(Content-Type text/html; charset=utf-8, 15 bytes\); check that PROXMOX_URL points at the Proxmox API$`)
+		if strings.Contains(err.Error(), "hi") {
+			t.Fatal("the body was echoed")
+		}
+	})
+
+	t.Run("does not echo a non-JSON error body", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("secret upstream page"))
+		}))
+		defer srv.Close()
+		_, err := newClient(t, with(tokenEnv, "PROXMOX_URL", srv.URL)).Get(ctx, "/version", nil)
+		mustMatch(t, err, `^GET /version failed with HTTP 502: Bad Gateway$`)
+		if strings.Contains(err.Error(), "secret") {
+			t.Fatal("the body was echoed")
+		}
 	})
 }
 
@@ -358,8 +402,39 @@ func TestClientWithPassword(t *testing.T) {
 
 	t.Run("reports bad credentials clearly", func(t *testing.T) {
 		bad := newClient(t, map[string]string{"PROXMOX_URL": mock.URL, "PROXMOX_USERNAME": "root@pam", "PROXMOX_PASSWORD": "wrong"})
+		before := len(mock.RequestsTo("/access/ticket", "POST"))
 		_, err := bad.Get(ctx, "/version", nil)
 		mustMatch(t, err, `^Login to Proxmox failed \(HTTP 401 authentication failure\); check PROXMOX_USERNAME`)
+		// Refused credentials aren't sent again on every call.
+		for i := 0; i < 3; i++ {
+			_, err = bad.Get(ctx, "/version", nil)
+			mustMatch(t, err, `^Login to Proxmox failed \(HTTP 401 authentication failure\); check PROXMOX_USERNAME .*\(not retrying for [1-5]s\)$`)
+		}
+		if n := len(mock.RequestsTo("/access/ticket", "POST")) - before; n != 1 {
+			t.Fatalf("%d login attempts", n)
+		}
+		// Once the backoff has passed it tries again, and waits longer after another failure.
+		bad.SetLoginRetryAt(time.Now())
+		_, err = bad.Get(ctx, "/version", nil)
+		mustMatch(t, err, `^Login to Proxmox failed \(HTTP 401 authentication failure\); check PROXMOX_USERNAME \(user@realm\) and PROXMOX_PASSWORD$`)
+		wait := time.Until(bad.LoginRetryAt())
+		if wait < 9*time.Second || wait > 10*time.Second {
+			t.Fatal(wait)
+		}
+	})
+
+	t.Run("re-logs in on 401 but not on 403", func(t *testing.T) {
+		c := newClient(t, map[string]string{"PROXMOX_URL": mock.URL, "PROXMOX_USERNAME": "root@pam", "PROXMOX_PASSWORD": "secret"})
+		mock.Reply("GET", `^/forbidden$`, proxmoxtest.Error(403, "Permission check failed"))
+		if _, err := c.Get(ctx, "/version", nil); err != nil {
+			t.Fatal(err)
+		}
+		before := mock.LoginCount()
+		_, err := c.Get(ctx, "/forbidden", nil)
+		mustMatch(t, err, `HTTP 403`)
+		if mock.LoginCount() != before {
+			t.Fatal("logged in again after a 403")
+		}
 	})
 
 	t.Run("refuses accounts that need two-factor authentication", func(t *testing.T) {
