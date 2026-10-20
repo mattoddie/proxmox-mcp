@@ -26,6 +26,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Proxmox responses larger than 64 MiB are refused instead of read into memory, and JSON nested more than 256 levels deep is rejected.
 - Proxmox API errors no longer quote the body of a non-JSON response (only its status, content type and size), so a page served by something other than Proxmox isn't passed on to the model.
 
+### Changed
+
+- Built with Go 1.27 (`toolchain go1.27.2`, matching the `golang:1.27` build image). The Dockerfile pins both base images by digest, and CI runs `govulncheck` (pinned to v1.9.0).
+
 ### Fixed
 
 - `PROXMOX_PASSWORD` was trimmed, so a password starting or ending with a space couldn't log in. It is now used as given; from `PROXMOX_PASSWORD_FILE` only the final line break is removed.
