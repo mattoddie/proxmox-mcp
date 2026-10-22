@@ -247,12 +247,26 @@ jobs:
       - name: Validate
         run: ./mcp-publisher validate dist/server.json
 
+      # The registry refuses to publish a version twice, so a re-run after a
+      # successful publish has nothing to do.
+      - name: Check the registry
+        id: registry
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0/servers/$(jq -r '.name | @uri' dist/server.json)/versions/$VERSION")
+          if [ "$code" = 200 ]; then
+            echo "Version $VERSION is already in the MCP Registry."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish
+        if: steps.registry.outputs.published != 'true'
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish dist/server.json
 
       - name: Summary
+        if: steps.registry.outputs.published != 'true'
         run: |
           {
             echo "### Published \`io.github.mattoddie/proxmox-mcp\` $VERSION to the MCP Registry"

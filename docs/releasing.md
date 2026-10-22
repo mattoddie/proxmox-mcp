@@ -71,7 +71,7 @@ Pre-releases are published only under their exact version (`ghcr.io/mattoddie/pr
 - **The workflow failed** for a transient reason: re-run it from the Actions tab. It's safe to re-run, and it pushes the same tags again.
 - **The release was wrong** (bad code or wrong tag): don't move or reuse a published tag, because people may already have pulled it. Fix the problem on `main` and publish the next patch version. You can delete the bad GitHub release and mark it as such in the changelog, but leave the image tag alone.
 - **Wrong tag format** (e.g. `1.2.0` without the `v`): delete the release and tag (`gh release delete 1.2.0 --cleanup-tag`) and publish again with the right tag.
-- **The MCP Registry job failed.** Its log says why. A failure before *Publish* (the download, the checksum, validation, or the registry being unavailable) is safe to retry: open the workflow run and click **Re-run failed jobs**, which re-runs only *Publish to the MCP Registry*. If *Publish* says the version already exists, it went through the first time and there's nothing to do. A published version can't be changed: if its `server.json` was wrong, fix it on `main` and release the next patch version.
+- **The MCP Registry job failed.** Its log says why. A failure before *Publish* (the download, the checksum, validation, or the registry being unavailable) is safe to retry: open the workflow run and click **Re-run failed jobs**, which re-runs only *Publish to the MCP Registry*. If the version already reached the registry, the job notices and skips *Publish*. A published version can't be changed: if its `server.json` was wrong, fix it on `main` and release the next patch version.
 
 ### Publishing to the MCP Registry by hand
 
