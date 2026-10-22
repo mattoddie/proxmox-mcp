@@ -436,6 +436,7 @@ func registerCeph(c *Context) {
 
 	c.Define("proxmox_list_ceph_osds", Def{
 		Toolset:     "ceph",
+		List:        &listing{},
 		Title:       "List Ceph OSDs",
 		Description: "List Ceph OSDs from the OSD tree: host, up/down, in/out, device class, usage, PGs, CRUSH weight, latency and version, plus the per-host grouping and cluster-wide OSD flags (noout etc.). Filter by host, status or device class.",
 		Input: []Prop{
@@ -526,6 +527,7 @@ func registerCeph(c *Context) {
 
 	c.Define("proxmox_list_ceph_pools", Def{
 		Toolset:     "ceph",
+		List:        &listing{},
 		Title:       "List Ceph pools",
 		Description: "List Ceph pools with replication (size/min_size), PG count and autoscale mode (with the autoscaler's optimal PG count), application, CRUSH rule and usage %. Related: proxmox_get_ceph_pool, proxmox_update_ceph_pool.",
 		Input:       []Prop{P("node", cephNodeArg), P("search", searchArg), P("raw", rawArg)},
@@ -606,6 +608,7 @@ func registerCeph(c *Context) {
 
 	c.Define("proxmox_list_ceph_fs", Def{
 		Toolset:     "ceph",
+		List:        &listing{},
 		Title:       "List CephFS file systems",
 		Description: "List CephFS file systems with their metadata and data pools. MDS daemons serving them are listed by proxmox_list_ceph_services.",
 		Input:       []Prop{P("node", cephNodeArg)},

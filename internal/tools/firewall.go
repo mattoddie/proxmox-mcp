@@ -337,6 +337,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_rules", Def{
 		Toolset:     "firewall",
+		List:        &listing{Items: "rules"},
 		Title:       "List firewall rules",
 		Description: "List the firewall rules of the datacenter (cluster), a node, a VM/container (guest) or a security group, in evaluation order (pos 0 first). Each rule has a readable one-line form like 'IN SSH(ACCEPT) -i net0 -source +mgmt # admins'. Rules of type group pull in a security group's rules. For 'why can't I reach VM X' start with proxmox_get_guest_firewall_status.",
 		Input:       withProps(firewallScopeArgs(all...), []Prop{P("raw", rawArg)}),
@@ -620,6 +621,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_aliases", Def{
 		Toolset:     "firewall",
+		List:        &listing{},
 		Title:       "List firewall aliases",
 		Description: "List IP/network aliases defined at datacenter (cluster) or guest level. Aliases are named addresses usable in rule source/dest.",
 		Input:       withProps(firewallScopeArgs(cg...), []Prop{P("search", searchArg)}),
@@ -718,6 +720,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_ipsets", Def{
 		Toolset:     "firewall",
+		List:        &listing{},
 		Title:       "List firewall IP sets",
 		Description: "List IP sets at datacenter (cluster) or guest level with their entries (CIDRs, nomatch exclusions, comments). Reference them in rules as +name (or +dc/name, +guest/name). Special sets: 'management' (hosts allowed to reach the web UI/SSH when the firewall is on), 'blacklist', and per-NIC 'ipfilter-netX' on guests.",
 		Input:       withProps(firewallScopeArgs(cg...), []Prop{P("name", Str().Opt().D("Only this IP set")), P("search", searchArg)}),
@@ -874,6 +877,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_groups", Def{
 		Toolset:     "firewall",
+		List:        &listing{},
 		Title:       "List firewall security groups",
 		Description: "List the datacenter's security groups (reusable rule sets) with their comment and rule count. See a group's rules with proxmox_list_firewall_rules scope=group; apply a group to a guest/node with a rule of type group.",
 		Input:       []Prop{P("search", searchArg)},
@@ -979,6 +983,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_refs", Def{
 		Toolset:     "firewall",
+		List:        &listing{},
 		Title:       "List firewall alias/IP set references",
 		Description: "List the aliases and IP sets that can be used in rule source/dest at datacenter (cluster) or guest level, with the exact reference string to use (e.g. +dc/management, dc/myalias).",
 		Input:       withProps(firewallScopeArgs(cg...), []Prop{P("type", Enum("alias", "ipset").Opt().D("Only aliases or only IP sets"))}),
@@ -999,6 +1004,7 @@ func registerFirewall(c *Context) {
 
 	c.Define("proxmox_list_firewall_macros", Def{
 		Toolset:     "firewall",
+		List:        &listing{},
 		Title:       "List firewall macros",
 		Description: "List the predefined firewall macros (SSH, HTTP, DNS, Ceph, ...) usable as a rule's `macro` instead of proto/port.",
 		Input:       []Prop{P("search", searchArg)},

@@ -238,6 +238,7 @@ func registerCluster(c *Context) {
 
 	c.Define("proxmox_list_nodes", Def{
 		Toolset:     "cluster",
+		List:        &listing{},
 		Title:       "List nodes",
 		Description: "List the cluster's nodes with online state, CPU and memory usage, uptime and subscription level.",
 		Input:       []Prop{P("raw", rawArg)},
@@ -256,6 +257,7 @@ func registerCluster(c *Context) {
 
 	c.Define("proxmox_list_guests", Def{
 		Toolset:     "cluster",
+		List:        &listing{},
 		Title:       "List VMs and containers",
 		Description: "List virtual machines and containers across the cluster with status, node, CPU, memory, disk, uptime, tags and pool. Filter by type, node, status, tag, pool or a search string, and sort by resource use.",
 		Input: []Prop{
@@ -338,6 +340,7 @@ func registerCluster(c *Context) {
 
 	c.Define("proxmox_list_resources", Def{
 		Toolset:     "cluster",
+		List:        &listing{},
 		Title:       "List cluster resources",
 		Description: "List cluster resources of any kind from /cluster/resources: nodes, guests, storage, pools and SDN zones. Use proxmox_list_guests for a friendlier guest list.",
 		Input: []Prop{
@@ -434,6 +437,7 @@ func registerCluster(c *Context) {
 
 	c.Define("proxmox_list_metric_servers", Def{
 		Toolset:     "cluster",
+		List:        &listing{},
 		Title:       "List metric servers",
 		Description: "List external metric servers (InfluxDB, Graphite, OpenTelemetry) that Proxmox sends performance data to.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {

@@ -5,9 +5,10 @@ proxmox-mcp is configured entirely through environment variables. With Docker Co
 - [Proxmox connection](#proxmox-connection)
 - [Authentication](#authentication)
 - [What the assistant may do](#what-the-assistant-may-do)
+- [Audit log](#audit-log)
 - [MCP transport](#mcp-transport)
 - [Docker secrets (`_FILE` variables)](#docker-secrets-_file-variables)
-- [Choosing toolsets](#choosing-toolsets)
+- [Keeping the tool list small](#keeping-the-tool-list-small)
 - [Example configurations](#example-configurations)
 
 The server checks the configuration at startup. If something is wrong, it exits with a clear message such as `PROXMOX_ALLOW_DELETES=true also requires PROXMOX_ALLOW_WRITES=true`. If the container keeps restarting, check `docker compose logs`.
@@ -23,6 +24,8 @@ The server checks the configuration at startup. If something is wrong, it exits 
 | `PROXMOX_TIMEOUT_MS` | `30000` | Timeout for each API request, in milliseconds. |
 | `PROXMOX_TASK_TIMEOUT_MS` | `120000` | How long tools wait for a Proxmox task (start, clone, migrate, backup…) to finish before returning. A task that takes longer keeps running and the tool returns its task ID. See [Usage](usage.md#tasks-and-wait). |
 | `PROXMOX_DEFAULT_NODE` | | Node used by node-scoped tools when a call doesn't name one. Single-node installs don't need it. In a cluster without it, those tools ask for a node. |
+
+A variable set to an empty value counts as unset and gets its default. So does one set to exactly `${user_config.<key>}`, which is how Claude Desktop passes an [extension setting](clients.md#claude-desktop) that was left empty.
 
 ### Verifying the Proxmox certificate
 
@@ -67,7 +70,7 @@ How each method works:
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_UNREDACTED` | `false` | Offer the raw API tool's `redact: false` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
-| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#choosing-toolsets) to expose. `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
+| `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#toolsets) to expose. See [Keeping the tool list small](#keeping-the-tool-list-small). `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
 
@@ -81,6 +84,33 @@ That gives four access levels. The [tool reference](tools.md) labels every tool 
 Deletes and exec are independent of each other: you can allow either without the other.
 
 Tools that aren't allowed are **not registered at all**. The assistant can't see them, so it can't call them or be talked into calling them. Proxmox still checks the token's own permissions on every request, so a write tool fails with `403` if the token isn't allowed to do it.
+
+Every tool that changes something also takes `dry_run`. With `dry_run: true` the tool sends nothing that changes state and returns the request it would have sent, and for an update of an object it can read, such as a guest config, the keys that would change with their values before and after. See [Previewing changes](usage.md#previewing-changes-with-dry_run).
+
+## Audit log
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROXMOX_AUDIT_LOG` | (off) | Record every call of a tool that changes things. A file path appends JSON Lines to that file, which is created with mode `0600` if it doesn't exist; its directory must exist, or the server won't start. `stderr` writes the lines to standard error, next to the server's other logs. |
+
+Each line is one call of a write, delete or exec tool, or of `proxmox_api_request` with a method other than `GET`. Read-only tools aren't logged. Dry runs, calls that failed and calls refused for invalid arguments are all logged:
+
+```json
+{"time":"2026-10-22T09:14:03.120Z","tool":"proxmox_update_vm_config","dry_run":false,"arguments":{"vmid":100,"memory_mb":8192,"extra":{"cipassword":"<redacted>"}},"requests":[{"method":"POST","path":"/nodes/pve1/qemu/100/config","status":200}],"outcome":"ok"}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | When the call finished, in UTC (RFC 3339). |
+| `tool` | The tool name. |
+| `dry_run` | Whether the call was a [dry run](usage.md#previewing-changes-with-dry_run). |
+| `arguments` | The arguments, with passwords, keys and other secrets `<redacted>`. |
+| `requests` | The requests that change state that were actually sent: method, path and HTTP status (`null` if no response arrived). Reads aren't listed, and nothing from the responses is logged. |
+| `previewed` | For a dry run, the request that was previewed and not sent. |
+| `outcome` | `ok` or `error`. |
+| `error` | The error message, when `outcome` is `error`. |
+
+A file is opened for each line, so it's safe to rotate it or delete it: the next line creates it again. In Docker, mount a writable directory and point `PROXMOX_AUDIT_LOG` at a file in it (the image runs as UID 65532). If a line can't be written, the server logs one warning and carries on.
 
 ## MCP transport
 
@@ -125,43 +155,57 @@ secrets:
 
 If both `NAME` and `NAME_FILE` are set, the file wins. `PROXMOX_CA_FILE` is already a path, so mount the certificate as a secret or volume and point it there.
 
-## Choosing toolsets
+## Keeping the tool list small
 
-Every tool's name, description and argument schema is sent to the model, which uses up context. With every toolset and every access level enabled there are over 300 tools, which is a lot of text, and some clients warn about or cap the number of tools. Expose only what you need:
+Most MCP clients send every tool's name, description and argument schema to the model with each request. With every toolset enabled that's about 131 KB for the 154 read-only tools, 344 KB for 261 tools with writes on, and 397 KB for all 313 tools with deletes and exec on too. That uses up context you'd rather spend on your conversation and your cluster's data, and some clients warn about or cap the number of tools.
 
-| Toolset | Use it for |
-|---|---|
-| `cluster` | Cluster overview, nodes and guests at a glance. **Always include it.** |
-| `nodes` | Node status, services, network, updates, certificates, logs |
-| `vms` | QEMU virtual machines |
-| `containers` | LXC containers |
-| `agent` | Information from inside VMs via the guest agent, and (with exec) commands |
-| `snapshots` | Guest snapshots |
-| `storage` | Storage, volumes, ISOs and templates, physical disks, ZFS, LVM |
-| `backup` | Backup jobs, backups, restores |
-| `tasks` | Task history and logs. **Include it whenever you allow writes**, so the assistant can follow tasks. |
-| `access` | Users, groups, roles, ACLs, tokens, realms, 2FA |
-| `firewall` | Datacenter, node and guest firewall |
-| `ha` | High availability |
-| `sdn` | Software-defined networking |
-| `ceph` | Ceph |
-| `pools` | Resource pools |
-| `replication` | Storage replication |
-| `notifications` | Notification targets and matchers |
-| `hardware` | PCI/USB devices, mappings, CPU models |
-| `raw` | Any API path. Handy, but gives broad access. **Not part of `all`**: list it explicitly (`all,raw`) to enable it. |
+`PROXMOX_TOOLSETS` is the way to keep the list small. Enable only the toolsets you need: the model sees fewer tools, picks the right one more easily, and can't reach the rest at all.
 
-The [tool reference](tools.md) lists the tools in each toolset. A read-only setup registers far fewer tools than the full set. Some suggested sets:
+Clients with their own tool search, such as Claude Code, load tool definitions only when the model needs them, so they handle the full list fine. You don't need to narrow `PROXMOX_TOOLSETS` for them, though it still limits what the model can reach.
 
-| Goal | `PROXMOX_TOOLSETS` |
-|---|---|
-| Everyday monitoring | `cluster,nodes,vms,containers,storage,backup,tasks` |
-| Running guests day to day | `cluster,vms,containers,agent,snapshots,backup,tasks` |
-| Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` |
-| Security review | `cluster,nodes,access,firewall,tasks` |
-| Network and SDN | `cluster,nodes,sdn,firewall` |
-| Everything except the raw API tool (default) | `all` |
-| Everything, including the raw API tool | `all,raw` |
+### Toolsets
+
+| Toolset | Tools | Use it for |
+|---|---:|---|
+| `cluster` | 15 | Cluster overview, nodes and guests at a glance. **Always include it.** |
+| `nodes` | 49 | Node status, services, network, updates, certificates, logs |
+| `vms` | 20 | QEMU virtual machines |
+| `containers` | 16 | LXC containers |
+| `agent` | 13 | Information from inside VMs via the guest agent, and (with exec) commands |
+| `snapshots` | 7 | Guest snapshots |
+| `storage` | 25 | Storage, volumes, ISOs and templates, physical disks, ZFS, LVM |
+| `backup` | 16 | Backup jobs, backups, restores |
+| `tasks` | 5 | Task history and logs. **Include it whenever you allow writes**, so the assistant can follow tasks. |
+| `access` | 33 | Users, groups, roles, ACLs, tokens, realms, 2FA |
+| `firewall` | 21 | Datacenter, node and guest firewall |
+| `ha` | 15 | High availability |
+| `sdn` | 18 | Software-defined networking |
+| `ceph` | 27 | Ceph |
+| `pools` | 5 | Resource pools |
+| `replication` | 6 | Storage replication |
+| `notifications` | 10 | Notification targets and matchers |
+| `hardware` | 12 | PCI/USB devices, mappings, CPU models |
+| `raw` | 1 | Any API path. Handy, but gives broad access. **Not part of `all`**: list it explicitly (`all,raw`) to enable it. |
+
+The counts include write, delete and exec tools, so a read-only setup registers far fewer tools. The [tool reference](tools.md) lists the tools in each toolset.
+
+### Ready-made combinations
+
+The sizes are the `tools/list` result the client receives, measured by starting the server. "With writes" is `PROXMOX_ALLOW_WRITES=true` alone; "with deletes" adds `PROXMOX_ALLOW_DELETES=true`.
+
+| Goal | `PROXMOX_TOOLSETS` | Read-only | With writes | With deletes |
+|---|---|---:|---:|---:|
+| Everyday monitoring | `cluster,nodes,vms,containers,storage,backup,tasks` | 76 tools, 67 KB | 127 tools, 178 KB | 144 tools, 196 KB |
+| Running guests day to day | `cluster,vms,containers,agent,snapshots,backup,tasks` | 45 tools, 42 KB | 77 tools, 119 KB | 85 tools, 129 KB |
+| Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` | 40 tools, 36 KB | 58 tools, 74 KB | 68 tools, 86 KB |
+| Security review | `cluster,nodes,access,firewall,tasks` | 65 tools, 52 KB | 105 tools, 118 KB | 123 tools, 133 KB |
+| Network and SDN | `cluster,nodes,sdn,firewall` | 53 tools, 46 KB | 90 tools, 113 KB | 103 tools, 126 KB |
+| Everything except the raw API tool (default) | `all` | 154 tools, 131 KB | 261 tools, 344 KB | 306 tools, 388 KB |
+| Everything, including the raw API tool | `all,raw` | 155 tools, 133 KB | 262 tools, 346 KB | 307 tools, 389 KB |
+
+Turning on exec as well adds the guest agent and monitor tools: `all` grows to 313 tools and 397 KB.
+
+List tools also take `search`, `fields` and, on long lists, `limit`, so the model can fetch only the items and fields it needs instead of whole lists.
 
 ## Example configurations
 

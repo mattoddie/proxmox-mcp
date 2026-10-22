@@ -130,6 +130,10 @@ func registerAgent(c *Context) {
 
 	// agent calls an agent sub-endpoint (e.g. "get-osinfo") and unwraps the result, with friendly errors.
 	agent := func(ctx context.Context, g proxmox.GuestRef, method, command string, params *Obj, raw bool) (any, error) {
+		if command == "ping" {
+			// A POST that changes nothing: dry runs send it.
+			ctx = proxmox.AsRead(ctx)
+		}
 		res, err := client.Request(ctx, method, client.GuestPath(g)+"/agent/"+command, params)
 		if err != nil {
 			return nil, agentError(err, g.VMID)

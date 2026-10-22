@@ -1,5 +1,6 @@
 # Publishing a GitHub release (tag vX.Y.Z) builds the Docker image for
-# amd64 and arm64 and pushes it to ghcr.io/<owner>/proxmox-mcp.
+# amd64 and arm64 and pushes it to ghcr.io/<owner>/proxmox-mcp, then builds the
+# MCP Bundles for Claude Desktop and uploads them to the release.
 # See docs/releasing.md.
 name: Release
 
@@ -131,3 +132,69 @@ jobs:
             echo
             echo "$TAGS" | sed 's/^/- `/; s/$/`/'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  mcpb:
+    name: Build and upload MCP Bundles
+    # After the image: that job validates the tag, and the tests run inside its build.
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload release assets and append to the release notes
+      id-token: write # sign the build provenance attestation
+      attestations: write
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # No build cache, for the same reason as the image.
+          cache: false
+
+      - name: Build
+        run: make mcpb VERSION="${TAG#v}"
+
+      - name: Validate the manifests
+        run: |
+          for f in dist/*.mcpb; do
+            dir=".build/unpacked/$(basename "$f" .mcpb)"
+            mkdir -p "$dir"
+            unzip -q "$f" -d "$dir"
+            npx -y @anthropic-ai/mcpb@2.1.2 validate "$dir/manifest.json"
+            test "$(jq -r .version "$dir/manifest.json")" = "${TAG#v}"
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.mcpb
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          gh release upload "$TAG" dist/*.mcpb --clobber
+          gh release view "$TAG" --json body --jq .body > notes.md
+          # Re-running the workflow must not add the section twice.
+          if grep -q '^## Claude Desktop' notes.md; then
+            exit 0
+          fi
+          {
+            echo
+            echo "## Claude Desktop"
+            echo
+            echo "Download the bundle for your computer and open it to install proxmox-mcp as a Claude Desktop extension. See [Claude Desktop](https://proxmox-mcp.mattoddie.dev/docs/clients/#claude-desktop) for the settings."
+            echo
+            echo "| Computer | Bundle |"
+            echo "|---|---|"
+            echo "| Mac with Apple silicon | \`proxmox-mcp-$version-darwin-arm64.mcpb\` |"
+            echo "| Mac with an Intel processor | \`proxmox-mcp-$version-darwin-amd64.mcpb\` |"
+            echo "| Windows on x64 | \`proxmox-mcp-$version-windows-amd64.mcpb\` |"
+            echo "| Windows on Arm | \`proxmox-mcp-$version-windows-arm64.mcpb\` |"
+            echo "| Linux | \`proxmox-mcp-$version-linux-amd64.mcpb\`, \`proxmox-mcp-$version-linux-arm64.mcpb\` |"
+          } >> notes.md
+          gh release edit "$TAG" --notes-file notes.md

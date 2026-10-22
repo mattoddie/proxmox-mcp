@@ -35,6 +35,64 @@ jobs:
       - name: Check for known vulnerabilities
         run: make vulncheck
 
+  mcpb:
+    name: MCP Bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: make mcpb VERSION=0.0.0-ci
+
+      - name: Validate the manifests
+        run: |
+          for f in dist/*.mcpb; do
+            dir=".build/unpacked/$(basename "$f" .mcpb)"
+            mkdir -p "$dir"
+            unzip -q "$f" -d "$dir"
+            npx -y @anthropic-ai/mcpb@2.1.2 validate "$dir/manifest.json"
+          done
+
+      - name: Smoke test (linux/amd64, over stdio)
+        working-directory: .build/unpacked/proxmox-mcp-0.0.0-ci-linux-amd64
+        # Set every variable the way Claude Desktop does when the optional settings are left empty.
+        env:
+          MCP_TRANSPORT: stdio
+          PROXMOX_URL: http://127.0.0.1:1
+          PROXMOX_API_TOKEN: ci@pve!ci=ci
+          PROXMOX_USERNAME: ""
+          PROXMOX_PASSWORD: ""
+          PROXMOX_TLS_FINGERPRINT: ""
+          PROXMOX_VERIFY_SSL: ""
+          PROXMOX_CA_FILE: '${user_config.ca_file}' # an unfilled setting, passed through literally
+          PROXMOX_DEFAULT_NODE: ""
+          PROXMOX_ALLOW_WRITES: "false"
+          PROXMOX_ALLOW_DELETES: "false"
+          PROXMOX_ALLOW_EXEC: "false"
+          PROXMOX_TOOLSETS: ""
+          PROXMOX_AUDIT_LOG: ""
+        run: |
+          test "$(./server/proxmox-mcp version)" = 0.0.0-ci
+          {
+            echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
+            echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+            echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+            sleep 2
+          } | ./server/proxmox-mcp > out.jsonl
+          jq -c '{id, server: .result.serverInfo, tools: (.result.tools | length?)}' out.jsonl
+          tools=$(jq -s 'map(select(.id == 2))[0].result.tools | length' out.jsonl)
+          test "$tools" -eq "$(jq '.tools | length' manifest.json)"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mcpb
+          path: dist/*.mcpb
+          retention-days: 7
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest

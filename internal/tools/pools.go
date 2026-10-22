@@ -71,6 +71,7 @@ func registerPools(c *Context) {
 
 	c.Define("proxmox_list_pools", Def{
 		Toolset:     "pools",
+		List:        &listing{},
 		Title:       "List resource pools",
 		Description: "List resource pools (groups of VMs, containers and storage used for permissions and organisation) with their comments and member counts. Not ZFS or Ceph pools; see proxmox_get_pool for members.",
 		Input:       []Prop{P("search", searchArg)},

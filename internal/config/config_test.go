@@ -255,3 +255,73 @@ func TestConfig(t *testing.T) {
 		}
 	})
 }
+
+// An MCP Bundle host sets every variable in the manifest: optional settings the user left empty
+// arrive as "" (the manifest's default) or, in some Claude Desktop versions, as the literal
+// ${user_config.<key>}. Both mean unset.
+func TestBundleUnsetValues(t *testing.T) {
+	fp := strings.TrimSuffix(strings.Repeat("AB:", 32), ":")
+	for _, unset := range []func(key string) string{
+		func(string) string { return "" },
+		func(key string) string { return "${user_config." + key + "}" },
+	} {
+		vars := map[string]string{
+			"MCP_TRANSPORT":           "stdio",
+			"PROXMOX_URL":             "https://pve:8006",
+			"PROXMOX_API_TOKEN":       "root@pam!mcp=secret",
+			"PROXMOX_USERNAME":        unset("username"),
+			"PROXMOX_PASSWORD":        unset("password"),
+			"PROXMOX_TLS_FINGERPRINT": fp,
+			"PROXMOX_VERIFY_SSL":      unset("verify_ssl"),
+			"PROXMOX_CA_FILE":         unset("ca_file"),
+			"PROXMOX_DEFAULT_NODE":    unset("default_node"),
+			"PROXMOX_ALLOW_WRITES":    "false",
+			"PROXMOX_ALLOW_DELETES":   "false",
+			"PROXMOX_ALLOW_EXEC":      "false",
+			"PROXMOX_TOOLSETS":        unset("toolsets"),
+			"PROXMOX_AUDIT_LOG":       unset("audit_log"),
+		}
+		cfg := load(t, MapEnv(vars))
+		p := cfg.Proxmox
+		if p.TokenID != "root@pam!mcp" || p.Username != "" || p.Password != "" || p.CACert != "" || p.DefaultNode != "" || len(p.TLSFingerprints) != 1 {
+			t.Errorf("%q: proxmox: %+v", vars["PROXMOX_USERNAME"], p)
+		}
+		if tl := cfg.Tools; tl.AllowWrites || tl.AuditLog != "" || len(tl.Toolsets) != len(Toolsets)-1 {
+			t.Errorf("%q: tools: %+v", vars["PROXMOX_USERNAME"], tl)
+		}
+		// With nothing to check the certificate, an https URL is still refused.
+		vars["PROXMOX_TLS_FINGERPRINT"] = unset("tls_fingerprint")
+		if _, err := Load(MapEnv(vars)); err != ErrTLSChoiceRequired {
+			t.Errorf("%q: no TLS choice: %v", vars["PROXMOX_TLS_FINGERPRINT"], err)
+		}
+		// A username and password stand in for an unset token.
+		vars["PROXMOX_TLS_FINGERPRINT"], vars["PROXMOX_API_TOKEN"], vars["PROXMOX_USERNAME"], vars["PROXMOX_PASSWORD"] = fp, unset("api_token"), "mcp@pve", "p"
+		if cfg := load(t, MapEnv(vars)); cfg.Proxmox.TokenID != "" || cfg.Proxmox.Username != "mcp@pve" || cfg.Proxmox.Password != "p" {
+			t.Errorf("%q: password auth: %+v", vars["PROXMOX_API_TOKEN"], cfg.Proxmox)
+		}
+	}
+	// Only a whole placeholder is treated as unset.
+	if cfg := load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_DEFAULT_NODE", "x${user_config.default_node}")); cfg.Proxmox.DefaultNode != "x${user_config.default_node}" {
+		t.Errorf("partial placeholder: %q", cfg.Proxmox.DefaultNode)
+	}
+}
+
+func TestAuditLog(t *testing.T) {
+	base := []string{"PROXMOX_URL", "https://pve"}
+	if cfg := load(t, env(base...)); cfg.Tools.AuditLog != "" {
+		t.Errorf("audit log on by default: %q", cfg.Tools.AuditLog)
+	}
+	if cfg := load(t, env(append(base, "PROXMOX_AUDIT_LOG", "stderr")...)); cfg.Tools.AuditLog != AuditLogStderr {
+		t.Errorf("stderr: %q", cfg.Tools.AuditLog)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	if cfg := load(t, env(append(base, "PROXMOX_AUDIT_LOG", path)...)); cfg.Tools.AuditLog != path {
+		t.Errorf("path: %q", cfg.Tools.AuditLog)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != AuditLogMode {
+		t.Errorf("created %v, %v", info, err)
+	}
+	wantErr(t, env(append(base, "PROXMOX_AUDIT_LOG", filepath.Join(dir, "missing", "audit.jsonl"))...), `^PROXMOX_AUDIT_LOG: cannot write to .*: no such file or directory`)
+	wantErr(t, env(append(base, "PROXMOX_AUDIT_LOG", dir)...), `^PROXMOX_AUDIT_LOG: cannot write to`)
+}

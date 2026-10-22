@@ -45,6 +45,7 @@ type Context struct {
 	config.Tools
 	// Registered records each registered tool's toolset and gate, for the docs generator and tests.
 	Registered map[string]Info
+	audit      *auditLog
 }
 
 // Info describes a registered tool.
@@ -54,6 +55,8 @@ type Info struct {
 	Props   []Prop
 	// Order is the registration order (the SDK lists tools by name).
 	Order int
+	// List is set for list tools.
+	List *listing
 }
 
 // Handler runs a tool with its validated arguments and returns a value to render as JSON.
@@ -78,7 +81,16 @@ type Def struct {
 	Idempotent bool
 	// ReadOnly overrides the readOnlyHint annotation (defaults to !write).
 	ReadOnly *bool
-	Handler  Handler
+	// Reads, for a tool that changes things only for some arguments (the raw API tool), reports
+	// whether a call is a read: such calls are left out of the audit log. Setting it gives the
+	// tool dry runs and the audit log when writes are enabled, whatever its gate.
+	Reads func(a *Obj) bool
+	// NativeDryRun marks a tool whose own dry_run argument asks Proxmox for a dry run (realm
+	// sync): the request is sent, so the server doesn't add or intercept dry_run itself.
+	NativeDryRun bool
+	// List makes this a list tool: see listing.
+	List    *listing
+	Handler Handler
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -128,31 +140,65 @@ func (c *Context) Define(name string, d Def) {
 			ann.DestructiveHint = d.Destructive
 		}
 	}
-	schema, _ := json.Marshal(InputSchema(d.Input))
-	tool := &mcp.Tool{Name: name, Title: d.Title, Description: d.Description, Annotations: ann, InputSchema: json.RawMessage(schema)}
 	props, handler := d.Input, d.Handler
-	c.Server.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// Tools that change things get dry runs and the audit log. The raw tool changes things only
+	// for some arguments (Reads), and only when writes are enabled.
+	guard := write || (d.Reads != nil && c.AllowWrites)
+	// Read-only exec tools (reading guest files) are audited but have nothing to preview.
+	if guard && !d.NativeDryRun && !readOnly {
+		props = append(append([]Prop{}, props...), dryRunProp)
+	}
+	if d.List != nil {
+		props, handler = d.List.wrap(props, handler)
+	}
+	schema, _ := json.Marshal(InputSchema(props))
+	tool := &mcp.Tool{Name: name, Title: d.Title, Description: d.Description, Annotations: ann, InputSchema: json.RawMessage(schema)}
+	run := func(ctx context.Context, args json.RawMessage, state *guarded, call *proxmox.Call) *mcp.CallToolResult {
 		var raw *js.Obj
-		if args := req.Params.Arguments; len(args) > 0 && string(args) != "null" {
+		if len(args) > 0 && string(args) != "null" {
 			v, err := js.Parse(args)
 			o, isObj := v.(*js.Obj)
 			if err != nil || !isObj {
-				return validationError(name, "Invalid input: expected object, received "+typeName(v)), nil
+				return validationError(name, "Invalid input: expected object, received "+typeName(v))
 			}
 			raw = o
 		}
 		a, err := ParseArgs(props, raw)
 		if err != nil {
-			return validationError(name, err.Error()), nil
+			return validationError(name, err.Error())
 		}
-		out, err := handler(ctx, a)
+		var out any
+		if state == nil {
+			out, err = handler(ctx, a)
+		} else {
+			state.args = a
+			state.read = d.Reads != nil && d.Reads(a)
+			state.dryRun = a.Get("dry_run") == true
+			if state.dryRun && !d.NativeDryRun {
+				out, err = c.dryRun(ctx, call, a, handler)
+			} else {
+				out, err = handler(ctx, a)
+			}
+		}
 		if err != nil {
-			return fail(err), nil
+			return fail(err)
 		}
-		return ok(out), nil
+		return ok(out)
+	}
+	c.Server.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if !guard {
+			return run(ctx, req.Params.Arguments, nil, nil), nil
+		}
+		call := &proxmox.Call{}
+		state := &guarded{}
+		res := run(proxmox.WithCall(ctx, call), req.Params.Arguments, state, call)
+		if c.audit != nil && !state.read {
+			c.audit.record(name, req.Params.Arguments, state, call, res)
+		}
+		return res, nil
 	})
 	if c.Registered != nil {
-		c.Registered[name] = Info{Toolset: d.Toolset, Gate: d.gate(), Props: d.Input, Order: len(c.Registered)}
+		c.Registered[name] = Info{Toolset: d.Toolset, Gate: d.gate(), Props: props, Order: len(c.Registered), List: d.List}
 	}
 }
 
@@ -195,8 +241,10 @@ func Instructions(opts config.Tools) string {
 	b.WriteString("Start with proxmox_get_cluster_status, proxmox_list_guests or proxmox_list_nodes. ")
 	b.WriteString("Guests are addressed by VMID; the node is looked up automatically when omitted. Node-scoped tools default to PROXMOX_DEFAULT_NODE or the only node. ")
 	b.WriteString("Long-running operations are Proxmox tasks: by default tools wait for them and report the outcome with the end of the task log; pass wait=false to return the task ID (UPID) and follow it with proxmox_get_task. ")
+	b.WriteString(listHelp)
 	if opts.AllowWrites {
 		b.WriteString("Write tools are enabled: confirm with the user before stopping, rebooting, migrating, restoring or reconfiguring guests and nodes, and before any delete. ")
+		b.WriteString(dryRunHelp)
 	} else {
 		b.WriteString("The server is read-only; write tools are disabled (PROXMOX_ALLOW_WRITES=false). ")
 	}
@@ -212,7 +260,7 @@ func NewServer(client *proxmox.Client, opts config.Tools, registered map[string]
 	server := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: Version}, &mcp.ServerOptions{
 		Instructions: Instructions(opts),
 	})
-	c := &Context{Server: server, Client: client, Tools: opts, Registered: registered}
+	c := &Context{Server: server, Client: client, Tools: opts, Registered: registered, audit: newAuditLog(opts.AuditLog)}
 	registerCluster(c)
 	registerNodes(c)
 	registerVms(c)

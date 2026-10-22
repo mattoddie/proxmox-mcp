@@ -6,6 +6,20 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Added
+
+- **Claude Desktop bundles.** Each release now has an MCP Bundle (`.mcpb`) for macOS, Windows and Linux on amd64 and arm64. Open it in Claude Desktop and fill in a settings form: URL, API token or username and password, certificate check, default node, the write, delete and exec switches, toolsets and audit log. No Docker needed. `make mcpb VERSION=x.y.z` builds them, and CI validates them with the `mcpb` CLI.
+- **Dry runs.** Every tool that changes something, and the raw API tool, takes `dry_run`. With `true` the tool sends nothing that changes state and returns the request it would have sent. For updates of an object it can read, such as a guest config, a user or a firewall rule, it lists only the keys that would change, with their values before and after (secrets redacted); for deletes, the object that would be removed.
+- **Audit log.** `PROXMOX_AUDIT_LOG` records every call of a tool that changes things (and of the raw API tool with a method other than `GET`) as a JSON line: time, tool, arguments with secrets redacted, whether it was a dry run, the requests sent with their HTTP status, and the outcome. Set it to a file path (created with mode `0600`) or `stderr`.
+- **`fields` on every list tool**, to keep only the named fields in each item (dot paths reach nested ones). List tools that had no `search` gain it, and `proxmox_list_backup_files` gains `limit` (default 500).
+- A variable set to exactly `${user_config.<key>}` now counts as unset, like an empty one. Claude Desktop passes that placeholder for an extension setting left empty.
+- `docs/configuration.md` has a *Keeping the tool list small* section with each toolset's tool count and the `tools/list` size of common combinations.
+
+### Changed
+
+- **Breaking:** list tools now all return `{total, returned, items}`, plus their context such as `node`. These returned a plain array before: `proxmox_list_nodes`, `proxmox_list_realms`, `proxmox_list_tfa` (all users), `proxmox_list_realm_sync_jobs`, `proxmox_list_ceph_fs`, `proxmox_list_metric_servers`, `proxmox_list_ha_groups`, `proxmox_list_ha_rules`, `proxmox_list_custom_cpu_models`, `proxmox_list_acme_accounts`, `proxmox_list_acme_plugins`, `proxmox_list_notification_targets` and `proxmox_list_notification_matchers`. These kept their list under another key, which is now `items` (and a `count` is now `total`): `proxmox_list_tfa` with `userid` (`entries`), `proxmox_list_backup_files` (`entries`), `proxmox_list_firewall_rules` (`rules`), `proxmox_list_node_mdev_types` (`types`), `proxmox_list_acme_directories` (`directories`), `proxmox_list_zfs_pools` (`pools`), `proxmox_list_lvm` (`volume_groups`), `proxmox_list_lvm_thin` (`thin_pools`), `proxmox_list_directory_mounts` (`directories`), `proxmox_list_disks` (`disks`) and `proxmox_list_snapshots` (`snapshots`). `proxmox_list_firewall_refs`, `proxmox_list_unbacked_guests` and `proxmox_list_replication_jobs` gain `returned`.
+- The server instructions explain the list arguments and, with writes on, `dry_run`.
+
 ### Security
 
 - Built with Go 1.27.3, which fixes a `crypto/x509` vulnerability in the standard library (GO-2026-6809).

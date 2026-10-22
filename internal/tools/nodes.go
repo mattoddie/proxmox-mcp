@@ -732,6 +732,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_node_services", Def{
 		Toolset:     "nodes",
+		List:        &listing{},
 		Title:       "List node services",
 		Description: "List the Proxmox-related system services on a node (pveproxy, pvedaemon, corosync, pve-cluster, chrony, sshd, postfix...) with their running state and whether they are enabled. Failed services are listed first.",
 		Input:       []Prop{P("node", nodeArg), P("search", searchArg)},
@@ -808,6 +809,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_node_network", Def{
 		Toolset:     "nodes",
+		List:        &listing{},
 		Title:       "List node network interfaces",
 		Description: "List a node's network configuration: physical NICs, Linux bridges, bonds, VLANs and OVS objects with addresses, gateways, ports and comments. Interfaces that are configured but not active are flagged; that usually means pending (unapplied) changes from proxmox_save_node_network_interface, or a down link. Apply with proxmox_apply_node_network or discard with proxmox_revert_node_network.",
 		Input: []Prop{
@@ -1453,6 +1455,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_node_updates", Def{
 		Toolset:     "nodes",
+		List:        &listing{},
 		Title:       "List available package updates",
 		Description: "List the package updates available on a node (from the last package index refresh) with installed and new versions, origin and priority, plus counts. Run proxmox_refresh_node_updates first for fresh results. Installing updates is not available through the API.",
 		Input:       []Prop{P("node", nodeArg), P("search", searchArg), P("limit", limitArg(300))},
@@ -1825,6 +1828,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_acme_accounts", Def{
 		Toolset:     "nodes",
+		List:        &listing{},
 		Title:       "List ACME accounts",
 		Description: "List the cluster's registered ACME accounts (used to order node certificates), with their CA directory and contacts.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -1912,6 +1916,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_acme_directories", Def{
 		Toolset:     "nodes",
+		List:        &listing{Items: "directories"},
 		Title:       "List ACME directories",
 		Description: "List the known ACME CA directories (Let's Encrypt production/staging...). With `directory`, also fetch that CA's metadata: terms-of-service URL (needed to register an account) and whether external account binding is required. Fetching `directory` makes the node connect to that URL, so it needs write access.",
 		Input:       []Prop{P("directory", Str().Opt().D("Also fetch metadata for this directory URL"))},
@@ -1942,6 +1947,7 @@ func registerNodes(c *Context) {
 
 	c.Define("proxmox_list_acme_plugins", Def{
 		Toolset:     "nodes",
+		List:        &listing{},
 		Title:       "List ACME challenge plugins",
 		Description: "List the cluster's ACME challenge plugins (standalone HTTP and DNS API plugins). Credentials in plugin data are redacted; only their keys are shown.",
 		Input:       []Prop{P("type", Enum("dns", "standalone").Opt().D("Only plugins of this type"))},

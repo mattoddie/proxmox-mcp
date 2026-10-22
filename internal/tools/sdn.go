@@ -184,6 +184,7 @@ func registerSdn(c *Context) {
 
 	c.Define("proxmox_list_sdn_objects", Def{
 		Toolset:     "sdn",
+		List:        &listing{},
 		Title:       "List SDN objects",
 		Description: "List Software-Defined Networking objects of one kind: zones, vnets, subnets of a vnet, controllers, IPAMs or DNS plugins. Use pending=true to see uncommitted changes (state new/changed/deleted). Related: proxmox_get_sdn_object for one object, proxmox_get_sdn_status for the live state on nodes.",
 		Input: []Prop{

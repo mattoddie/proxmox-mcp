@@ -682,6 +682,7 @@ func registerVms(c *Context) {
 
 	c.Define("proxmox_list_vms", Def{
 		Toolset:     "vms",
+		List:        &listing{},
 		Title:       "List VMs with live details",
 		Description: "List QEMU VMs straight from the nodes (GET /nodes/{node}/qemu?full=1), with details proxmox_list_guests lacks: disk I/O counters, host memory, PSI pressure stalls and the running QEMU version/machine. Without `node`, queries every online node. For a quick cluster-wide list with filters by tag/pool use proxmox_list_guests instead.",
 		Input: []Prop{

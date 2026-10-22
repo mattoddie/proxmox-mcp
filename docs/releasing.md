@@ -37,7 +37,7 @@ The version comes **from the tag**. `package.json` stays at `0.0.0-dev` in the r
 
    Or in the web UI: **Releases → Draft a new release → Choose a tag → type `v1.2.0` → Create new tag on publish**, target `main`. Click **Generate release notes**, edit them as needed, then **Publish release**.
 
-4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. When it finishes, the release notes gain a *Container image* section with the pull command, digest and tags.
+4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. When it finishes, the release notes gain a *Container image* section with the pull command, digest and tags. Then the MCP Bundles for Claude Desktop are built, attached to the release and listed in a *Claude Desktop* section.
 5. **Check the image:** `docker pull ghcr.io/mattoddie/proxmox-mcp:1.2.0`.
 
 Release notes are generated from merged PR titles and grouped by label. The groups are set in [`.github/release.yml`](../.github/release.yml). Label PRs `breaking`, `enhancement`, `new-tool`, `bug`, `compatibility`, `documentation` or `dependencies` to sort them, or `skip-changelog` to leave a PR out.
@@ -62,6 +62,7 @@ Pre-releases are published only under their exact version (`ghcr.io/mattoddie/pr
 | Push | To `ghcr.io/mattoddie/proxmox-mcp` using the workflow's `GITHUB_TOKEN`. No personal tokens are needed. |
 | Supply chain | Attaches an SBOM and SLSA provenance to the image, and pushes a signed build provenance attestation (`gh attestation verify`). |
 | Release notes | Appends the pull command, digest and tags. |
+| MCP Bundles | After the image, `make mcpb` builds one `.mcpb` per platform (macOS, Windows and Linux, amd64 and arm64), validates each manifest with the `mcpb` CLI, attests them and uploads them to the release. |
 
 ## If something goes wrong
 

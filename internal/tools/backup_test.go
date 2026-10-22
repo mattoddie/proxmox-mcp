@@ -170,7 +170,7 @@ func TestBackupTools(t *testing.T) {
 	t.Run("lists guests without a backup job", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/backup-info/not-backed-up$`, `[{"vmid":200,"type":"lxc","name":"dns"},{"vmid":101,"type":"qemu"}]`)
-		eq(t, env.call(t, "proxmox_list_unbacked_guests", nil), `{"total":2,"items":[
+		eq(t, env.call(t, "proxmox_list_unbacked_guests", nil), `{"total":2,"returned":2,"items":[
 			{"vmid":101,"name":"db","type":"vm","node":"pve2","status":"stopped"},
 			{"vmid":200,"name":"dns","type":"container","node":"pve1","status":"running"}]}`)
 	})
@@ -443,8 +443,8 @@ func TestBackupTools(t *testing.T) {
 			return []any{js.O("text", "hosts", "filepath", b64("/drive-scsi0.img.fidx/part/1/etc/hosts"), "type", "f", "leaf", true, "size", 200, "mtime", 1735696800)}
 		})
 		root := env.call(t, "proxmox_list_backup_files", js.O("storage", "pbs", "volid", backupTestPBSVM))
-		eqAt(t, root, "entries", `[{"name":"drive-scsi0.img.fidx","path":"/drive-scsi0.img.fidx","type":"v","directory":true}]`)
+		eqAt(t, root, "items", `[{"name":"drive-scsi0.img.fidx","path":"/drive-scsi0.img.fidx","type":"v","directory":true}]`)
 		sub := env.call(t, "proxmox_list_backup_files", js.O("storage", "pbs", "volid", backupTestPBSVM, "path", "/drive-scsi0.img.fidx/part/1"))
-		eqAt(t, sub, "entries.0", `{"name":"hosts","path":"/drive-scsi0.img.fidx/part/1/etc/hosts","type":"f","size":"200 B","mtime":"2025-01-01T02:00:00.000Z"}`)
+		eqAt(t, sub, "items.0", `{"name":"hosts","path":"/drive-scsi0.img.fidx/part/1/etc/hosts","type":"f","size":"200 B","mtime":"2025-01-01T02:00:00.000Z"}`)
 	})
 }

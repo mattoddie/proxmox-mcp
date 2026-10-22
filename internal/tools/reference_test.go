@@ -46,16 +46,20 @@ func loadReference(t *testing.T) reference {
 			toolsets[name] = current
 		}
 	}
+	registered := map[string]Info{}
+	NewServer(testClient(t), config.AllTools(), registered)
 	ref := all.(*Obj)
-	applyDeliberateChanges(ref)
+	applyDeliberateChanges(ref, registered)
 	return reference{all: ref, toolsets: toolsets}
 }
 
 // applyDeliberateChanges edits the reference for the changes made on purpose since the
 // TypeScript server (each is in the CHANGELOG), so everything else is still held to it.
-func applyDeliberateChanges(ref *Obj) {
+func applyDeliberateChanges(ref *Obj, registered map[string]Info) {
+	prop := func(p Prop) any { return InputSchema([]Prop{p}).ObjAt("properties").Get(p.Name) }
 	for _, tool := range ref.Objs("tools") {
-		switch tool.Get("name") {
+		name := js.Str(tool.Get("name"))
+		switch name {
 		case "proxmox_query_url_metadata":
 			// A write tool now: the node fetches any URL it is given.
 			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
@@ -65,6 +69,28 @@ func applyDeliberateChanges(ref *Obj) {
 		case "proxmox_list_acme_directories":
 			tool.Set("description", js.Str(tool.Get("description"))+" Fetching `directory` makes the node connect to that URL, so it needs write access.")
 		}
+		// 0.5: tools that change things take dry_run (realm sync keeps its own, which Proxmox
+		// runs), and list tools take search, limit (long lists) and fields.
+		props := tool.ObjAt("inputSchema").ObjAt("properties")
+		if !js.Truthy(tool.ObjAt("annotations").Get("readOnlyHint")) && name != "proxmox_sync_realm" {
+			props.Set("dry_run", prop(dryRunProp))
+		}
+		if l := registered[name].List; l != nil {
+			if !props.Has("search") {
+				props.Set("search", prop(listSearchProp))
+			}
+			if l.Limit > 0 && !props.Has("limit") {
+				props.Set("limit", prop(P("limit", limitArg(l.Limit))))
+			}
+			props.Set("fields", prop(fieldsProp))
+		}
+	}
+	for _, level := range ref.ObjAt("variants").Keys() {
+		v := ref.ObjAt("variants").ObjAt(level)
+		text := strings.Replace(js.Str(v.Get("instructions")), "Write tools are enabled", listHelp+"Write tools are enabled", 1)
+		text = strings.Replace(text, "The server is read-only", listHelp+"The server is read-only", 1)
+		text = strings.Replace(text, "and before any delete. ", "and before any delete. "+dryRunHelp, 1)
+		v.Set("instructions", text)
 	}
 	read := ref.ObjAt("variants").ObjAt("read")
 	var tools []any

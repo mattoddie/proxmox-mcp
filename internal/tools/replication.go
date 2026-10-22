@@ -139,6 +139,7 @@ func registerReplication(c *Context) {
 
 	c.Define("proxmox_list_replication_jobs", Def{
 		Toolset:     "replication",
+		List:        &listing{},
 		Title:       "List replication jobs",
 		Description: "List storage replication jobs (ZFS-based guest replication to another node) with guest, target, schedule, rate limit and live status from the source node: last/next sync, duration, failure count and last error.",
 		Input: []Prop{

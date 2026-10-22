@@ -116,6 +116,7 @@ func registerSnapshots(c *Context) {
 
 	c.Define("proxmox_list_snapshots", Def{
 		Toolset:     "snapshots",
+		List:        &listing{Items: "snapshots"},
 		Title:       "List snapshots of a guest",
 		Description: "List the snapshots of a VM or container (the type is detected from the VMID): name, parent, description, creation time, age, whether RAM state was saved (VMs), and which snapshot the guest currently runs from, plus an indented tree view. For stale snapshots across all guests use proxmox_list_all_snapshots.",
 		Input:       []Prop{P("vmid", vmidArg), P("node", guestNodeArg), P("raw", rawArg)},
@@ -198,6 +199,7 @@ func registerSnapshots(c *Context) {
 
 	c.Define("proxmox_list_all_snapshots", Def{
 		Toolset:     "snapshots",
+		List:        &listing{},
 		Title:       "List snapshots across all guests",
 		Description: "List snapshots of every VM and container in the cluster (or a filtered set), oldest first, with guest, node, time, age in days and description. Use older_than_days to find stale snapshots that hold back storage space and slow down disks. Guests whose snapshots can't be read are reported under errors.",
 		Input: []Prop{

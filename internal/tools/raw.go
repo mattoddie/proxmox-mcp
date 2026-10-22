@@ -105,6 +105,7 @@ func registerRaw(c *Context) {
 		Title:       "Raw Proxmox API request",
 		Description: desc,
 		ReadOnly:    boolPtr(!c.AllowWrites),
+		Reads:       func(a *Obj) bool { return js.Str(or(a.Get("method"), "GET")) == "GET" },
 		Destructive: boolPtr(c.AllowWrites),
 		Input:       input,
 		Handler: func(ctx context.Context, a *Obj) (any, error) {

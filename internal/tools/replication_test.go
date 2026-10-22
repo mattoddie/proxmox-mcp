@@ -47,7 +47,7 @@ func TestReplicationTools(t *testing.T) {
 		reset()
 		eq(t, pluck(at(env.call(t, "proxmox_list_replication_jobs", `{"guest":101}`), "items"), "id"), `["101-1"]`)
 		eq(t, pluck(at(env.call(t, "proxmox_list_replication_jobs", `{"target":"pve2"}`), "items"), "id"), `["100-0","200-0"]`)
-		eq(t, env.call(t, "proxmox_list_replication_jobs", `{"guest":9000}`), `{"total":0,"items":[]}`)
+		eq(t, env.call(t, "proxmox_list_replication_jobs", `{"guest":9000}`), `{"total":0,"returned":0,"items":[]}`)
 	})
 
 	t.Run("gets a job with status from the guest's node", func(t *testing.T) {

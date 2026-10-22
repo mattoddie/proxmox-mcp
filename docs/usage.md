@@ -110,6 +110,36 @@ With `PROXMOX_ALLOW_WRITES=true` the assistant can change things. Good clients a
 - **`digest`** applies the change only if the configuration hasn't changed since you read it. The matching get tool returns the current digest. If someone else changed the guest in between, Proxmox rejects the update rather than overwriting their change.
 - **Pending changes.** Some settings can't change on a running guest, such as most hardware on a VM. Proxmox stores them as pending until the next full stop and start. The result lists `pending_changes` so you know a restart is needed. A reboot from inside the guest isn't enough for VMs. It has to be stopped and started from Proxmox.
 
+### Previewing changes with `dry_run`
+
+Every tool that changes something takes `dry_run`. With `dry_run: true` the tool checks its arguments, reads whatever it needs, and then stops before the first request that would change anything. Instead of the result it returns that request:
+
+```json
+{
+  "dry_run": true,
+  "would_send": {
+    "method": "POST",
+    "path": "/nodes/pve1/qemu/100/config",
+    "params": { "memory": 8192, "delete": "ide2" }
+  },
+  "changes": {
+    "memory": { "from": "4096", "to": 8192 },
+    "ide2": { "from": "local:iso/debian-12.iso,media=cdrom", "to": null }
+  },
+  "note": "Nothing was changed: this was a dry run. …"
+}
+```
+
+- **Updates** of an object the server can read, such as a guest config, user, storage or firewall rule, show `changes`: only the keys whose value would differ, with their values before and after. Keys you pass with their current value are left out, and keys in `delete` show `"to": null`. Secret values are `<redacted>` on both sides.
+- **Deletes** show `current`, the object that would be removed, when it can be read.
+- **Everything else** (creating, starting, migrating…) shows the request with its parameters.
+
+Only the first request is previewed. Later steps, such as waiting for a task or a follow-up request that depends on the first one's result, aren't simulated. Ask for a preview with *"show me what you'd change first"*, then confirm.
+
+`proxmox_sync_realm` is the one exception: its `dry_run` asks Proxmox itself to run the sync without writing anything, so it starts a task whose log lists what would change.
+
+With `PROXMOX_AUDIT_LOG` set, every call of these tools, including previews, is recorded. See [Audit log](configuration.md#audit-log).
+
 ### Create or update: `save_*` tools
 
 Named configuration objects, such as users, groups, roles, realms, metric servers, notification targets and SDN zones, are managed with one `proxmox_save_*` tool each:
@@ -137,7 +167,8 @@ Exec effectively gives the assistant root on every VM the token can reach. Read 
 
 ## Summaries, raw objects and secrets
 
-- **Compact by default.** List and get tools return trimmed summaries with the useful fields, readable units (GiB, percentages, ISO timestamps, uptimes like `3d 4h 12m`) and parsed property strings. For example, a VM's `scsi0` becomes an object with `file`, `size` and options instead of one long string. Filters like `search`, `type`, `node`, `status` and `limit` keep responses small.
+- **Compact by default.** List and get tools return trimmed summaries with the useful fields, readable units (GiB, percentages, ISO timestamps, uptimes like `3d 4h 12m`) and parsed property strings. For example, a VM's `scsi0` becomes an object with `file`, `size` and options instead of one long string. Filters like `type`, `node` and `status` keep responses small.
+- **List tools** return `{total, returned, items}` and take `search` (a case-insensitive substring match), `fields` (keep only these fields in each item, such as `["vmid", "name", "status"]`; dot paths reach nested fields) and, on lists that can grow long, `limit`. `total` counts every match, so the assistant can tell when a list was cut short.
 - **`raw: true`** on many list and get tools returns the API's full objects when you need a field the summary leaves out.
 - **Secrets are redacted.** Values of fields that look like passwords, secrets, keys or tickets, such as `cipassword`, realm bind passwords and notification target secrets, show as `<redacted>`. This applies to raw objects too.
 
