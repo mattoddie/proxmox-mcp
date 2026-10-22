@@ -175,6 +175,6 @@ If something goes wrong, the tool's error message usually says what to fix. [Tro
 ## Next steps
 
 - **Let it make changes.** Give the token the permissions it needs, set `PROXMOX_ALLOW_WRITES=true`, and read [Security](security.md) first.
-- **Expose fewer tools** with `PROXMOX_TOOLSETS` for a faster, more focused assistant. See [Configuration](configuration.md#choosing-toolsets).
+- **Expose fewer tools** with `PROXMOX_TOOLSETS` for a faster, more focused assistant. See [Configuration](configuration.md#keeping-the-tool-list-small).
 - **Put it behind HTTPS** if it's reachable outside your LAN. See [Deployment](deployment.md#tls-with-a-reverse-proxy).
 - **Learn what it can do** in [Using proxmox-mcp](usage.md) and the [tool reference](tools.md).

@@ -36,6 +36,7 @@ func registerTasks(c *Context) {
 
 	c.Define("proxmox_list_tasks", Def{
 		Toolset:     "tasks",
+		List:        &listing{},
 		Title:       "List tasks",
 		Description: "List Proxmox tasks (backups, migrations, starts, clones...). Without `node`, lists recent tasks across the whole cluster; with `node`, reads that node's task history with server-side filters. Use errors=true to find failures.",
 		Input: []Prop{

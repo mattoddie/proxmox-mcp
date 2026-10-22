@@ -157,7 +157,7 @@ func TestCephTools(t *testing.T) {
 	t.Run("lists CephFS", func(t *testing.T) {
 		reset()
 		env.mock.Reply("GET", `^/nodes/pve1/ceph/fs$`, `[{"name":"cephfs","metadata_pool":"cephfs_metadata","data_pool":"cephfs_data"}]`)
-		eq(t, env.call(t, "proxmox_list_ceph_fs", nil), `[{"name":"cephfs","metadata_pool":"cephfs_metadata","data_pools":["cephfs_data"]}]`)
+		eq(t, env.call(t, "proxmox_list_ceph_fs", nil), `{"total":1,"returned":1,"items":[{"name":"cephfs","metadata_pool":"cephfs_metadata","data_pools":["cephfs_data"]}]}`)
 	})
 
 	t.Run("gets flags", func(t *testing.T) {

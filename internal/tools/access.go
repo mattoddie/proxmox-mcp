@@ -299,6 +299,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_users", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List users",
 		Description: "List Proxmox users with enabled state, expiry, realm, name, email, groups, API token count and TFA lock-out state. Use proxmox_get_user for one user's details and tokens.",
 		Input: []Prop{
@@ -476,6 +477,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_groups", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List groups",
 		Description: "List user groups with their members and comments.",
 		Input:       []Prop{P("search", searchArg)},
@@ -549,6 +551,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_roles", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List roles",
 		Description: "List roles with their privileges. Built-in roles (Administrator, PVEAdmin, PVEVMAdmin, PVEAuditor, NoAccess...) are flagged builtin=true and cannot be changed. Use privileges=false for names only.",
 		Input: []Prop{
@@ -659,6 +662,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_acl", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List ACL entries",
 		Description: "List access control entries: which role a user, group or API token has on which path (/, /vms/100, /storage/local, /pool/x, /nodes/pve1...) and whether it propagates to sub-paths. Filters combine. For what a user can effectively do, use proxmox_get_permissions.",
 		Input: []Prop{
@@ -804,6 +808,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_api_tokens", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List API tokens",
 		Description: "List API tokens (full ID user@realm!name, privilege separation, expiry, comment) for one user, or for all users when userid is omitted. Secrets can never be read back.",
 		Input:       []Prop{P("userid", accessUseridArg.Opt()), P("search", searchArg)},
@@ -953,6 +958,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_realms", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List realms",
 		Description: "List authentication realms (pam, pve, LDAP, Active Directory, OpenID Connect) with type, TFA provider and comment.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -1074,11 +1080,12 @@ func registerAccess(c *Context) {
 	})
 
 	c.Define("proxmox_sync_realm", Def{
-		Toolset:     accessToolset,
-		Title:       "Sync users/groups from a realm",
-		Description: "Sync users and/or groups from an LDAP, AD or OpenID realm into Proxmox. Use dry_run=true first to see what would change (in the task log). Options not given fall back to the realm's sync-defaults-options. Synced groups are named <group>-<realm>.",
-		Write:       true,
-		Destructive: True,
+		Toolset:      accessToolset,
+		Title:        "Sync users/groups from a realm",
+		NativeDryRun: true,
+		Description:  "Sync users and/or groups from an LDAP, AD or OpenID realm into Proxmox. Use dry_run=true first to see what would change (in the task log). Options not given fall back to the realm's sync-defaults-options. Synced groups are named <group>-<realm>.",
+		Write:        true,
+		Destructive:  True,
 		Input: []Prop{
 			P("realm", accessRealmArg),
 			P("dry_run", Bool().Opt().D("Only report what would change; write nothing")),
@@ -1101,6 +1108,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_tfa", Def{
 		Toolset:     accessToolset,
+		List:        &listing{Items: "entries"},
 		Title:       "List TFA entries",
 		Description: "List users' second factors (TOTP, WebAuthn, recovery keys, Yubico) with type, description, creation time and enabled state, plus TFA lock-outs. No secrets are returned. Unlock a locked-out user with proxmox_unlock_tfa.",
 		Input:       []Prop{P("userid", accessUseridArg.Opt())},
@@ -1170,6 +1178,7 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_realm_sync_jobs", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List realm sync jobs",
 		Description: "List scheduled realm sync jobs (periodic LDAP/AD/OpenID user and group sync) with schedule, last and next run.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {

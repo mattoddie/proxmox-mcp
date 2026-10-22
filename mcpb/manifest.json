@@ -1,0 +1,827 @@
+{
+  "manifest_version": "0.3",
+  "name": "proxmox-mcp",
+  "display_name": "Proxmox VE (proxmox-mcp)",
+  "version": "0.0.0-dev",
+  "description": "Monitor and manage your Proxmox VE cluster: nodes, VMs, containers, storage, backups, firewall and more.",
+  "long_description": "An open-source MCP server for **Proxmox VE**. Ask about your cluster in plain English: health checks, busy VMs, guests without backups, old snapshots, risky permissions. If you allow it, Claude can also make changes.\n\n- **Read-only by default.** Changes need *Allow changes*; deleting needs *Allow deletes* and running commands inside guests needs *Allow exec* as well. Destructive tools are labelled so Claude asks before running them, any change can be previewed with a dry run, and passwords and keys are redacted from output.\n- **Use an API token.** Create a dedicated token scoped with Proxmox's own roles and ACLs, so Proxmox enforces the limits too.\n- **Pin the certificate.** Proxmox uses a self-signed certificate: set the *TLS certificate fingerprint* so nobody on the network can impersonate your server.\n\nproxmox-mcp is an independent community project, not affiliated with or endorsed by Proxmox Server Solutions GmbH.",
+  "author": {
+    "name": "Matt Oddie",
+    "url": "https://github.com/mattoddie"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mattoddie/proxmox-mcp"
+  },
+  "homepage": "https://proxmox-mcp.mattoddie.dev",
+  "documentation": "https://proxmox-mcp.mattoddie.dev/docs/clients/#claude-desktop",
+  "support": "https://github.com/mattoddie/proxmox-mcp/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/proxmox-mcp",
+    "mcp_config": {
+      "command": "${__dirname}/server/proxmox-mcp",
+      "args": [],
+      "env": {
+        "MCP_TRANSPORT": "stdio",
+        "PROXMOX_URL": "${user_config.url}",
+        "PROXMOX_API_TOKEN": "${user_config.api_token}",
+        "PROXMOX_USERNAME": "${user_config.username}",
+        "PROXMOX_PASSWORD": "${user_config.password}",
+        "PROXMOX_TLS_FINGERPRINT": "${user_config.tls_fingerprint}",
+        "PROXMOX_VERIFY_SSL": "${user_config.verify_ssl}",
+        "PROXMOX_CA_FILE": "${user_config.ca_file}",
+        "PROXMOX_DEFAULT_NODE": "${user_config.default_node}",
+        "PROXMOX_ALLOW_WRITES": "${user_config.allow_writes}",
+        "PROXMOX_ALLOW_DELETES": "${user_config.allow_deletes}",
+        "PROXMOX_ALLOW_EXEC": "${user_config.allow_exec}",
+        "PROXMOX_TOOLSETS": "${user_config.toolsets}",
+        "PROXMOX_AUDIT_LOG": "${user_config.audit_log}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/proxmox-mcp.exe"
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "proxmox_check_ceph_safety",
+      "description": "Ask Ceph whether stopping or destroying an OSD, monitor or MDS is safe right now (e.g. no PGs would become unavailable). Call before proxmox_delete_ceph_osd, proxmox_delete_ceph_service or stopping services."
+    },
+    {
+      "name": "proxmox_check_container_feature",
+      "description": "Check whether a container's storage supports snapshots, cloning (linked) or copying (full clone), optionally from a given snapshot, and on which nodes. Useful before proxmox_create_snapshot or proxmox_clone_container."
+    },
+    {
+      "name": "proxmox_check_container_migration",
+      "description": "Check whether an LXC container can be migrated, and to which nodes: reports running state, local disks/mount points that block migration, and allowed/not-allowed target nodes. Call before proxmox_migrate_container."
+    },
+    {
+      "name": "proxmox_check_vm_feature",
+      "description": "Check whether a VM's storage supports snapshots, linked clones ('clone') or full copies ('copy'), optionally for a given snapshot, and on which nodes. Useful before proxmox_clone_vm or taking snapshots."
+    },
+    {
+      "name": "proxmox_check_vm_migration",
+      "description": "Check whether and where a VM can be migrated before calling proxmox_migrate_vm: allowed and blocked target nodes (with unavailable storages or blocking HA rules), local disks that would need with_local_disks/targetstorage, local devices (PCI/USB passthrough) that block migration, and mapped resources."
+    },
+    {
+      "name": "proxmox_get_acme_account",
+      "description": "Get an ACME account's details: CA directory, account URL (location), status, contacts and accepted terms of service. Keys are redacted."
+    },
+    {
+      "name": "proxmox_get_acme_challenge_schema",
+      "description": "Show which credential fields each ACME DNS API plugin needs (e.g. CF_Token for Cloudflare), to fill `data` in proxmox_save_acme_plugin. Filter by api name."
+    },
+    {
+      "name": "proxmox_get_acme_plugin",
+      "description": "Get one ACME challenge plugin's configuration (DNS API, nodes, validation delay). Credential values are redacted."
+    },
+    {
+      "name": "proxmox_get_api_token",
+      "description": "Get one API token's settings (privilege separation, expiry, comment) and, when privilege-separated, its own ACL entries."
+    },
+    {
+      "name": "proxmox_get_backup_config",
+      "description": "Show the guest configuration stored inside a backup archive (cores, memory, disks, network...) without restoring it, e.g. to check what a backup contains or which storage its disks need. Secrets are redacted."
+    },
+    {
+      "name": "proxmox_get_backup_job",
+      "description": "Get one backup job's settings plus the guests it currently includes and, per guest, which disks are backed up (and why others are excluded, e.g. backup=0)."
+    },
+    {
+      "name": "proxmox_get_ceph_config",
+      "description": "Read Ceph configuration: the configuration database (`ceph config dump`: section, name, value) and/or the ceph.conf file. Secrets such as keys are redacted."
+    },
+    {
+      "name": "proxmox_get_ceph_crush",
+      "description": "Get the decompiled CRUSH map (devices, buckets, rules) and the list of CRUSH rule names usable as a pool's crush_rule."
+    },
+    {
+      "name": "proxmox_get_ceph_flags",
+      "description": "Show which cluster-wide Ceph OSD flags are set (noout, noscrub, nodeep-scrub, norebalance, pause...). Change them with proxmox_set_ceph_flags."
+    },
+    {
+      "name": "proxmox_get_ceph_log",
+      "description": "Read lines of the Ceph cluster log (ceph.log) from a node: health changes, OSD up/down events, slow ops and scrub errors."
+    },
+    {
+      "name": "proxmox_get_ceph_metadata",
+      "description": "Get metadata of every Ceph daemon (mon, mgr, mds, osd) and node: host, Ceph version and release, memory. Useful to spot daemons running an outdated version after an upgrade."
+    },
+    {
+      "name": "proxmox_get_ceph_osd",
+      "description": "Get one OSD's details: daemon metadata (devices, BlueStore, memory, version) and its logical volume info (block/DB/WAL devices)."
+    },
+    {
+      "name": "proxmox_get_ceph_pool",
+      "description": "Get one Ceph pool's settings (size, min_size, PGs, autoscaler, CRUSH rule, application, protection flags) and, with statistics=true, its usage and I/O statistics."
+    },
+    {
+      "name": "proxmox_get_ceph_status",
+      "description": "Summarized Ceph cluster health: HEALTH_OK/WARN/ERR with each health check, monitor quorum, active/standby managers, OSD counts (up/in/down), PG states, raw usage and client I/O. Start here for any Ceph question; drill down with proxmox_list_ceph_osds, proxmox_list_ceph_pools or proxmox_list_ceph_services."
+    },
+    {
+      "name": "proxmox_get_cluster_config",
+      "description": "Get the corosync cluster configuration: member nodes with their IDs, votes and link addresses, the totem settings, and the join information (fingerprint, addresses) used to add nodes."
+    },
+    {
+      "name": "proxmox_get_cluster_log",
+      "description": "Read recent entries of the cluster log (task starts/ends, logins and other cluster events from all nodes)."
+    },
+    {
+      "name": "proxmox_get_cluster_options",
+      "description": "Get datacenter-wide options (datacenter.cfg): keyboard, console, migration network/type, HA shutdown policy, bandwidth limits, MAC prefix, tag style, next-id range and more."
+    },
+    {
+      "name": "proxmox_get_cluster_status",
+      "description": "One-call overview of the whole cluster: name, quorum, Proxmox version, every node (online state, CPU, memory, uptime), guest counts by state, totals, storage usage and HA state. A good first call."
+    },
+    {
+      "name": "proxmox_get_container",
+      "description": "Get an LXC container's live status (CPU, memory, swap, rootfs usage, uptime) together with a summary of its configuration: hostname, OS, cores, memory, swap, rootfs and mount points, network interfaces with configured IPs, live IP addresses (when running), features, unprivileged, onboot, tags and pending changes that apply on next restart. Use proxmox_get_container_config for the full raw config."
+    },
+    {
+      "name": "proxmox_get_container_config",
+      "description": "Get an LXC container's full configuration as stored by Proxmox (secrets redacted). Options: current=true for the running values instead of pending ones, snapshot to read the config as saved in a snapshot, or pending=true to list each key with its current and pending value. The returned digest can be passed to proxmox_update_container_config for optimistic locking."
+    },
+    {
+      "name": "proxmox_get_container_interfaces",
+      "description": "Get the live network interfaces and IP addresses (IPv4 and IPv6) inside a running LXC container, including addresses obtained via DHCP/SLAAC that the config doesn't show. The container must be running."
+    },
+    {
+      "name": "proxmox_get_container_stats",
+      "description": "Summarize an LXC container's performance history from RRD data: average, maximum and latest CPU %, memory, swap, disk usage, network and disk I/O rates over the chosen timeframe. Set points=true to also get the individual data points."
+    },
+    {
+      "name": "proxmox_get_custom_cpu_model",
+      "description": "Get one custom CPU model definition, including its digest."
+    },
+    {
+      "name": "proxmox_get_disk_smart",
+      "description": "Get a disk's SMART health and attributes (ATA attribute table, or the text report for NVMe/SAS)."
+    },
+    {
+      "name": "proxmox_get_firewall_log",
+      "description": "Read the firewall log of a node (all its traffic, including guests on it) or of one guest. Only packets matching rules/policies with a log level other than nolog are logged; set log_level_in on the options or `log` on a rule to see drops."
+    },
+    {
+      "name": "proxmox_get_firewall_options",
+      "description": "Get firewall options for the datacenter (enable, default policies, ebtables, log rate limit), a node (enable, nftables, conntrack, synflood/smurf/tcpflags protection, log levels) or a guest (enable, policies, MAC/IP filter, DHCP, NDP, RA, log levels). `effective` fills in Proxmox's defaults for unset options."
+    },
+    {
+      "name": "proxmox_get_firewall_rule",
+      "description": "Get one firewall rule by position at any level (cluster, node, guest or security group), with its digest for safe updates."
+    },
+    {
+      "name": "proxmox_get_group",
+      "description": "Get a group's members and comment."
+    },
+    {
+      "name": "proxmox_get_guest_filesystems",
+      "description": "List a running VM's mounted filesystems from inside the guest (QEMU guest agent get-fsinfo): mountpoint, type, used/total space and backing disks. Use it to check real disk usage inside a VM (Proxmox's own disk figures for VMs are not filesystem usage). VMs only."
+    },
+    {
+      "name": "proxmox_get_guest_firewall_status",
+      "description": "Whole-picture firewall view for one VM/container, for questions like 'why can't I reach VM X': whether the firewall is enabled at datacenter, node and guest level and on each NIC (firewall=1), the effective policies, the guest's rules (one line each), IP/MAC filters, and plain-language findings about what is blocking or not filtering traffic."
+    },
+    {
+      "name": "proxmox_get_guest_info",
+      "description": "Ask a running VM's QEMU guest agent about the guest: OS name/version/kernel, hostname, timezone, guest clock (and its skew from this server), vCPUs online and the agent version with its disabled commands. VMs only (containers need no agent). Individual queries that fail are reported under `errors` instead of failing the call. Use proxmox_get_guest_network for IP addresses."
+    },
+    {
+      "name": "proxmox_get_guest_memory_blocks",
+      "description": "Show a running VM's memory blocks as the guest sees them (QEMU guest agent get-memory-blocks/get-memory-block-info): block size and how many blocks/how much memory is online. Useful after memory hotplug. VMs only; not all guest OSes support it."
+    },
+    {
+      "name": "proxmox_get_guest_network",
+      "description": "List a running VM's network interfaces as seen inside the guest (via the QEMU guest agent): name, MAC, IPv4/IPv6 addresses with prefix, and traffic counters. The reliable way to find a VM's IP address. Loopback is hidden unless include_loopback=true. VMs only; for containers use proxmox_get_container_interfaces."
+    },
+    {
+      "name": "proxmox_get_guest_users",
+      "description": "List the users currently logged in to a running VM (QEMU guest agent get-users), with domain and login time. VMs only."
+    },
+    {
+      "name": "proxmox_get_ha_group",
+      "description": "Get one HA group's configuration (PVE 8; deprecated in PVE 9 in favour of HA rules)."
+    },
+    {
+      "name": "proxmox_get_ha_resource",
+      "description": "Get one HA resource's configuration, its current status, and the HA rules that reference it (PVE 9+)."
+    },
+    {
+      "name": "proxmox_get_ha_rule",
+      "description": "Get one HA rule (PVE 9+) with its digest."
+    },
+    {
+      "name": "proxmox_get_ha_status",
+      "description": "High-availability overview: quorum, the current CRM master, each node's LRM state (active/idle/maintenance, last update), fencing/arming state (PVE 9.1+), and every HA-managed service with its node and state. Use proxmox_list_ha_resources for the configured settings."
+    },
+    {
+      "name": "proxmox_get_next_vmid",
+      "description": "Get the next free VM/container ID, or check whether a specific ID is free."
+    },
+    {
+      "name": "proxmox_get_node_capabilities",
+      "description": "Get what a node's QEMU supports for VM configuration: CPU models (built-in and custom), machine types/versions (q35, i440fx) and the VM-specific CPU flags that can be toggled. Use it to pick valid values for a VM's cpu/machine options."
+    },
+    {
+      "name": "proxmox_get_node_certificates",
+      "description": "List the TLS certificates of a node's web interface/API (pve-root-ca, pve-ssl and any custom or ACME pveproxy-ssl certificate) with subject, issuer, SANs, validity, days left and fingerprint. Private keys are never returned."
+    },
+    {
+      "name": "proxmox_get_node_config",
+      "description": "Get a node's own options (/etc/pve/nodes/<node>/config): notes/description, wake-on-LAN MAC, ACME account and domains, start-on-boot delay, ballooning target and location, plus the digest for safe updates."
+    },
+    {
+      "name": "proxmox_get_node_dns",
+      "description": "Get a node's DNS resolver settings: search domain and up to three name servers."
+    },
+    {
+      "name": "proxmox_get_node_hosts",
+      "description": "Read a node's /etc/hosts file and its digest (pass the digest to proxmox_set_node_hosts to avoid overwriting concurrent edits)."
+    },
+    {
+      "name": "proxmox_get_node_journal",
+      "description": "Read a node's systemd journal: the last N entries (default 100) or a time range, optionally only one unit, a syslog identifier, a priority level or kernel messages."
+    },
+    {
+      "name": "proxmox_get_node_netstat",
+      "description": "Traffic counters of the guests' tap/veth network devices on a node (bytes in/out per device and VMID), as seen from the host."
+    },
+    {
+      "name": "proxmox_get_node_network_interface",
+      "description": "Get the configuration of one network interface on a node (as stored in /etc/network/interfaces, including pending changes)."
+    },
+    {
+      "name": "proxmox_get_node_package_versions",
+      "description": "List the installed versions of the important Proxmox packages on a node (like `pveversion -v`), including the running kernel."
+    },
+    {
+      "name": "proxmox_get_node_report",
+      "description": "The node's pvereport: a long text dump of versions, hardware, storage, network, cluster and guest configuration, as used for support requests. Large; truncated to max_chars. Can take a while to generate."
+    },
+    {
+      "name": "proxmox_get_node_stats",
+      "description": "Node performance history from the RRD database (CPU, IO wait, load, memory, swap, root disk, network, ARC...) over a timeframe, summarized as min/avg/max/last per metric plus a short downsampled series. Network values are bytes per second."
+    },
+    {
+      "name": "proxmox_get_node_status",
+      "description": "Detailed status of one node: CPU model/sockets/cores and usage, IO wait, load average, memory/swap/root filesystem usage, kernel, Proxmox VE version, boot mode (EFI/BIOS, secure boot), uptime, KSM sharing and the subscription status. Use proxmox_list_nodes for all nodes at a glance and proxmox_get_node_stats for history."
+    },
+    {
+      "name": "proxmox_get_node_subscription",
+      "description": "Get a node's subscription status, level, product, sockets and next due date. The key itself is never shown."
+    },
+    {
+      "name": "proxmox_get_node_syslog",
+      "description": "Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with start/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal."
+    },
+    {
+      "name": "proxmox_get_node_time",
+      "description": "Get a node's current time (UTC), local time and configured time zone. Useful for spotting clock drift between nodes."
+    },
+    {
+      "name": "proxmox_get_notification_endpoint",
+      "description": "Get one notification endpoint's configuration. The type is looked up when omitted. Tokens, passwords and webhook secrets are redacted; webhook headers and body are shown decoded (credential-like headers redacted)."
+    },
+    {
+      "name": "proxmox_get_notification_matcher",
+      "description": "Get one notification matcher's rules and targets (plus its digest for safe updates)."
+    },
+    {
+      "name": "proxmox_get_notification_matcher_fields",
+      "description": "List the metadata fields notifications carry (type, hostname, job-id...) and their known values, for writing match_field rules in proxmox_save_notification_matcher."
+    },
+    {
+      "name": "proxmox_get_package_changelog",
+      "description": "Get the changelog of a package available on a node, e.g. to see what an update to pve-manager or proxmox-kernel changes. Truncated to max_chars."
+    },
+    {
+      "name": "proxmox_get_permissions",
+      "description": "Show effective privileges per path for the API token/user this server uses (default) or for another user or token. The first thing to check when a tool fails with 403 / 'Permission check failed': it shows exactly which privileges are held where. Use `path` to check a single path such as /vms/100."
+    },
+    {
+      "name": "proxmox_get_pool",
+      "description": "Get a resource pool's comment and members: guests (status, node, CPU/memory use) and storage (usage)."
+    },
+    {
+      "name": "proxmox_get_realm",
+      "description": "Get an authentication realm's configuration (servers, base DN, sync options, OpenID issuer...). Bind passwords and client keys are redacted."
+    },
+    {
+      "name": "proxmox_get_replication_job",
+      "description": "Get one replication job's configuration (with digest for safe updates) and its current status on the source node."
+    },
+    {
+      "name": "proxmox_get_replication_log",
+      "description": "Read the log of a replication job's last run from the source node, e.g. to diagnose a failing job."
+    },
+    {
+      "name": "proxmox_get_resource_mapping",
+      "description": "Get one PCI, USB or directory resource mapping with its per-node entries and digest."
+    },
+    {
+      "name": "proxmox_get_role",
+      "description": "Get the privileges of one role, grouped by area (VM, Datastore, Sys...)."
+    },
+    {
+      "name": "proxmox_get_sdn_ipam_status",
+      "description": "List the IP allocations recorded in an SDN IPAM (default the built-in 'pve' IPAM): IP, MAC, hostname, VMID, vnet/subnet and gateway entries. Use it to find which guest holds an address or which IPs are free. Related: proxmox_save_sdn_vnet_ip to add or change a mapping."
+    },
+    {
+      "name": "proxmox_get_sdn_object",
+      "description": "Get the full configuration of one SDN zone, vnet, subnet, controller, IPAM or DNS plugin, including its digest for optimistic locking. With pending=true, uncommitted changes are shown under `pending`."
+    },
+    {
+      "name": "proxmox_get_sdn_pending_diff",
+      "description": "Dry-run proxmox_apply_sdn for one node: shows the diff between the running and the pending network interfaces (/etc/network/interfaces.d/sdn) and FRR routing configuration. Use it to review staged SDN changes before applying them."
+    },
+    {
+      "name": "proxmox_get_sdn_status",
+      "description": "Show the live SDN state on nodes: each zone's status (available/pending/error) per node and the status of the vnets in it. Use it after proxmox_apply_sdn to confirm the configuration came up, or to find nodes where a zone is in error."
+    },
+    {
+      "name": "proxmox_get_snapshot",
+      "description": "Get a snapshot of a VM or container: its description, time, parent, whether RAM was saved, and the guest configuration as it was at that snapshot (disks and networks summarized, secrets redacted). Useful to see what a rollback would restore."
+    },
+    {
+      "name": "proxmox_get_storage",
+      "description": "Get one storage definition (full config, secrets redacted) and its status/usage on each node. Pass `node` for that node's detailed status (active, enabled, available bytes)."
+    },
+    {
+      "name": "proxmox_get_storage_stats",
+      "description": "Summarize a storage's usage over time from its RRD data (current, min, max, growth over the period) with a few sample points. Useful for capacity planning."
+    },
+    {
+      "name": "proxmox_get_task",
+      "description": "Get a task's status (running/stopped), exit status and the last lines of its log."
+    },
+    {
+      "name": "proxmox_get_task_log",
+      "description": "Read a task's log, paging from the start (or the end with tail=true)."
+    },
+    {
+      "name": "proxmox_get_user",
+      "description": "Get one user's configuration: enabled state, expiry, name, email, groups, comment, API tokens and TFA entries. For effective permissions use proxmox_get_permissions."
+    },
+    {
+      "name": "proxmox_get_version",
+      "description": "Get the Proxmox VE version and release of the API endpoint this server talks to."
+    },
+    {
+      "name": "proxmox_get_vm",
+      "description": "Get a VM's live status (run state, CPU, memory, disk/network I/O, uptime, HA, lock, guest agent, QEMU version) together with a summary of its configuration (CPU, memory, disks, NICs, boot order, firmware, cloud-init, tags, notes) and any pending changes that need a restart. Use proxmox_get_vm_config for the raw config."
+    },
+    {
+      "name": "proxmox_get_vm_cloudinit",
+      "description": "Show a VM's cloud-init settings with current vs pending values (pending ones need proxmox_regenerate_vm_cloudinit or a restart to reach the guest), plus the generated user-data, network-config and meta-data as the guest will see them. Passwords are redacted."
+    },
+    {
+      "name": "proxmox_get_vm_config",
+      "description": "Get a VM's configuration as Proxmox stores it (key → value, secrets redacted). By default pending changes are shown applied; current=true shows the running values instead, pending=true lists every key with its current and pending value, and snapshot reads the config saved in a snapshot. The `digest` can be passed to proxmox_update_vm_config for safe concurrent edits."
+    },
+    {
+      "name": "proxmox_get_vm_stats",
+      "description": "Get a VM's performance history from Proxmox's RRD database: min/avg/max of CPU %, memory, network and disk throughput and pressure stalls over the last hour/day/week/month/year, plus a downsampled time series. Use for 'was it busy?', trend and capacity questions."
+    },
+    {
+      "name": "proxmox_get_volume",
+      "description": "Get a volume's attributes: path on disk, format, size, used space, notes and protection flag."
+    },
+    {
+      "name": "proxmox_get_vzdump_defaults",
+      "description": "Show the vzdump defaults a node applies to backups (from /etc/vzdump.conf, merged with a storage's settings when `storage` is given): default storage, mode, compression, retention, bandwidth limits and so on."
+    },
+    {
+      "name": "proxmox_get_zfs_pool",
+      "description": "Get a zpool's detailed status (like `zpool status`): state, status/action messages, last scrub/resilver, errors and the vdev tree with read/write/checksum error counters."
+    },
+    {
+      "name": "proxmox_list_acl",
+      "description": "List access control entries: which role a user, group or API token has on which path (/, /vms/100, /storage/local, /pool/x, /nodes/pve1...) and whether it propagates to sub-paths. Filters combine. For what a user can effectively do, use proxmox_get_permissions."
+    },
+    {
+      "name": "proxmox_list_acme_accounts",
+      "description": "List the cluster's registered ACME accounts (used to order node certificates), with their CA directory and contacts."
+    },
+    {
+      "name": "proxmox_list_acme_directories",
+      "description": "List the known ACME CA directories (Let's Encrypt production/staging...). With `directory`, also fetch that CA's metadata: terms-of-service URL (needed to register an account) and whether external account binding is required. Fetching `directory` makes the node connect to that URL, so it needs write access."
+    },
+    {
+      "name": "proxmox_list_acme_plugins",
+      "description": "List the cluster's ACME challenge plugins (standalone HTTP and DNS API plugins). Credentials in plugin data are redacted; only their keys are shown."
+    },
+    {
+      "name": "proxmox_list_all_snapshots",
+      "description": "List snapshots of every VM and container in the cluster (or a filtered set), oldest first, with guest, node, time, age in days and description. Use older_than_days to find stale snapshots that hold back storage space and slow down disks. Guests whose snapshots can't be read are reported under errors."
+    },
+    {
+      "name": "proxmox_list_api_tokens",
+      "description": "List API tokens (full ID user@realm!name, privilege separation, expiry, comment) for one user, or for all users when userid is omitted. Secrets can never be read back."
+    },
+    {
+      "name": "proxmox_list_appliance_templates",
+      "description": "List the LXC container templates available for download from the Proxmox appliance index (Debian, Ubuntu, Alpine..., and TurnKey apps). Download one with proxmox_download_appliance_template. If the list is empty, the node may need `pveam update`."
+    },
+    {
+      "name": "proxmox_list_backup_files",
+      "description": "Browse the files inside a Proxmox Backup Server backup (single-file restore): start at path \"/\" to see the archives (disk images/filesystem archives), then drill into directories. Only works for PBS storages. Opening VM disk images starts a temporary restore VM on the node and can take a while on first access."
+    },
+    {
+      "name": "proxmox_list_backup_jobs",
+      "description": "List the cluster's scheduled backup (vzdump) jobs: schedule, next run, enabled, target storage, mode, which guests (all/VMID list/pool, exclusions), compression and retention. See proxmox_get_backup_job for one job with the guests and disks it covers, and proxmox_list_unbacked_guests for guests no job covers."
+    },
+    {
+      "name": "proxmox_list_backups",
+      "description": "List backup archives across every storage that holds backups (local dirs, NFS/CIFS, Proxmox Backup Server...), newest first: volume ID, guest, time, size, format, notes, protection and PBS verification state. Filter by vmid, type, storage, node or age. Shared storages are listed once. Use the volid with proxmox_restore_backup, proxmox_get_backup_config, proxmox_update_backup or proxmox_delete_backup."
+    },
+    {
+      "name": "proxmox_list_ceph_fs",
+      "description": "List CephFS file systems with their metadata and data pools. MDS daemons serving them are listed by proxmox_list_ceph_services."
+    },
+    {
+      "name": "proxmox_list_ceph_osds",
+      "description": "List Ceph OSDs from the OSD tree: host, up/down, in/out, device class, usage, PGs, CRUSH weight, latency and version, plus the per-host grouping and cluster-wide OSD flags (noout etc.). Filter by host, status or device class."
+    },
+    {
+      "name": "proxmox_list_ceph_pools",
+      "description": "List Ceph pools with replication (size/min_size), PG count and autoscale mode (with the autoscaler's optimal PG count), application, CRUSH rule and usage %. Related: proxmox_get_ceph_pool, proxmox_update_ceph_pool."
+    },
+    {
+      "name": "proxmox_list_ceph_services",
+      "description": "List Ceph daemons of one type or all: monitors (quorum, rank), managers (active/standby) and metadata servers (MDS state, CephFS, rank), with host, address and version."
+    },
+    {
+      "name": "proxmox_list_containers",
+      "description": "List LXC containers across the cluster with status, node, CPU, memory, disk, uptime, tags and pool. For VMs and containers together use proxmox_list_guests."
+    },
+    {
+      "name": "proxmox_list_custom_cpu_models",
+      "description": "List cluster-wide custom CPU models (base model plus flag changes). VMs use them as cpu: custom-<name>. Related: proxmox_get_node_capabilities for built-in models and flags."
+    },
+    {
+      "name": "proxmox_list_directory_mounts",
+      "description": "List the directory storages Proxmox manages on a node's disks (filesystems mounted under /mnt/pve/<name> via systemd mount units)."
+    },
+    {
+      "name": "proxmox_list_disks",
+      "description": "List a node's physical disks with device path, model, serial, size, type (ssd/hdd/nvme/usb), SMART health, wearout and what uses them (LVM, ZFS, Ceph OSD, partitions, mounted). Use type=unused to find disks free for new storage."
+    },
+    {
+      "name": "proxmox_list_firewall_aliases",
+      "description": "List IP/network aliases defined at datacenter (cluster) or guest level. Aliases are named addresses usable in rule source/dest."
+    },
+    {
+      "name": "proxmox_list_firewall_groups",
+      "description": "List the datacenter's security groups (reusable rule sets) with their comment and rule count. See a group's rules with proxmox_list_firewall_rules scope=group; apply a group to a guest/node with a rule of type group."
+    },
+    {
+      "name": "proxmox_list_firewall_ipsets",
+      "description": "List IP sets at datacenter (cluster) or guest level with their entries (CIDRs, nomatch exclusions, comments). Reference them in rules as +name (or +dc/name, +guest/name). Special sets: 'management' (hosts allowed to reach the web UI/SSH when the firewall is on), 'blacklist', and per-NIC 'ipfilter-netX' on guests."
+    },
+    {
+      "name": "proxmox_list_firewall_macros",
+      "description": "List the predefined firewall macros (SSH, HTTP, DNS, Ceph, ...) usable as a rule's `macro` instead of proto/port."
+    },
+    {
+      "name": "proxmox_list_firewall_refs",
+      "description": "List the aliases and IP sets that can be used in rule source/dest at datacenter (cluster) or guest level, with the exact reference string to use (e.g. +dc/management, dc/myalias)."
+    },
+    {
+      "name": "proxmox_list_firewall_rules",
+      "description": "List the firewall rules of the datacenter (cluster), a node, a VM/container (guest) or a security group, in evaluation order (pos 0 first). Each rule has a readable one-line form like 'IN SSH(ACCEPT) -i net0 -source +mgmt # admins'. Rules of type group pull in a security group's rules. For 'why can't I reach VM X' start with proxmox_get_guest_firewall_status."
+    },
+    {
+      "name": "proxmox_list_groups",
+      "description": "List user groups with their members and comments."
+    },
+    {
+      "name": "proxmox_list_guests",
+      "description": "List virtual machines and containers across the cluster with status, node, CPU, memory, disk, uptime, tags and pool. Filter by type, node, status, tag, pool or a search string, and sort by resource use."
+    },
+    {
+      "name": "proxmox_list_ha_groups",
+      "description": "List HA groups (node lists with priorities, restricted, nofailback). Deprecated in PVE 9, where groups are migrated to node-affinity rules (proxmox_list_ha_rules)."
+    },
+    {
+      "name": "proxmox_list_ha_resources",
+      "description": "List HA-managed VMs and containers with their requested state, group, restart/relocate limits, failback, comment, guest name and current status (node and CRM state)."
+    },
+    {
+      "name": "proxmox_list_ha_rules",
+      "description": "List HA rules (PVE 9+): node-affinity rules (which nodes resources prefer or must run on, with priorities) and resource-affinity rules (keep resources together or apart)."
+    },
+    {
+      "name": "proxmox_list_lvm",
+      "description": "List a node's LVM volume groups with size, free space and physical volumes."
+    },
+    {
+      "name": "proxmox_list_lvm_thin",
+      "description": "List a node's LVM thin pools with data and metadata usage. Thin pools that run out of metadata space fail badly, so watch metadata_usage."
+    },
+    {
+      "name": "proxmox_list_metric_servers",
+      "description": "List external metric servers (InfluxDB, Graphite, OpenTelemetry) that Proxmox sends performance data to."
+    },
+    {
+      "name": "proxmox_list_node_mdev_types",
+      "description": "List the mediated device (mdev, e.g. NVIDIA vGPU / Intel GVT-g) types a PCI device offers, with how many instances are still available. Use a device with mdev support from proxmox_list_node_pci_devices."
+    },
+    {
+      "name": "proxmox_list_node_network",
+      "description": "List a node's network configuration: physical NICs, Linux bridges, bonds, VLANs and OVS objects with addresses, gateways, ports and comments. Interfaces that are configured but not active are flagged; that usually means pending (unapplied) changes from proxmox_save_node_network_interface, or a down link. Apply with proxmox_apply_node_network or discard with proxmox_revert_node_network."
+    },
+    {
+      "name": "proxmox_list_node_pci_devices",
+      "description": "List a node's PCI devices for passthrough planning: address, class, vendor/device names and IDs, IOMMU group (with the other devices in the same group, which must be passed through together) and whether it supports mediated devices (vGPU). Memory controllers, bridges and processors are hidden unless all=true. IOMMU group -1 means IOMMU is off."
+    },
+    {
+      "name": "proxmox_list_node_repositories",
+      "description": "List a node's APT repositories by file with enabled/disabled state, URIs, suites and components, any parse errors and warnings (e.g. enterprise repo without subscription, mixed suites), and which standard Proxmox repositories are configured. Use path/index and the digest with proxmox_set_node_repository."
+    },
+    {
+      "name": "proxmox_list_node_services",
+      "description": "List the Proxmox-related system services on a node (pveproxy, pvedaemon, corosync, pve-cluster, chrony, sshd, postfix...) with their running state and whether they are enabled. Failed services are listed first."
+    },
+    {
+      "name": "proxmox_list_node_updates",
+      "description": "List the package updates available on a node (from the last package index refresh) with installed and new versions, origin and priority, plus counts. Run proxmox_refresh_node_updates first for fresh results. Installing updates is not available through the API."
+    },
+    {
+      "name": "proxmox_list_node_usb_devices",
+      "description": "List a node's USB devices for passthrough: vendor:product ID, manufacturer and product names, bus/port path, speed and serial. Pass a device to a VM by ID (host=vendor:product) or port (host=bus-port), or via a USB resource mapping."
+    },
+    {
+      "name": "proxmox_list_nodes",
+      "description": "List the cluster's nodes with online state, CPU and memory usage, uptime and subscription level."
+    },
+    {
+      "name": "proxmox_list_notification_matchers",
+      "description": "List notification matchers: rules that route notifications (by severity, metadata fields such as type/hostname/job-id, and calendar time) to targets."
+    },
+    {
+      "name": "proxmox_list_notification_targets",
+      "description": "List all notification targets (endpoints of every type: sendmail, smtp, gotify, webhook) with type, disabled state, origin and comment. details=true adds each endpoint's configuration (secrets redacted). Matchers decide which notifications go to which target; see proxmox_list_notification_matchers."
+    },
+    {
+      "name": "proxmox_list_pools",
+      "description": "List resource pools (groups of VMs, containers and storage used for permissions and organisation) with their comments and member counts. Not ZFS or Ceph pools; see proxmox_get_pool for members."
+    },
+    {
+      "name": "proxmox_list_privileges",
+      "description": "List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), grouped by area. Use when building a custom role with proxmox_save_role."
+    },
+    {
+      "name": "proxmox_list_realm_sync_jobs",
+      "description": "List scheduled realm sync jobs (periodic LDAP/AD/OpenID user and group sync) with schedule, last and next run."
+    },
+    {
+      "name": "proxmox_list_realms",
+      "description": "List authentication realms (pam, pve, LDAP, Active Directory, OpenID Connect) with type, TFA provider and comment."
+    },
+    {
+      "name": "proxmox_list_replication_jobs",
+      "description": "List storage replication jobs (ZFS-based guest replication to another node) with guest, target, schedule, rate limit and live status from the source node: last/next sync, duration, failure count and last error."
+    },
+    {
+      "name": "proxmox_list_resource_mappings",
+      "description": "List cluster resource mappings of one kind: PCI or USB devices, or directories (for virtiofs), each mapping a logical name to the device/path on every node. VMs reference them as e.g. hostpci0: mapping=<id>, which allows migration. With check_node, Proxmox validates the entries for that node."
+    },
+    {
+      "name": "proxmox_list_resources",
+      "description": "List cluster resources of any kind from /cluster/resources: nodes, guests, storage, pools and SDN zones. Use proxmox_list_guests for a friendlier guest list."
+    },
+    {
+      "name": "proxmox_list_roles",
+      "description": "List roles with their privileges. Built-in roles (Administrator, PVEAdmin, PVEVMAdmin, PVEAuditor, NoAccess...) are flagged builtin=true and cannot be changed. Use privileges=false for names only."
+    },
+    {
+      "name": "proxmox_list_sdn_fabrics",
+      "description": "List SDN fabrics (PVE 9 underlay networks: OpenFabric, OSPF, WireGuard, BGP) with their nodes. Give `node` and `fabric` to also read that node's live fabric routes, neighbors and interfaces. Read-only; fabrics are edited in the web UI or with proxmox_api_request."
+    },
+    {
+      "name": "proxmox_list_sdn_objects",
+      "description": "List Software-Defined Networking objects of one kind: zones, vnets, subnets of a vnet, controllers, IPAMs or DNS plugins. Use pending=true to see uncommitted changes (state new/changed/deleted). Related: proxmox_get_sdn_object for one object, proxmox_get_sdn_status for the live state on nodes."
+    },
+    {
+      "name": "proxmox_list_sdn_route_policies",
+      "description": "List SDN routing policy objects (PVE 9): prefix lists with their entries, and route maps with their entries (match/set clauses). Read-only. These are referenced by controllers (route-map-in/out) and fabrics (route_filter)."
+    },
+    {
+      "name": "proxmox_list_snapshots",
+      "description": "List the snapshots of a VM or container (the type is detected from the VMID): name, parent, description, creation time, age, whether RAM state was saved (VMs), and which snapshot the guest currently runs from, plus an indented tree view. For stale snapshots across all guests use proxmox_list_all_snapshots."
+    },
+    {
+      "name": "proxmox_list_storage",
+      "description": "List the datacenter's storage definitions (local dirs, LVM, ZFS, NFS, CIFS, PBS, Ceph...) with type, allowed content, shared/enabled flags, node restriction, server/path/pool details and backup retention, merged with each node's live status and usage. Use proxmox_list_storage_content to see what's on one."
+    },
+    {
+      "name": "proxmox_list_storage_content",
+      "description": "List the volumes on a storage: ISO images, container templates, backups, VM/CT disks, snippets and import files, with format, size, owner VMID, creation time, notes and protection. Filter by content type or VMID (e.g. all backups of guest 100)."
+    },
+    {
+      "name": "proxmox_list_tasks",
+      "description": "List Proxmox tasks (backups, migrations, starts, clones...). Without `node`, lists recent tasks across the whole cluster; with `node`, reads that node's task history with server-side filters. Use errors=true to find failures."
+    },
+    {
+      "name": "proxmox_list_tfa",
+      "description": "List users' second factors (TOTP, WebAuthn, recovery keys, Yubico) with type, description, creation time and enabled state, plus TFA lock-outs. No secrets are returned. Unlock a locked-out user with proxmox_unlock_tfa."
+    },
+    {
+      "name": "proxmox_list_unbacked_guests",
+      "description": "List VMs and containers that no backup job covers, with node and status. Use it to audit backup coverage; add them with proxmox_save_backup_job or back them up once with proxmox_backup_guests."
+    },
+    {
+      "name": "proxmox_list_users",
+      "description": "List Proxmox users with enabled state, expiry, realm, name, email, groups, API token count and TFA lock-out state. Use proxmox_get_user for one user's details and tokens."
+    },
+    {
+      "name": "proxmox_list_vms",
+      "description": "List QEMU VMs straight from the nodes (GET /nodes/{node}/qemu?full=1), with details proxmox_list_guests lacks: disk I/O counters, host memory, PSI pressure stalls and the running QEMU version/machine. Without `node`, queries every online node. For a quick cluster-wide list with filters by tag/pool use proxmox_list_guests instead."
+    },
+    {
+      "name": "proxmox_list_zfs_pools",
+      "description": "List a node's ZFS pools (zpools) with size, allocation, fragmentation, dedup ratio and health. Use proxmox_get_zfs_pool for the vdev tree and scrub status."
+    },
+    {
+      "name": "proxmox_preview_backup_prune",
+      "description": "Dry run of pruning a backup storage: shows which backups the retention rules (the storage's own, or `retention`) would keep and which they would remove. Nothing is deleted; run proxmox_prune_backups with the same arguments to apply."
+    },
+    {
+      "name": "proxmox_scan_storage",
+      "description": "Discover storage that can be added with proxmox_save_storage: NFS exports or CIFS shares on a server, PBS datastores, iSCSI targets on a portal, or local LVM volume groups, LVM thin pools and ZFS pools on a node. The nfs, cifs, pbs and iscsi scans make the node contact the given server, possibly with credentials, so they need write access (PROXMOX_ALLOW_WRITES=true); the local scans are always available."
+    },
+    {
+      "name": "proxmox_simulate_schedule",
+      "description": "Show the next run times of a Proxmox calendar-event schedule (as used by backup, replication and other jobs), e.g. 'mon..fri 02:00' or '*/15'. Useful to check a schedule before saving it."
+    },
+    {
+      "name": "proxmox_wait_for_task",
+      "description": "Wait until a running task finishes (or the timeout passes) and return its outcome and log tail."
+    }
+  ],
+  "tools_generated": true,
+  "prompts": [
+    {
+      "name": "cluster_health_check",
+      "description": "Overall health review of the Proxmox cluster: quorum, nodes, guests, storage, Ceph, HA, backups and recent failed tasks.",
+      "arguments": [],
+      "text": "Do a health check of my Proxmox VE cluster.\n1. proxmox_get_cluster_status: quorum, nodes online, guest counts, locked guests, storage usage.\n2. proxmox_get_node_status for each node: load vs. cores, memory and swap pressure, root disk usage, uptime, kernel and PVE version differences between nodes.\n3. proxmox_list_storage: any storage above 80% used, inactive or unavailable.\n4. proxmox_list_tasks (errors: true): failed tasks in the last few days, grouped by type.\n5. proxmox_get_ha_status if HA is in use, and proxmox_get_ceph_status if Ceph is in use (skip quietly if not configured).\n6. proxmox_list_unbacked_guests and proxmox_list_backup_jobs: guests without backups, disabled jobs.\n7. proxmox_list_disks on each node: SMART failures or high SSD wearout.\nReport: a one-line verdict, then problems ordered by severity, each with evidence and a suggested fix. Keep healthy areas to one line each. Don't change anything."
+    },
+    {
+      "name": "troubleshoot_guest",
+      "description": "Investigate why a VM or container is down, slow or unreachable.",
+      "arguments": [
+        "guest",
+        "symptom"
+      ],
+      "text": "Troubleshoot the Proxmox guest \"${arguments.guest}\".\n1. Find it with proxmox_list_guests (search) to get its VMID, type and node.\n2. Inspect it: proxmox_get_vm or proxmox_get_container (status, lock, config, pending changes, HA state).\n3. Recent history: proxmox_list_tasks for its VMID (errors: true first), and proxmox_get_task for any failure.\n4. Resources: proxmox_get_vm_stats / proxmox_get_container_stats (day) for CPU, memory, disk IO and network trends; proxmox_get_node_status for its node.\n5. Network: for VMs with the guest agent, proxmox_get_guest_network; for containers, proxmox_get_container_interfaces. Check the bridge/VLAN in the config and proxmox_get_guest_firewall_status.\n6. Storage: proxmox_list_storage for the storage its disks live on (full or unavailable?).\nReport the most likely cause(s) with evidence and concrete next steps. Ask before making any change (starting, stopping, unlocking or reconfiguring)."
+    },
+    {
+      "name": "capacity_planning",
+      "description": "Analyse CPU, memory and storage headroom across nodes and suggest rebalancing or upgrades.",
+      "arguments": [
+        "timeframe"
+      ],
+      "text": "Do capacity planning for my Proxmox cluster over the last week.\n1. proxmox_get_cluster_status and proxmox_list_nodes: total and per-node CPU and memory.\n2. proxmox_get_node_stats (timeframe: week) for each node: average and peak CPU, memory, IO wait and load.\n3. proxmox_list_guests (sort: memory, then sort: cpu): the heaviest guests and where they run; overcommit of vCPUs and memory per node.\n4. proxmox_list_storage: usage and growth headroom per storage.\nReport: headroom per node (CPU, memory, storage), overcommit ratios, hot spots, and concrete suggestions (which guests to migrate where, right-sizing over-provisioned guests, when storage will need expanding). Don't change anything."
+    },
+    {
+      "name": "backup_audit",
+      "description": "Check that every guest is backed up, backups are recent and succeeding, and retention is sensible.",
+      "arguments": [],
+      "text": "Audit the backups of my Proxmox cluster.\n1. proxmox_list_backup_jobs: schedules, storage, mode, selection, retention; disabled jobs.\n2. proxmox_list_unbacked_guests: guests not covered by any job.\n3. proxmox_list_backups: for each guest, the newest backup and its age, size and verification state; guests whose newest backup is older than their schedule implies.\n4. proxmox_list_tasks (type: vzdump, errors: true): recent failed backup runs and their errors (proxmox_get_task for details).\n5. proxmox_list_storage: free space on the backup storages.\nReport a table of guests with their last good backup, then gaps and failures ordered by risk, with fixes. Don't change anything."
+    },
+    {
+      "name": "security_review",
+      "description": "Review users, tokens, permissions, firewall, certificates and updates for security issues.",
+      "arguments": [],
+      "text": "Review the security of my Proxmox cluster.\nCheck:\n- proxmox_list_users and proxmox_list_api_tokens: accounts without expiry, disabled-but-present accounts, root@pam use, tokens without privilege separation, stale tokens.\n- proxmox_list_tfa: admins without two-factor authentication.\n- proxmox_list_acl: Administrator or broad roles granted on \"/\", permissions granted to individual users instead of groups.\n- proxmox_get_firewall_options (scope: cluster) and proxmox_list_firewall_rules (scope: cluster): is the datacenter firewall enabled, default policies, overly broad accept rules; proxmox_get_firewall_options for each node.\n- proxmox_get_node_certificates: self-signed or soon-expiring certificates.\n- proxmox_list_node_updates and proxmox_list_node_repositories: pending security updates, enterprise/no-subscription repo mismatches.\n- proxmox_list_realms: realms and their settings (e.g. LDAP without TLS).\nReport findings as High / Medium / Low with the reason and a specific remediation. Don't change anything."
+    },
+    {
+      "name": "update_review",
+      "description": "List pending package updates on every node and propose a safe rolling upgrade order.",
+      "arguments": [],
+      "text": "Review pending updates on my Proxmox cluster.\n1. proxmox_list_nodes, then for each node proxmox_list_node_updates (refresh first with proxmox_refresh_node_updates only if I confirm) and proxmox_get_node_status for the running kernel and PVE version.\n2. Flag kernel, pve-manager, qemu-server, ceph and corosync updates, and anything that needs a reboot.\n3. proxmox_get_ha_status and proxmox_get_cluster_status to see what is HA-managed and which guests run on each node.\nPropose a rolling upgrade plan: node order, which guests to migrate off each node first (and where), whether to set Ceph noout, and checks between nodes. Don't install or reboot anything."
+    },
+    {
+      "name": "snapshot_cleanup",
+      "description": "Find old or forgotten snapshots across all guests and propose which to delete.",
+      "arguments": [
+        "older_than_days"
+      ],
+      "text": "Find old snapshots on my Proxmox cluster.\n1. proxmox_list_all_snapshots (older_than_days: 14): every snapshot older than that, with guest, age and description.\n2. For guests with several snapshots, proxmox_list_snapshots to see the chain.\n3. proxmox_list_storage: how full the storages holding those guests are.\nPropose which snapshots look safe to delete (and which to keep, e.g. ones named or described as pre-upgrade baselines). Don't delete anything until I confirm each one."
+    },
+    {
+      "name": "deploy_vm",
+      "description": "Plan and create a new VM, from a template (cloud-init) or an ISO, choosing node, storage and network sensibly.",
+      "arguments": [
+        "name",
+        "spec"
+      ],
+      "text": "Help me deploy a new VM called \"${arguments.name}\" on my Proxmox cluster.\n1. proxmox_list_guests (templates: only): suitable templates; otherwise proxmox_list_storage_content (content: iso) for installer ISOs.\n2. proxmox_get_cluster_status and proxmox_list_storage: the node with the most headroom, and storage with room for the disk.\n3. proxmox_list_node_network on that node: the right bridge (and VLAN tag) to use.\n4. proxmox_get_next_vmid for an ID.\nThen present the plan (node, VMID, template or ISO, CPU, memory, disk, network, cloud-init user/SSH key/IP) and wait for my confirmation. After I confirm, create it with proxmox_clone_vm (+ proxmox_update_vm_config for cloud-init and sizing, proxmox_resize_vm_disk if needed) or proxmox_create_vm, start it with proxmox_vm_power, and report its IP (proxmox_get_guest_network) once it's up."
+    }
+  ],
+  "keywords": [
+    "proxmox",
+    "pve",
+    "virtualization",
+    "vm",
+    "lxc",
+    "homelab",
+    "cluster"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ]
+  },
+  "user_config": {
+    "url": {
+      "type": "string",
+      "title": "Proxmox URL",
+      "description": "Address of any node in your cluster, with the port, e.g. https://pve.example.lan:8006.",
+      "required": true
+    },
+    "api_token": {
+      "type": "string",
+      "title": "API token",
+      "description": "Recommended. The whole token as user@realm!tokenid=secret, e.g. mcp@pve!mcp=xxxxxxxx-xxxx-…. Create one under Datacenter → Permissions → API Tokens. Leave empty to use a username and password instead.",
+      "sensitive": true,
+      "default": ""
+    },
+    "username": {
+      "type": "string",
+      "title": "Username",
+      "description": "Used instead of an API token, as user@realm (e.g. mcp@pve). Accounts with two-factor authentication can't log in this way.",
+      "default": ""
+    },
+    "password": {
+      "type": "string",
+      "title": "Password",
+      "description": "The user's password, used with the username.",
+      "sensitive": true,
+      "default": ""
+    },
+    "tls_fingerprint": {
+      "type": "string",
+      "title": "TLS certificate fingerprint",
+      "description": "Recommended for Proxmox's self-signed certificate: its SHA-256 fingerprint (AA:BB:…), shown under Node → System → Certificates, so nobody on the network can impersonate the server.",
+      "default": ""
+    },
+    "verify_ssl": {
+      "type": "string",
+      "title": "Verify certificate (true/false)",
+      "description": "Leave empty when you set a fingerprint or CA file. true: the server has a publicly trusted certificate. false: skip the check (insecure: anyone on the network path could capture your token or password).",
+      "default": ""
+    },
+    "ca_file": {
+      "type": "file",
+      "title": "CA certificate file",
+      "description": "Optional PEM file with the CA that signed the server's certificate, instead of a fingerprint.",
+      "default": ""
+    },
+    "default_node": {
+      "type": "string",
+      "title": "Default node",
+      "description": "Node used when a request doesn't name one. Not needed on a single-node install.",
+      "default": ""
+    },
+    "allow_writes": {
+      "type": "boolean",
+      "title": "Allow changes",
+      "description": "Let Claude change your cluster: start and stop guests, edit configuration, create VMs, snapshots and backups. Off means read-only.",
+      "default": false
+    },
+    "allow_deletes": {
+      "type": "boolean",
+      "title": "Allow deletes",
+      "description": "Also let Claude delete guests, volumes, snapshots, backups and configuration. Needs Allow changes.",
+      "default": false
+    },
+    "allow_exec": {
+      "type": "boolean",
+      "title": "Allow exec",
+      "description": "Also let Claude run commands and read or write files inside VMs through the guest agent. Needs Allow changes.",
+      "default": false
+    },
+    "toolsets": {
+      "type": "string",
+      "title": "Toolsets",
+      "description": "Optional comma-separated list to expose fewer tools, e.g. cluster,nodes,vms,containers,backup. Empty means all (except raw).",
+      "default": ""
+    },
+    "audit_log": {
+      "type": "string",
+      "title": "Audit log file",
+      "description": "Optional full path to a file, e.g. /Users/you/proxmox-mcp-audit.jsonl, where every change Claude makes or previews is appended as a JSON line. The file is created if it doesn't exist; its folder must exist. stderr writes the lines to Claude Desktop's MCP log instead. Off when left empty.",
+      "default": ""
+    }
+  }
+}

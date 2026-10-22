@@ -311,12 +311,35 @@ func (c *Client) RequestMeta(ctx context.Context, method, path string, params *j
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
+	call := CallFrom(ctx)
+	changes := !isRead(ctx, method)
+	if changes && call != nil && call.DryRun() {
+		// Stopped before logging in, so a dry run never sends anything but reads (and the login
+		// those need).
+		return nil, nil, call.intercept(method, path, params)
+	}
 	if c.cfg.TokenID == "" {
 		if err := c.ensureTicket(ctx); err != nil {
 			return nil, nil, err
 		}
 	}
+	data, meta, err := c.requestMeta(ctx, method, path, params, changes, call)
+	if err == nil && method == "GET" && call != nil {
+		call.remember(path, data)
+	}
+	return data, meta, err
+}
+
+func (c *Client) requestMeta(ctx context.Context, method, path string, params *js.Obj, changes bool, call *Call) (any, *js.Obj, error) {
 	res, body, err := c.send(ctx, method, path, params, true)
+	if changes && call != nil && (err != nil || res.StatusCode != http.StatusUnauthorized || c.cfg.TokenID != "") {
+		// Recorded once per request: a 401 with a ticket is retried below and recorded then.
+		status := 0
+		if res != nil {
+			status = res.StatusCode
+		}
+		call.recordSent(method, path, status)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -326,9 +349,20 @@ func (c *Client) RequestMeta(ctx context.Context, method, path string, params *j
 		c.ticket = nil
 		c.mu.Unlock()
 		if err := c.login(ctx, true); err != nil {
+			if changes && call != nil {
+				call.recordSent(method, path, http.StatusUnauthorized)
+			}
 			return nil, nil, err
 		}
-		if res, body, err = c.send(ctx, method, path, params, true); err != nil {
+		res, body, err = c.send(ctx, method, path, params, true)
+		if changes && call != nil {
+			status := 0
+			if res != nil {
+				status = res.StatusCode
+			}
+			call.recordSent(method, path, status)
+		}
+		if err != nil {
 			return nil, nil, err
 		}
 	}

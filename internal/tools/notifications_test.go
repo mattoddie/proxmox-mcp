@@ -50,7 +50,7 @@ func TestNotifications(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/notifications/endpoints/webhook/hook$`, hook)
 	}
 	find := func(list any, name string) any {
-		for _, x := range list.([]any) {
+		for _, x := range at(list, "items").([]any) {
 			if at(x, "name") == name {
 				return x
 			}
@@ -62,8 +62,8 @@ func TestNotifications(t *testing.T) {
 		setup()
 		list := env.call(t, "proxmox_list_notification_targets", nil)
 		eq(t, pluck(list, "name"), `["gotify1","hook","mail-to-root","smtp1"]`)
-		eqAt(t, list, "0", `{"name":"gotify1","type":"gotify","disabled":true}`)
-		eqAt(t, list, "2.origin", "builtin")
+		eqAt(t, list, "items.0", `{"name":"gotify1","type":"gotify","disabled":true}`)
+		eqAt(t, list, "items.2.origin", "builtin")
 		if n := len(env.mock.RequestsTo("/cluster/notifications/endpoints", "")); n != 0 {
 			t.Fatalf("%d endpoint requests", n)
 		}
@@ -189,8 +189,8 @@ func TestNotifications(t *testing.T) {
 			{"name":"backups","match-field":["exact:type=vzdump"],"match-severity":["error"],"mode":"any","invert-match":1,"disable":1,"target":["gotify1"]}]`)
 		env.mock.Reply("GET", `^/cluster/notifications/matchers/backups$`, `{"match-field":["exact:type=vzdump"],"target":["gotify1"],"digest":"dd"}`)
 		list := env.call(t, "proxmox_list_notification_matchers", nil)
-		eqAt(t, list, "0", `{"name":"backups","disabled":true,"mode":"any","invert_match":true,"match_severity":["error"],"match_field":["exact:type=vzdump"],"targets":["gotify1"]}`)
-		eqAt(t, list, "1.mode", "all")
+		eqAt(t, list, "items.0", `{"name":"backups","disabled":true,"mode":"any","invert_match":true,"match_severity":["error"],"match_field":["exact:type=vzdump"],"targets":["gotify1"]}`)
+		eqAt(t, list, "items.1.mode", "all")
 		eq(t, env.call(t, "proxmox_get_notification_matcher", `{"name":"backups"}`), `{"name":"backups","mode":"all","match_field":["exact:type=vzdump"],"targets":["gotify1"],"digest":"dd"}`)
 	})
 

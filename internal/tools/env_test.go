@@ -344,7 +344,11 @@ func falsy(t testing.TB, v any, msg ...any) {
 }
 
 // pluck maps an array of objects to one field ("items.map(g => g.vmid)").
+// A list tool's result is plucked from its items.
 func pluck(v any, field string) []any {
+	if o, ok := v.(*js.Obj); ok && o != nil {
+		v = o.Get("items")
+	}
 	arr, _ := v.([]any)
 	out := make([]any, len(arr))
 	for i, x := range arr {

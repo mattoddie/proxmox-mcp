@@ -15,6 +15,10 @@ Each tool is labelled with the setting it needs:
 
 Every tool also needs its toolset to be enabled in `PROXMOX_TOOLSETS`, which enables all toolsets by default. Tools that act on a VM or container take its `vmid` and find the node automatically; node-scoped tools default to `PROXMOX_DEFAULT_NODE` or the only node. Tools that start a Proxmox task wait for it by default (`wait`), up to `PROXMOX_TASK_TIMEOUT_MS`.
 
+Tools that change something take `dry_run`: with `true` the tool sends nothing that changes state and returns the request it would have sent; for an update of an object it can read, such as a guest config, it lists the keys that would change, with their values before and after. Calls to these tools are recorded in the audit log when `PROXMOX_AUDIT_LOG` is set.
+
+List tools return `{total, returned, items}` and take `search` (a case-insensitive substring match), `fields` (keep only these fields in each item) and, on lists that can grow long, `limit`.
+
 ## Contents
 
 - [`cluster`](#cluster): Cluster overview, nodes and guests at a glance, datacenter options, corosync config, metric servers and bulk guest actions.
@@ -85,6 +89,8 @@ List the cluster's nodes with online state, CPU and memory usage, uptime and sub
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_guests
 
@@ -104,6 +110,7 @@ List virtual machines and containers across the cluster with status, node, CPU, 
 | `sort` | `"vmid"` \| `"name"` \| `"cpu"` \| `"memory"` \| `"disk"` \| `"uptime"` |  | Sort order (default vmid); cpu/memory/disk/uptime sort highest first |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_resources
 
@@ -116,6 +123,7 @@ List cluster resources of any kind from /cluster/resources: nodes, guests, stora
 | `type` | `"node"` \| `"vm"` \| `"storage"` \| `"pool"` \| `"sdn"` |  | Resource type (default all) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 1000) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_next_vmid
 
@@ -160,7 +168,10 @@ _No arguments._
 
 List external metric servers (InfluxDB, Graphite, OpenTelemetry) that Proxmox sends performance data to.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_simulate_schedule
 
@@ -195,6 +206,7 @@ Change datacenter-wide options (datacenter.cfg). Only the given fields change. C
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_metric_server
 
@@ -211,6 +223,7 @@ Create (create=true) or update an external metric server for InfluxDB, Graphite 
 | `port` | integer |  | Server port (required when creating) |
 | `disable` | boolean |  | Disable sending metrics |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_metric_server
 
@@ -221,6 +234,7 @@ Remove an external metric server configuration.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | yes | Metric server ID |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_bulk_guest_action
 
@@ -241,6 +255,7 @@ Start, shut down, suspend or migrate many VMs and containers at once with Proxmo
 | `max_workers` | integer |  | How many guests to handle in parallel |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## nodes
 
@@ -357,6 +372,7 @@ Ask a node to look up a URL's file name, size and MIME type (HEAD request from t
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `url` | string | yes | The URL to inspect, e.g. https://cdimage.debian.org/.../debian-13.iso |
 | `verify_certificates` | boolean |  | Verify TLS certificates (default true) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_node_services
 
@@ -368,6 +384,7 @@ List the Proxmox-related system services on a node (pveproxy, pvedaemon, corosyn
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_manage_node_service
 
@@ -381,6 +398,7 @@ Start, stop, restart or reload a system service on a node, e.g. restart pveproxy
 | `service` | string | yes | Service ID, e.g. pveproxy, pvedaemon, pvestatd, corosync, pve-cluster, chrony, sshd, postfix (see proxmox_list_node_services) |
 | `action` | `"start"` \| `"stop"` \| `"restart"` \| `"reload"` | yes | What to do; reload falls back to restart if the service can't reload |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_node_network
 
@@ -394,6 +412,7 @@ List a node's network configuration: physical NICs, Linux bridges, bonds, VLANs 
 | `type` | `"bridge"` \| `"bond"` \| `"eth"` \| `"alias"` \| `"vlan"` \| `"fabric"` \| `"OVSBridge"` \| `"OVSBond"` \| `"OVSPort"` \| `"OVSIntPort"` \| `"vnet"` \| `"any_bridge"` \| `"any_local_bridge"` \| `"include_sdn"` |  | Only this interface type (any_bridge = Linux and OVS bridges) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_node_network_interface
 
@@ -437,6 +456,7 @@ Create (create=true) or update a network interface on a node: Linux bridge, bond
 | `comments` | string |  | Comment |
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_node_network_interface
 
@@ -448,6 +468,7 @@ Remove a network interface (bridge, bond, VLAN...) from a node's configuration. 
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `iface` | string | yes | Interface name, e.g. vmbr1 |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_apply_node_network
 
@@ -460,6 +481,7 @@ Apply a node's pending network changes (ifreload). Can interrupt connectivity to
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `regenerate_frr` | boolean |  | Also regenerate the FRR (SDN fabric routing) configuration |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_revert_node_network
 
@@ -470,6 +492,7 @@ Discard all pending (unapplied) network changes on a node, keeping the running c
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_dns
 
@@ -494,6 +517,7 @@ Set a node's DNS search domain and name servers (/etc/resolv.conf). Fields left 
 | `dns1` | string |  | First name server IP |
 | `dns2` | string |  | Second name server IP |
 | `dns3` | string |  | Third name server IP |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_hosts
 
@@ -516,6 +540,7 @@ Replace a node's /etc/hosts with the given content. Read it first with proxmox_g
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `content` | string | yes | The complete new content of /etc/hosts |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_time
 
@@ -537,6 +562,7 @@ Set a node's time zone, e.g. Europe/London or UTC.
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `timezone` | string | yes | Time zone name from zone.tab, e.g. Europe/London, America/New_York, UTC |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_config
 
@@ -566,6 +592,7 @@ Change a node's options: notes/description, wake-on-LAN MAC, ACME account and ce
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_node_power
 
@@ -577,6 +604,7 @@ Reboot or shut down a Proxmox node. Running guests are shut down or stopped by t
 |---|---|---|---|
 | `node` | string | yes | Node name (see proxmox_list_nodes) |
 | `command` | `"reboot"` \| `"shutdown"` | yes | reboot or shutdown |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_wake_node
 
@@ -587,6 +615,7 @@ Send a wake-on-LAN packet to a powered-off node (sent by another cluster node). 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string | yes | Node name (see proxmox_list_nodes) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_node_bulk_action
 
@@ -606,6 +635,7 @@ Run a bulk action over the guests on one node: start (by default only guests wit
 | `with_local_disks` | boolean |  | migrate: live-migrate local disks too |
 | `max_workers` | integer |  | Parallel jobs (default from datacenter max_workers; migrate needs one of the two) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_syslog
 
@@ -652,6 +682,7 @@ List the package updates available on a node (from the last package index refres
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 300) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_refresh_node_updates
 
@@ -664,6 +695,7 @@ Refresh a node's package index (apt-get update) so proxmox_list_node_updates sho
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `notify` | boolean |  | Send a notification about new packages |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_package_changelog
 
@@ -714,6 +746,7 @@ Enable or disable an existing APT repository (give path and index from proxmox_l
 | `index` | integer |  | Index of the repository within the file |
 | `enabled` | boolean |  | Enable (true) or disable (false) the repository at path/index |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_subscription
 
@@ -736,6 +769,7 @@ Set a node's subscription key (key given), or re-check the existing subscription
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `key` | string |  | Subscription key, e.g. pve2c-0123456789 (omit to just refresh the status) |
 | `force` | boolean |  | Refresh: contact the server even if the cached status is still valid |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_node_subscription
 
@@ -746,6 +780,7 @@ Remove the subscription key from a node (e.g. before moving it to other hardware
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_certificates
 
@@ -770,6 +805,7 @@ Install a custom TLS certificate (PEM chain) and private key for a node's web in
 | `key` | string |  | PEM private key (required unless a key is already installed) |
 | `force` | boolean |  | Overwrite an existing custom or ACME certificate |
 | `restart` | boolean |  | Restart pveproxy to load the new certificate |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_node_certificate
 
@@ -781,6 +817,7 @@ Remove a node's custom (or ACME) web certificate and key, falling back to the se
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `restart` | boolean |  | Restart pveproxy afterwards |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_node_acme_certificate
 
@@ -794,6 +831,7 @@ Order a new ACME (e.g. Let's Encrypt) certificate for a node, renew it, or revok
 | `action` | `"order"` \| `"renew"` \| `"revoke"` | yes | order a new certificate, renew the existing one, or revoke it |
 | `force` | boolean |  | order: overwrite an existing custom certificate; renew: renew even if more than 30 days remain |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_acme_accounts
 
@@ -801,7 +839,10 @@ Order a new ACME (e.g. Let's Encrypt) certificate for a node, renew it, or revok
 
 List the cluster's registered ACME accounts (used to order node certificates), with their CA directory and contacts.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_acme_account
 
@@ -829,6 +870,7 @@ Register a new ACME account with a CA (create=true; Let's Encrypt by default, ac
 | `eab_kid` | string |  | External account binding key ID (create only, for CAs that require EAB) |
 | `eab_hmac_key` | string |  | External account binding HMAC key (create only) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_acme_account
 
@@ -840,6 +882,7 @@ Deactivate an ACME account at the CA and remove it from the cluster. Nodes using
 |---|---|---|---|
 | `name` | string | yes | Account name |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_acme_directories
 
@@ -850,6 +893,8 @@ List the known ACME CA directories (Let's Encrypt production/staging...). With `
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `directory` | string |  | Also fetch metadata for this directory URL |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_acme_plugins
 
@@ -860,6 +905,8 @@ List the cluster's ACME challenge plugins (standalone HTTP and DNS API plugins).
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"dns"` \| `"standalone"` |  | Only plugins of this type |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_acme_plugin
 
@@ -899,6 +946,7 @@ Create (create=true) or update an ACME challenge plugin. For DNS validation give
 | `disable` | boolean |  | Disable the plugin |
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_acme_plugin
 
@@ -909,6 +957,7 @@ Delete an ACME challenge plugin. Node certificate domains that use it can no lon
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | yes | Plugin ID |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## vms
 
@@ -950,6 +999,7 @@ List QEMU VMs straight from the nodes (GET /nodes/{node}/qemu?full=1), with deta
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_vm
 
@@ -1048,6 +1098,7 @@ Change a VM's power state. start; shutdown (clean ACPI shutdown, optionally forc
 | `machine` | string |  | start: override the QEMU machine type for this boot |
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_vm
 
@@ -1100,6 +1151,7 @@ Create a QEMU VM. Give disks as typed objects (bus, storage, size_gb, options, o
 | `pool` | string |  | Add the VM to this resource pool |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_clone_vm
 
@@ -1122,6 +1174,7 @@ Copy a VM or template to a new VM. Templates get a fast linked clone by default 
 | `snapname` | string |  | Clone from this snapshot |
 | `bwlimit` | integer |  | I/O bandwidth limit in KiB/s |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_vm_config
 
@@ -1171,6 +1224,7 @@ Change a VM's settings; only the given fields change. Common fields are typed; f
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_resize_vm_disk
 
@@ -1187,6 +1241,7 @@ Grow a VM disk, e.g. size='+10G' to add 10 GiB or '64G' for an absolute size. Di
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_move_vm_disk
 
@@ -1208,6 +1263,7 @@ Move a VM disk to another storage (works live on running VMs) or reassign it to 
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `target_digest` | string |  | Only proceed if the target VM's config digest matches |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_unlink_vm_disk
 
@@ -1221,6 +1277,7 @@ Remove disks from a VM. Without destroy, disks are detached and kept as unusedN 
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `disks` | string[] | yes | Disk keys to remove, e.g. ["scsi1", "unused0"] |
 | `destroy` | boolean |  | Permanently delete the disk images (default false: detach to unusedN) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_migrate_vm
 
@@ -1242,6 +1299,7 @@ Move a VM to another node in the cluster. Running VMs are live-migrated (online 
 | `with_conntrack_state` | boolean |  | Also migrate firewall conntrack entries (running VMs) |
 | `force` | boolean |  | Allow migrating VMs with local devices (root only) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_convert_vm_to_template
 
@@ -1255,6 +1313,7 @@ Turn a stopped VM into a template (irreversible: templates can't be started, onl
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `disk` | string |  | Convert only this disk to a base image |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_vm
 
@@ -1271,6 +1330,7 @@ Permanently destroy a VM and all its disks. Refuses a running VM unless stop=tru
 | `destroy_unreferenced_disks` | boolean |  | Also destroy disks with this VMID not referenced in the config |
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_regenerate_vm_cloudinit
 
@@ -1282,6 +1342,7 @@ Rebuild a VM's cloud-init drive from its current settings so pending cloud-init 
 |---|---|---|---|
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_send_vm_key
 
@@ -1296,6 +1357,7 @@ Press keys on a VM's virtual keyboard, as on its console: special keys/combos wi
 | `keys` | string[] |  | Key names sent before `text` |
 | `text` | string |  | Text to type (ASCII, US keyboard layout) |
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_vm_monitor_command
 
@@ -1308,6 +1370,7 @@ Run a QEMU human monitor (HMP) command on a running VM and return its output, e.
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `command` | string | yes | Monitor command, e.g. 'info block' |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## containers
 
@@ -1346,6 +1409,7 @@ List LXC containers across the cluster with status, node, CPU, memory, disk, upt
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_container
 
@@ -1439,6 +1503,7 @@ Change an LXC container's power state: start, stop (immediate, like pulling the 
 | `overrule_shutdown` | boolean |  | Abort a running shutdown task before stopping (stop only) |
 | `skiplock` | boolean |  | Ignore locks (start/stop; root only) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_container
 
@@ -1476,6 +1541,7 @@ Create an LXC container from an OS template (a vztmpl volume such as local:vztmp
 | `description` | string |  | Notes shown in the container's summary |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_clone_container
 
@@ -1498,6 +1564,7 @@ Clone an LXC container or container template to a new VMID (default: next free I
 | `bwlimit` | number |  | I/O bandwidth limit in KiB/s |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_container_config
 
@@ -1530,6 +1597,7 @@ Change an LXC container's configuration; only the given fields change. `nets` an
 | `revert` | string[] |  | Pending changes to discard, by key |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_resize_container_disk
 
@@ -1545,6 +1613,7 @@ Grow a container's rootfs or mount point volume. size is absolute ("20G") or rel
 | `size` | string | yes | New size, e.g. "20G", or an increase such as "+5G" |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_move_container_volume
 
@@ -1565,6 +1634,7 @@ Move a container's rootfs or mount point to another storage (storage), or reassi
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `target_digest` | string |  | Only proceed if the target container's config digest matches |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_migrate_container
 
@@ -1582,6 +1652,7 @@ Move an LXC container to another node. Containers can't be live-migrated: a runn
 | `target_storage` | string |  | Target storage, or a mapping like "local-lvm:fast,local:local" |
 | `bwlimit` | number |  | I/O bandwidth limit in KiB/s |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_convert_container_to_template
 
@@ -1593,6 +1664,7 @@ Turn a stopped LXC container into a template for proxmox_clone_container. This c
 |---|---|---|---|
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_container
 
@@ -1608,6 +1680,7 @@ Permanently destroy an LXC container and all its volumes. It must be stopped unl
 | `destroy_unreferenced_disks` | boolean |  | Also destroy disks with this VMID on any storage that aren't in the config |
 | `force` | boolean |  | Destroy even if running |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## agent
 
@@ -1699,6 +1772,7 @@ Freeze, thaw or check the freeze state of a running VM's filesystems through the
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `action` | `"freeze"` \| `"thaw"` \| `"status"` | yes | freeze: freeze all filesystems; thaw: unfreeze them; status: report 'frozen' or 'thawed' |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_guest_fstrim
 
@@ -1710,6 +1784,7 @@ Run fstrim inside a running VM via the QEMU guest agent so freed blocks are disc
 |---|---|---|---|
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_guest_power
 
@@ -1722,6 +1797,7 @@ Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM,
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `action` | `"shutdown"` \| `"suspend-ram"` \| `"suspend-disk"` \| `"suspend-hybrid"` | yes | shutdown, suspend-ram (sleep), suspend-disk (hibernate) or suspend-hybrid |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_guest_exec
 
@@ -1736,6 +1812,7 @@ Run a command inside a running VM through the QEMU guest agent and wait for it (
 | `command` | string[] | yes | Program and arguments, e.g. ["/bin/sh", "-c", "df -h"] or ["systemctl", "status", "nginx"] |
 | `input_data` | string |  | Data passed to the command's standard input (max 65536 characters) |
 | `timeout_s` | integer |  | How long to wait for the command to finish (default 30; 0 = return the pid immediately) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_guest_exec_status
 
@@ -1778,6 +1855,7 @@ Write (create or overwrite) a file inside a running VM through the QEMU guest ag
 | `file` | string | yes | Absolute path inside the guest |
 | `content` | string | yes | File content (text, or base64 when encoding=base64); at most 61440 characters per call |
 | `encoding` | `"text"` \| `"base64"` |  | text (default) or base64 (content is already base64-encoded) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_guest_set_password
 
@@ -1792,6 +1870,7 @@ Set the password of a user account inside a running VM through the QEMU guest ag
 | `username` | string | yes | User account inside the guest, e.g. root or Administrator |
 | `password` | string | yes | The new password (or a crypt() hash with crypted=true) |
 | `crypted` | boolean |  | The password is already a crypt() hash (default false) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## snapshots
 
@@ -1818,6 +1897,8 @@ List the snapshots of a VM or container (the type is detected from the VMID): na
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_snapshot
 
@@ -1846,6 +1927,7 @@ List snapshots of every VM and container in the cluster (or a filtered set), old
 | `vmids` | integer[] |  | Only these guests |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_create_snapshot
 
@@ -1861,6 +1943,7 @@ Take a snapshot of a VM or container (type detected from the VMID), e.g. before 
 | `description` | string |  | Description of the snapshot |
 | `vmstate` | boolean |  | Include RAM state (running VMs only) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_rollback_snapshot
 
@@ -1875,6 +1958,7 @@ Roll a VM or container back to a snapshot. Destructive: all changes since the sn
 | `snapname` | string | yes | Snapshot name (see proxmox_list_snapshots) |
 | `start` | boolean |  | Start the guest after the rollback (default false) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_snapshot
 
@@ -1888,6 +1972,7 @@ Change the description of a VM or container snapshot. The snapshot's contents ca
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `snapname` | string | yes | Snapshot name (see proxmox_list_snapshots) |
 | `description` | string | yes | New description (empty string clears it) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_snapshot
 
@@ -1902,6 +1987,7 @@ Delete a snapshot of a VM or container, merging its data so the guest's current 
 | `snapname` | string | yes | Snapshot name (see proxmox_list_snapshots) |
 | `force` | boolean |  | Remove from the config even if removing disk snapshots fails |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## storage
 
@@ -1948,6 +2034,7 @@ List the datacenter's storage definitions (local dirs, LVM, ZFS, NFS, CIFS, PBS,
 | `node` | string |  | Only storage available on this node |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_storage
 
@@ -2010,6 +2097,7 @@ Create a storage definition, or update an existing one (decided by whether the s
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_storage
 
@@ -2020,6 +2108,7 @@ Remove a storage definition from the datacenter configuration. The data on the u
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_storage_content
 
@@ -2036,6 +2125,7 @@ List the volumes on a storage: ISO images, container templates, backups, VM/CT d
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_volume
 
@@ -2062,6 +2152,7 @@ Set a volume's notes or protection flag. Protection (backups only) prevents prun
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 | `notes` | string |  | New notes ("" clears them) |
 | `protected` | boolean |  | Protect (true) or unprotect (false) the volume; only supported for backups |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_volume
 
@@ -2075,6 +2166,7 @@ Permanently delete a volume (ISO, template, backup or disk image) from storage. 
 | `volume` | string | yes | Volume ID, e.g. "local:iso/debian-12.iso" or "local-lvm:vm-100-disk-0" (see proxmox_list_storage_content) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_allocate_disk
 
@@ -2090,6 +2182,7 @@ Allocate a new, empty disk image on a storage, owned by a guest (it shows up as 
 | `filename` | string | yes | Volume name, e.g. "vm-100-disk-2" (add .qcow2/.raw on file-based storage) |
 | `size` | string | yes | Size with suffix M or G (plain number = KiB), e.g. "32G" |
 | `format` | `"raw"` \| `"qcow2"` \| `"subvol"` \| `"vmdk"` |  | Image format (default depends on the storage) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_download_to_storage
 
@@ -2109,6 +2202,7 @@ Have a node download an ISO image, container template (vztmpl) or importable dis
 | `compression` | string |  | Decompress the download with this algorithm, e.g. "zst", "gz", "lzo" (ISOs only) |
 | `verify_certificates` | boolean |  | Verify the server's TLS certificate (default true) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_appliance_templates
 
@@ -2122,6 +2216,7 @@ List the LXC container templates available for download from the Proxmox applian
 | `section` | string |  | Only this section, e.g. "system" or "turnkeylinux" |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 200) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_download_appliance_template
 
@@ -2135,6 +2230,7 @@ Download an LXC template from the Proxmox appliance index onto a storage that al
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `template` | string | yes | Template name, e.g. "debian-12-standard_12.7-1_amd64.tar.zst" |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_storage_stats
 
@@ -2182,6 +2278,8 @@ List a node's physical disks with device path, model, serial, size, type (ssd/hd
 | `include_partitions` | boolean |  | Also list partitions |
 | `skip_smart` | boolean |  | Skip SMART health checks (faster) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_disk_smart
 
@@ -2205,6 +2303,8 @@ List a node's ZFS pools (zpools) with size, allocation, fragmentation, dedup rat
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_zfs_pool
 
@@ -2226,6 +2326,8 @@ List a node's LVM volume groups with size, free space and physical volumes.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_lvm_thin
 
@@ -2236,6 +2338,8 @@ List a node's LVM thin pools with data and metadata usage. Thin pools that run o
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_directory_mounts
 
@@ -2246,6 +2350,8 @@ List the directory storages Proxmox manages on a node's disks (filesystems mount
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_create_disk_storage
 
@@ -2266,6 +2372,7 @@ Create local storage on unused disks of a node: a ZFS pool (one or more devices 
 | `draid_config` | string |  | zfs dRAID: "data=<n>,spares=<n>" |
 | `filesystem` | `"ext4"` \| `"xfs"` |  | directory: filesystem (default ext4) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_disk_storage
 
@@ -2282,6 +2389,7 @@ Destroy a node-local ZFS pool, LVM volume group, LVM thin pool or managed direct
 | `cleanup_config` | boolean |  | Remove the storage definition (or this node from it) |
 | `cleanup_disks` | boolean |  | Also wipe the underlying disks |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_init_disk_gpt
 
@@ -2295,6 +2403,7 @@ Write a new, empty GPT partition table to a disk so it can be used (e.g. for Cep
 | `disk` | string | yes | Block device path, e.g. "/dev/sdb" (see proxmox_list_disks) |
 | `uuid` | string |  | UUID for the GPT table |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_wipe_disk
 
@@ -2307,6 +2416,7 @@ Wipe a disk or partition (filesystem/LVM/ZFS signatures and the start of the dev
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `disk` | string | yes | Block device path, e.g. "/dev/sdb" (see proxmox_list_disks) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## backup
 
@@ -2341,6 +2451,7 @@ List the cluster's scheduled backup (vzdump) jobs: schedule, next run, enabled, 
 |---|---|---|---|
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_backup_job
 
@@ -2382,6 +2493,7 @@ Create a scheduled backup job, or update an existing one when `id` names one. Ch
 | `bwlimit` | integer |  | I/O bandwidth limit in KiB/s (0 = unlimited) |
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_backup_job
 
@@ -2392,6 +2504,7 @@ Delete a scheduled backup job. Existing backups are kept. To pause a job instead
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | yes | Backup job ID (see proxmox_list_backup_jobs) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_run_backup_job
 
@@ -2403,6 +2516,7 @@ Run a scheduled backup job immediately with its own settings (storage, mode, com
 |---|---|---|---|
 | `id` | string | yes | Backup job ID (see proxmox_list_backup_jobs) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_unbacked_guests
 
@@ -2410,7 +2524,10 @@ Run a scheduled backup job immediately with its own settings (storage, mode, com
 
 List VMs and containers that no backup job covers, with node and status. Use it to audit backup coverage; add them with proxmox_save_backup_job or back them up once with proxmox_backup_guests.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_backup_guests
 
@@ -2431,6 +2548,7 @@ Back up one or more VMs/containers now (vzdump), e.g. before an upgrade. Guests 
 | `bwlimit` | integer |  | I/O bandwidth limit in KiB/s |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_backups
 
@@ -2449,6 +2567,7 @@ List backup archives across every storage that holds backups (local dirs, NFS/CI
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 100) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_backup_config
 
@@ -2484,6 +2603,7 @@ Restore a VM or container backup (type detected from the archive) to a new VMID,
 | `unprivileged` | boolean |  | Containers only: restore as unprivileged (default: as in the backup) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_backup
 
@@ -2497,6 +2617,7 @@ Change a backup's notes or protection flag. Protected backups are never pruned a
 | `node` | string |  | Node to access the storage from. Needed for node-local storages present on several nodes (use the node shown by proxmox_list_backups); looked up automatically otherwise |
 | `notes` | string |  | New notes (replaces existing; "" clears them) |
 | `protected` | boolean |  | Protect (true) or unprotect (false) the backup |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_backup
 
@@ -2509,6 +2630,7 @@ Permanently delete a backup archive. Protected backups must be unprotected first
 | `volid` | string | yes | Backup volume ID as listed by proxmox_list_backups, e.g. local:backup/vzdump-qemu-100-2025_01_01-02_00_00.vma.zst or pbs:backup/vm/100/2025-01-01T02:00:00Z |
 | `node` | string |  | Node to access the storage from. Needed for node-local storages present on several nodes (use the node shown by proxmox_list_backups); looked up automatically otherwise |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_preview_backup_prune
 
@@ -2538,6 +2660,7 @@ Delete the backups on a storage that the retention rules don't keep (the storage
 | `type` | `"vm"` \| `"container"` |  | Only VM or only container backups |
 | `retention` | object |  | Retention to apply instead of the storage's configured prune-backups, e.g. {keep_last: 3} |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_vzdump_defaults
 
@@ -2562,6 +2685,9 @@ Browse the files inside a Proxmox Backup Server backup (single-file restore): st
 | `volid` | string | yes | Backup volume ID as listed by proxmox_list_backups, e.g. local:backup/vzdump-qemu-100-2025_01_01-02_00_00.vma.zst or pbs:backup/vm/100/2025-01-01T02:00:00Z |
 | `path` | string |  | Path to list, as shown in earlier results (default "/") |
 | `node` | string |  | Node to run the file restore on (default: any node with the storage) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `limit` | integer |  | Maximum number of results (default 500) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ## tasks
 
@@ -2592,6 +2718,7 @@ List Proxmox tasks (backups, migrations, starts, clones...). Without `node`, lis
 | `since` | integer |  | Only tasks started after this UNIX time (node only) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 50) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_task
 
@@ -2637,6 +2764,7 @@ Abort a running task (e.g. a stuck backup or migration).
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `upid` | string | yes | Task ID (UPID), e.g. UPID:pve1:000A1B2C:0123ABCD:6701F3A2:qmstart:100:root@pam: |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## access
 
@@ -2692,6 +2820,7 @@ List Proxmox users with enabled state, expiry, realm, name, email, groups, API t
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_user
 
@@ -2724,6 +2853,7 @@ Create (create=true) or update a Proxmox user. Only the given fields change on u
 | `comment` | string |  | Comment |
 | `keys` | string |  | Yubico OTP key IDs for two-factor auth (legacy) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_user
 
@@ -2734,6 +2864,7 @@ Delete a user, together with their API tokens and ACL entries. To only block log
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `userid` | string | yes | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_change_password
 
@@ -2746,6 +2877,7 @@ Set a new password for a pve- or pam-realm user (PUT /access/password). The pass
 | `userid` | string | yes | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
 | `password` | string | yes | The new password (pve realm requires at least 8 characters) |
 | `confirmation_password` | string |  | Current password of the user making the change, if Proxmox asks for it |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_groups
 
@@ -2756,6 +2888,7 @@ List user groups with their members and comments.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_group
 
@@ -2778,6 +2911,7 @@ Create (create=true) a user group or update its comment. Membership is managed o
 | `groupid` | string | yes | Group ID (see proxmox_list_groups) |
 | `create` | boolean |  | Create a new group (default false = update an existing one) |
 | `comment` | string |  | Comment |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_group
 
@@ -2788,6 +2922,7 @@ Delete a user group (users stay; their membership and the group's ACL entries ar
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `groupid` | string | yes | Group ID (see proxmox_list_groups) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_roles
 
@@ -2800,6 +2935,7 @@ List roles with their privileges. Built-in roles (Administrator, PVEAdmin, PVEVM
 | `privileges` | boolean |  | Include each role's privilege list (default true) |
 | `builtin` | boolean |  | Only built-in (true) or only custom (false) roles |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_role
 
@@ -2823,6 +2959,7 @@ Create (create=true) a custom role or change its privileges. On update the privi
 | `create` | boolean |  | Create a new role (default false = update an existing one) |
 | `privs` | string[] |  | Privileges, e.g. ["VM.Audit", "VM.PowerMgmt", "Datastore.Audit"] |
 | `append` | boolean |  | On update, add `privs` to the role instead of replacing its privileges |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_role
 
@@ -2833,6 +2970,7 @@ Delete a custom role. ACL entries using it stop granting anything. Built-in role
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `roleid` | string | yes | Role ID, e.g. PVEVMAdmin (see proxmox_list_roles) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_privileges
 
@@ -2857,6 +2995,7 @@ List access control entries: which role a user, group or API token has on which 
 | `type` | `"user"` \| `"group"` \| `"token"` |  | Only entries of this subject type |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 1000) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_update_acl
 
@@ -2873,6 +3012,7 @@ Grant (default) or revoke (delete=true) roles on a path for users, groups and/or
 | `tokens` | string[] |  | Full API token IDs, e.g. ["alice@pve!automation"] |
 | `propagate` | boolean |  | Inherit to sub-paths (default true) |
 | `delete` | boolean |  | Revoke the roles instead of granting them |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_permissions
 
@@ -2895,6 +3035,7 @@ List API tokens (full ID user@realm!name, privilege separation, expiry, comment)
 |---|---|---|---|
 | `userid` | string |  | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_api_token
 
@@ -2920,6 +3061,7 @@ Create an API token for a user. The result contains the token SECRET, which Prox
 | `comment` | string |  | Comment |
 | `expire` | integer \| string |  | Expiry as UNIX seconds or an ISO date/time (e.g. 2027-01-31 or 2027-01-31T12:00:00Z); 0 = never expires |
 | `privsep` | boolean |  | Privilege separation: restrict the token with its own ACLs (default true) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_api_token
 
@@ -2936,6 +3078,7 @@ Change an API token's comment, expiry or privilege separation. regenerate=true i
 | `privsep` | boolean |  | Privilege separation (true = token limited to its own ACLs) |
 | `regenerate` | boolean |  | Generate a new secret; everything using the old one loses access |
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_api_token
 
@@ -2947,6 +3090,7 @@ Delete (revoke) an API token; anything using it loses access immediately.
 |---|---|---|---|
 | `userid` | string | yes | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
 | `tokenid` | string | yes | Token name (the part after '!', e.g. 'automation' for alice@pve!automation) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_realms
 
@@ -2954,7 +3098,10 @@ Delete (revoke) an API token; anything using it loses access immediately.
 
 List authentication realms (pam, pve, LDAP, Active Directory, OpenID Connect) with type, TFA provider and comment.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_realm
 
@@ -3000,6 +3147,7 @@ Create (create=true, with `type`) or update an authentication realm: LDAP/AD (se
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_realm
 
@@ -3010,6 +3158,7 @@ Delete an authentication realm. Users of that realm can no longer log in (their 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `realm` | string | yes | Realm (authentication domain) ID, e.g. pam, pve or a configured LDAP/AD/OpenID realm (see proxmox_list_realms) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_sync_realm
 
@@ -3035,6 +3184,8 @@ List users' second factors (TOTP, WebAuthn, recovery keys, Yubico) with type, de
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `userid` | string |  | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_delete_tfa
 
@@ -3047,6 +3198,7 @@ Remove one second factor from a user (e.g. a lost authenticator); get the ID fro
 | `userid` | string | yes | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
 | `id` | string | yes | TFA entry ID (from proxmox_list_tfa) |
 | `password` | string |  | Current password of the user making the change, if Proxmox requires it |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_unlock_tfa
 
@@ -3057,6 +3209,7 @@ Clear a user's TFA lock-out after too many failed second-factor attempts (see to
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `userid` | string | yes | User ID in name@realm form, e.g. alice@pve or root@pam (see proxmox_list_users) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_realm_sync_jobs
 
@@ -3064,7 +3217,10 @@ Clear a user's TFA lock-out after too many failed second-factor attempts (see to
 
 List scheduled realm sync jobs (periodic LDAP/AD/OpenID user and group sync) with schedule, last and next run.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_save_realm_sync_job
 
@@ -3084,6 +3240,7 @@ Create (create=true, with realm and schedule) or update a scheduled realm sync j
 | `remove_vanished` | string |  | 'none' or a ;-list of acl, properties, entry |
 | `comment` | string |  | Comment |
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_realm_sync_job
 
@@ -3094,6 +3251,7 @@ Delete a scheduled realm sync job (the realm and synced users stay).
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | yes | Job ID |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## firewall
 
@@ -3136,6 +3294,8 @@ List the firewall rules of the datacenter (cluster), a node, a VM/container (gue
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_firewall_rule
 
@@ -3182,6 +3342,7 @@ Create a firewall rule (no `pos`; type and action required) or update the rule a
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_firewall_rule
 
@@ -3197,6 +3358,7 @@ Delete the firewall rule at `pos` (cluster, node, guest or security group). Late
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `pos` | integer | yes | Position of the rule to delete |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_firewall_options
 
@@ -3252,6 +3414,7 @@ Change firewall options at datacenter (cluster), node or guest level; only the g
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_firewall_aliases
 
@@ -3265,6 +3428,7 @@ List IP/network aliases defined at datacenter (cluster) or guest level. Aliases 
 | `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_save_firewall_alias
 
@@ -3282,6 +3446,7 @@ Create an IP/network alias, or update it if it already exists (cidr/comment; `ne
 | `comment` | string |  | Comment |
 | `new_name` | string |  | Rename the existing alias to this |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_firewall_alias
 
@@ -3296,6 +3461,7 @@ Delete an IP/network alias at datacenter (cluster) or guest level. Fails while r
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | Alias name |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_firewall_ipsets
 
@@ -3310,6 +3476,7 @@ List IP sets at datacenter (cluster) or guest level with their entries (CIDRs, n
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string |  | Only this IP set |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_save_firewall_ipset
 
@@ -3326,6 +3493,7 @@ Create an IP set, or update an existing one's comment / rename it (`new_name`). 
 | `comment` | string |  | Comment |
 | `new_name` | string |  | Rename the existing IP set to this |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_firewall_ipset
 
@@ -3340,6 +3508,7 @@ Delete an IP set at datacenter (cluster) or guest level. Fails if it still has e
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | IP set name |
 | `force` | boolean |  | Also delete all its entries |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_ipset_entry
 
@@ -3357,6 +3526,7 @@ Add an IP/network to an IP set, or update an existing entry's comment/nomatch fl
 | `comment` | string |  | Comment |
 | `nomatch` | boolean |  | Exclude this address from the set instead of including it |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ipset_entry
 
@@ -3372,6 +3542,7 @@ Remove an IP/network from an IP set at datacenter (cluster) or guest level.
 | `ipset` | string | yes | IP set name |
 | `cidr` | string | yes | The entry to remove, exactly as listed, e.g. 10.0.0.0/24 |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_firewall_groups
 
@@ -3382,6 +3553,7 @@ List the datacenter's security groups (reusable rule sets) with their comment an
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_save_firewall_group
 
@@ -3395,6 +3567,7 @@ Create a datacenter security group, or update an existing one's comment / rename
 | `comment` | string |  | Comment |
 | `new_name` | string |  | Rename the existing group to this |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_firewall_group
 
@@ -3405,6 +3578,7 @@ Delete a datacenter security group. Proxmox refuses while the group still has ru
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `group` | string | yes | Security group name |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_firewall_log
 
@@ -3435,6 +3609,8 @@ List the aliases and IP sets that can be used in rule source/dest at datacenter 
 | `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `type` | `"alias"` \| `"ipset"` |  | Only aliases or only IP sets |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_firewall_macros
 
@@ -3445,6 +3621,7 @@ List the predefined firewall macros (SSH, HTTP, DNS, Ceph, ...) usable as a rule
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_guest_firewall_status
 
@@ -3500,6 +3677,7 @@ List HA-managed VMs and containers with their requested state, group, restart/re
 | `type` | `"vm"` \| `"ct"` |  | Only VMs or only containers |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ha_resource
 
@@ -3530,6 +3708,7 @@ Put a VM/container under HA management, or update its HA settings if it already 
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ha_resource
 
@@ -3541,6 +3720,7 @@ Take a VM/container out of HA management (the guest itself is untouched and keep
 |---|---|---|---|
 | `sid` | string \| integer | yes | HA resource ID like vm:100 or ct:200, or just the VMID (100) which is resolved to vm:/ct: automatically |
 | `purge` | boolean |  | Also remove it from HA rules (default true) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_ha_migrate
 
@@ -3553,6 +3733,7 @@ Ask the HA manager to move an HA-managed guest to another node. migrate = live/o
 | `sid` | string \| integer | yes | HA resource ID like vm:100 or ct:200, or just the VMID (100) which is resolved to vm:/ct: automatically |
 | `action` | `"migrate"` \| `"relocate"` | yes | migrate (online) or relocate (stop + start) |
 | `node` | string | yes | Target node |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_ha_groups
 
@@ -3560,7 +3741,10 @@ Ask the HA manager to move an HA-managed guest to another node. migrate = live/o
 
 List HA groups (node lists with priorities, restricted, nofailback). Deprecated in PVE 9, where groups are migrated to node-affinity rules (proxmox_list_ha_rules).
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ha_group
 
@@ -3588,6 +3772,7 @@ Create an HA group or update an existing one (PVE 8; on PVE 9 use proxmox_save_h
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ha_group
 
@@ -3598,6 +3783,7 @@ Delete an HA group (PVE 8). Fails while HA resources still use it.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `group` | string | yes | HA group name |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_ha_rules
 
@@ -3609,6 +3795,8 @@ List HA rules (PVE 9+): node-affinity rules (which nodes resources prefer or mus
 |---|---|---|---|
 | `type` | `"node-affinity"` \| `"resource-affinity"` |  | Only this rule type |
 | `resource` | string \| integer |  | Only rules affecting this resource (vm:100, ct:200 or a VMID) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ha_rule
 
@@ -3639,6 +3827,7 @@ Create or update an HA rule (PVE 9+). node-affinity: run `resources` on `nodes` 
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ha_rule
 
@@ -3649,6 +3838,7 @@ Delete an HA rule (PVE 9+). The resources it referenced stay HA-managed.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `rule` | string | yes | HA rule ID |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_set_ha_armed
 
@@ -3660,6 +3850,7 @@ Disarm the HA stack cluster-wide (releases all watchdogs, so nodes won't self-fe
 |---|---|---|---|
 | `action` | `"arm"` \| `"disarm"` | yes | arm or disarm |
 | `resource_mode` | `"freeze"` \| `"ignore"` |  | How HA resources are handled while disarmed (required for disarm) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## sdn
 
@@ -3702,6 +3893,7 @@ List Software-Defined Networking objects of one kind: zones, vnets, subnets of a
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_sdn_object
 
@@ -3809,6 +4001,7 @@ Create (create=true) or update an SDN zone. Zone types: simple (isolated, option
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_vnet
 
@@ -3829,6 +4022,7 @@ Create (create=true) or update an SDN vnet: a virtual network in a zone that gue
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_subnet
 
@@ -3850,6 +4044,7 @@ Create (create=true) or update a subnet of an SDN vnet: gateway, SNAT and DHCP r
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_controller
 
@@ -3879,6 +4074,7 @@ Create (create=true) or update an SDN controller: evpn (the BGP-EVPN control pla
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_ipam
 
@@ -3899,6 +4095,7 @@ Create (create=true) or update an IPAM plugin: pve (built-in), netbox or phpipam
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_dns
 
@@ -3920,6 +4117,7 @@ Create (create=true) or update an SDN DNS plugin (PowerDNS) used to register gue
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_sdn_object
 
@@ -3933,6 +4131,7 @@ Delete an SDN zone, vnet, subnet, controller, IPAM or DNS plugin. Objects still 
 | `id` | string | yes | Object ID (for subnets the CIDR or subnet ID) |
 | `vnet` | string |  | VNet the subnet belongs to (required for kind=subnet) |
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_save_sdn_vnet_ip
 
@@ -3948,6 +4147,7 @@ Create (create=true) or update an IP-to-MAC mapping in a vnet's IPAM, e.g. to re
 | `mac` | string |  | MAC address to associate |
 | `vmid` | integer |  | VM/container ID owning the IP (update only) |
 | `create` | boolean |  | Create a new object (default false = update an existing one; only the given fields change) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_sdn_vnet_ip
 
@@ -3961,6 +4161,7 @@ Remove an IP mapping (IPAM entry) from a vnet, freeing the address.
 | `zone` | string |  | Zone of the vnet (looked up from the vnet when omitted) |
 | `ip` | string | yes | IP address to remove |
 | `mac` | string |  | MAC address of the mapping |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_apply_sdn
 
@@ -3973,6 +4174,7 @@ Apply all pending SDN changes: writes the network and FRR configuration to every
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `release_lock` | boolean |  | With lock_token: release the lock after applying (default true) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_rollback_sdn
 
@@ -3984,6 +4186,7 @@ Roll back all pending (not yet applied) SDN changes to the running configuration
 |---|---|---|---|
 | `lock_token` | string |  | SDN lock token, only needed when the global SDN configuration has been locked by someone else (PVE 9); normally omit |
 | `release_lock` | boolean |  | With lock_token: release the lock afterwards (default true) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## ceph
 
@@ -4045,6 +4248,7 @@ List Ceph OSDs from the OSD tree: host, up/down, in/out, device class, usage, PG
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 1000) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ceph_osd
 
@@ -4068,6 +4272,7 @@ List Ceph pools with replication (size/min_size), PG count and autoscale mode (w
 | `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ceph_pool
 
@@ -4101,6 +4306,8 @@ List CephFS file systems with their metadata and data pools. MDS daemons serving
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_ceph_flags
 
@@ -4180,6 +4387,7 @@ Mark an OSD in or out of data placement, or start a (deep) scrub. Marking out st
 | `osdid` | integer | yes | OSD ID number, e.g. 3 for osd.3 |
 | `action` | `"in"` \| `"out"` \| `"scrub"` \| `"deep-scrub"` | yes | What to do |
 | `node` | string |  | Node hosting the OSD (looked up when omitted) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_ceph_osd
 
@@ -4200,6 +4408,7 @@ Create a Ceph OSD on an unused disk of a node. DESTROYS ALL DATA on the disk (an
 | `osds_per_device` | integer |  | OSDs per device (fast NVMe only; excludes db_dev/wal_dev) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ceph_osd
 
@@ -4213,6 +4422,7 @@ Destroy an OSD and remove it from the cluster. The OSD must be out and stopped f
 | `node` | string |  | Node hosting the OSD (looked up when omitted) |
 | `cleanup` | boolean |  | Also zap the logical volumes and wipe the disk |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_ceph_pool
 
@@ -4237,6 +4447,7 @@ Create a Ceph pool, optionally erasure-coded and optionally added as Proxmox sto
 | `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_ceph_pool
 
@@ -4259,6 +4470,7 @@ Change a pool's size/min_size, PG count, autoscaler, application or CRUSH rule. 
 | `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ceph_pool
 
@@ -4274,6 +4486,7 @@ Destroy a Ceph pool and ALL data in it. Refused while in use unless force=true. 
 | `remove_ecprofile` | boolean |  | Remove the erasure-code profile (default true where applicable) |
 | `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_ceph_service
 
@@ -4289,6 +4502,7 @@ Create a Ceph monitor (mon), manager (mgr) or metadata server (mds) on a node. T
 | `mon_address` | string[] |  | mon only: IP address(es) in the Ceph public network (default auto-detected) |
 | `hotstandby` | boolean |  | mds only: poll the active MDS's log for faster failover |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ceph_service
 
@@ -4302,6 +4516,7 @@ Destroy a Ceph monitor, manager or metadata server. The last monitor can't be re
 | `node` | string | yes | Node to act on (where the daemon/disk is) |
 | `id` | string | yes | Daemon ID (see proxmox_list_ceph_services) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_create_ceph_fs
 
@@ -4316,6 +4531,7 @@ Create a CephFS file system (with its data and metadata pools). Needs at least o
 | `pg_num` | integer |  | PGs of the data pool (default 128; metadata pool gets a quarter) |
 | `add_storage` | boolean |  | Add it as Proxmox storage |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_ceph_fs
 
@@ -4330,6 +4546,7 @@ Destroy a CephFS file system. Refused while an enabled Proxmox cephfs storage us
 | `remove_pools` | boolean |  | Also remove the data and metadata pools |
 | `remove_storages` | boolean |  | Also remove the Proxmox storage entries for it |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_set_ceph_flags
 
@@ -4351,6 +4568,7 @@ Set (true) or clear (false) cluster-wide Ceph OSD flags; omitted flags are left 
 | `noup` | boolean |  | true sets, false clears: don't allow OSDs to start |
 | `pause` | boolean |  | true sets, false clears: pause ALL client reads and writes |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_mute_ceph_health_check
 
@@ -4364,6 +4582,7 @@ Mute (or unmute) a Ceph health check such as AUTH_INSECURE_CLIENT_KEY_TYPE so it
 | `mute` | boolean |  | true to mute (default), false to unmute |
 | `ttl` | string |  | Mute duration, e.g. '2h', '3d', '1w' (default no expiry) |
 | `sticky` | boolean |  | Keep the mute even if the check gets worse |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_control_ceph_service
 
@@ -4377,6 +4596,7 @@ Start, stop or restart Ceph services on a node: all of them (default ceph.target
 | `node` | string | yes | Node to act on (where the daemon/disk is) |
 | `service` | string |  | Service as <type>[.<id>], e.g. osd.3, mon.pve1 or osd (all OSDs); default ceph.target = all Ceph services on the node |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_init_ceph
 
@@ -4392,6 +4612,7 @@ Create the initial Ceph configuration (ceph.conf) for the cluster with the publi
 | `size` | integer |  | Default pool replicas (default 3) |
 | `min_size` | integer |  | Default pool min_size (default 2) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## pools
 
@@ -4414,6 +4635,7 @@ List resource pools (groups of VMs, containers and storage used for permissions 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_pool
 
@@ -4437,6 +4659,7 @@ Create a resource pool. Add VMs, containers and storage to it with proxmox_updat
 |---|---|---|---|
 | `poolid` | string | yes | Pool ID, e.g. "production" (nested pools as "parent/child"; see proxmox_list_pools) |
 | `comment` | string |  | Description |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_update_pool
 
@@ -4453,6 +4676,7 @@ Change a resource pool's comment and add or remove member guests and storage. A 
 | `add_storage` | string[] |  | Storage IDs to add |
 | `remove_storage` | string[] |  | Storage IDs to remove |
 | `allow_move` | boolean |  | Move added guests out of their current pool instead of failing |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_pool
 
@@ -4463,6 +4687,7 @@ Delete a resource pool. It must be empty: remove its members with proxmox_update
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `poolid` | string | yes | Pool ID, e.g. "production" (nested pools as "parent/child"; see proxmox_list_pools) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## replication
 
@@ -4488,6 +4713,8 @@ List storage replication jobs (ZFS-based guest replication to another node) with
 | `guest` | integer |  | Only jobs for this guest VMID |
 | `target` | string |  | Only jobs replicating to this node |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_replication_job
 
@@ -4518,6 +4745,7 @@ Create a replication job for a guest (pass `guest` and `target`; the job number 
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_replication_job
 
@@ -4530,6 +4758,7 @@ Mark a replication job for removal. The job then removes its replication snapsho
 | `id` | string | yes | Replication job ID: <guest VMID>-<job number>, e.g. "100-0" (see proxmox_list_replication_jobs) |
 | `keep` | boolean |  | Keep the replicated data on the target node |
 | `force` | boolean |  | Remove the job config immediately without any cleanup |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_run_replication_now
 
@@ -4542,6 +4771,7 @@ Schedule a replication job to run as soon as possible instead of waiting for its
 | `id` | string | yes | Replication job ID: <guest VMID>-<job number>, e.g. "100-0" (see proxmox_list_replication_jobs) |
 | `node` | string |  | Node the guest currently runs on (the replication source). Looked up from the guest when omitted. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_replication_log
 
@@ -4582,6 +4812,8 @@ List all notification targets (endpoints of every type: sendmail, smtp, gotify, 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `details` | boolean |  | Include each endpoint's full configuration (one extra call per type) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_notification_endpoint
 
@@ -4626,6 +4858,7 @@ Create (create=true) or update a notification endpoint of any type. Only the giv
 | `delete` | string[] |  | Settings to remove/reset, e.g. ["comment", "mailto-user"] (Proxmox names) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_notification_endpoint
 
@@ -4637,6 +4870,7 @@ Delete a notification endpoint (the type is looked up when omitted). Remove it f
 |---|---|---|---|
 | `name` | string | yes | Endpoint/target name (see proxmox_list_notification_targets) |
 | `type` | `"sendmail"` \| `"smtp"` \| `"gotify"` \| `"webhook"` |  | Endpoint type: sendmail (local mail), smtp, gotify or webhook |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_test_notification_target
 
@@ -4647,6 +4881,7 @@ Send a test notification to a target to check it is configured correctly (mail d
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Endpoint/target name (see proxmox_list_notification_targets) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_notification_matchers
 
@@ -4654,7 +4889,10 @@ Send a test notification to a target to check it is configured correctly (mail d
 
 List notification matchers: rules that route notifications (by severity, metadata fields such as type/hostname/job-id, and calendar time) to targets.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_notification_matcher
 
@@ -4687,6 +4925,7 @@ Create (create=true) or update a notification matcher. Given lists replace the e
 | `delete` | string[] |  | Settings to remove/reset, e.g. ["comment", "mailto-user"] (Proxmox names) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_notification_matcher
 
@@ -4697,6 +4936,7 @@ Delete a notification matcher. Notifications it routed will no longer reach its 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Matcher name (see proxmox_list_notification_matchers) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_notification_matcher_fields
 
@@ -4740,6 +4980,7 @@ List a node's PCI devices for passthrough planning: address, class, vendor/devic
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 500) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_node_mdev_types
 
@@ -4751,6 +4992,8 @@ List the mediated device (mdev, e.g. NVIDIA vGPU / Intel GVT-g) types a PCI devi
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `pci_id` | string | yes | PCI address (e.g. 0000:01:00.0) or the ID of a PCI resource mapping |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_node_usb_devices
 
@@ -4762,6 +5005,7 @@ List a node's USB devices for passthrough: vendor:product ID, manufacturer and p
 |---|---|---|---|
 | `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_node_capabilities
 
@@ -4786,6 +5030,7 @@ List cluster resource mappings of one kind: PCI or USB devices, or directories (
 | `kind` | `"pci"` \| `"usb"` \| `"dir"` | yes | Mapping kind: pci (passthrough devices), usb, or dir (virtiofs directories) |
 | `check_node` | string |  | Validate the mappings against this node's hardware and report problems |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_resource_mapping
 
@@ -4816,6 +5061,7 @@ Create (create=true) or update a cluster resource mapping for PCI or USB passthr
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_resource_mapping
 
@@ -4827,6 +5073,7 @@ Delete a PCI, USB or directory resource mapping. VMs still referencing it will f
 |---|---|---|---|
 | `kind` | `"pci"` \| `"usb"` \| `"dir"` | yes | Mapping kind: pci (passthrough devices), usb, or dir (virtiofs directories) |
 | `id` | string | yes | Mapping ID |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_custom_cpu_models
 
@@ -4837,6 +5084,8 @@ List cluster-wide custom CPU models (base model plus flag changes). VMs use them
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_get_custom_cpu_model
 
@@ -4868,6 +5117,7 @@ Create (create=true) or update a custom CPU model, e.g. a migration-safe baselin
 | `delete` | string[] |  | Config keys to remove/reset to default, e.g. ["net1", "description"] (sent as the API's `delete` parameter) |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_delete_custom_cpu_model
 
@@ -4878,6 +5128,7 @@ Delete a custom CPU model. VMs still using it (cpu: custom-<name>) will fail to 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Model name, with or without the 'custom-' prefix |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## raw
 
@@ -4899,6 +5150,7 @@ Call any Proxmox VE API endpoint directly, for anything the other tools don't co
 | `path` | string | yes | Path relative to /api2/json, starting with / |
 | `params` | object |  | API parameters (booleans are sent as 1/0, arrays as repeated keys) |
 | `redact` | boolean |  | Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true) |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## Prompts
 

@@ -89,6 +89,9 @@ func serve() error {
 		writes += " (with exec)"
 	}
 	log.Printf("proxmox-mcp %s: Proxmox %s, auth %s, writes %s, toolsets %d, transport %s", tools.Version, cfg.Proxmox.URL, auth, writes, len(t.Toolsets), cfg.Transport)
+	if t.AuditLog != "" {
+		log.Printf("Audit log: %s", t.AuditLog)
+	}
 	p := cfg.Proxmox
 	if strings.HasPrefix(strings.ToLower(p.URL), "http:") {
 		log.Printf("WARNING: PROXMOX_URL uses plain http://, so the API token or password and every response travel in cleartext. Use https:// (port 8006) unless this is a trusted local link.")

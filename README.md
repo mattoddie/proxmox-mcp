@@ -36,11 +36,12 @@ Ask about your cluster in plain English. The assistant picks from **300+ tools**
 ## Highlights
 
 - **🐳 Docker-first.** There's one small, distroless image (`ghcr.io/mattoddie/proxmox-mcp`) for `linux/amd64` and `linux/arm64`. It serves Streamable HTTP for a long-running service, or stdio for `docker run -i`.
-- **🛡️ Safe by default.** The server is read-only unless you turn on writes. Deleting needs a second switch, and running commands inside guests needs a third. Tools that aren't allowed aren't registered at all, destructive tools are labelled so your MCP client asks before running them, and passwords and keys are redacted from output.
+- **🖱️ One-click Claude Desktop install.** Each release has an MCP Bundle (`.mcpb`) for macOS, Windows and Linux: open it and fill in a settings form. No Docker needed.
+- **🛡️ Safe by default.** The server is read-only unless you turn on writes. Deleting needs a second switch, and running commands inside guests needs a third. Tools that aren't allowed aren't registered at all, destructive tools are labelled so your MCP client asks before running them, every change can be previewed with `dry_run` and recorded in an audit log, and passwords and keys are redacted from output.
 - **🧰 Broad coverage.** It covers 19 toolsets: cluster, nodes, VMs, containers, guest agent, snapshots, storage, backups, tasks, access control, firewall, HA, SDN, Ceph, pools, replication, notifications, hardware and a raw API tool.
 - **⏱️ Task-aware.** Long operations such as starts, clones, migrations and backups run as Proxmox tasks. Tools wait for them and report the result with the end of the task log, or hand back the task ID to follow up later.
 - **🎯 Addressed by VMID.** Ask about VM 100 and the server finds which node it's on. Single-node installs need no node names at all.
-- **🎛️ Tunable.** Expose only the toolsets you need, which keeps the model's context small and focused.
+- **🎛️ Tunable.** Expose only the toolsets you need, and list tools take `search`, `fields` and `limit`, which keeps the model's context small and focused.
 - **🔑 Least privilege.** Use a dedicated API token scoped with Proxmox's own roles and ACLs, so Proxmox enforces the limits too.
 - **🧪 Tested.** The test suite runs against a mock Proxmox API on every build.
 
@@ -80,7 +81,9 @@ claude mcp add --transport http proxmox http://<docker-host>:8080/mcp \
 
 Now ask *"How's my Proxmox cluster doing?"* in Claude Code.
 
-Using **Claude Desktop, VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`.
+**On Claude Desktop?** Skip Docker: download the `.mcpb` bundle for your computer from the [latest release](https://github.com/mattoddie/proxmox-mcp/releases/latest), open it, and fill in the settings form. See [Claude Desktop](docs/clients.md#claude-desktop).
+
+Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`.
 
 ## Turning on changes
 
@@ -91,9 +94,10 @@ PROXMOX_ALLOW_WRITES=true    # start/stop guests, create, clone, migrate, reconf
 PROXMOX_ALLOW_DELETES=true   # also allow deleting guests, snapshots, backups and configuration (needs writes)
 PROXMOX_ALLOW_EXEC=true      # also allow commands and file access inside VMs via the guest agent (needs writes)
 PROXMOX_TOOLSETS=cluster,nodes,vms,containers,snapshots,backup,tasks   # optional: expose fewer tools
+PROXMOX_AUDIT_LOG=/audit/audit.jsonl    # optional: log every change as JSON (mount ./audit; see compose.yaml)
 ```
 
-The token needs matching Proxmox permissions too. Read [Security](docs/security.md) before turning on writes for a production cluster.
+Every tool that changes something takes `dry_run`, so you can ask the assistant to show you a change before it makes it. The token needs matching Proxmox permissions too. Read [Security](docs/security.md) before turning on writes for a production cluster.
 
 ## What it can do
 

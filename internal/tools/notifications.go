@@ -155,6 +155,7 @@ func registerNotifications(c *Context) {
 
 	c.Define("proxmox_list_notification_targets", Def{
 		Toolset:     notificationsToolset,
+		List:        &listing{},
 		Title:       "List notification targets",
 		Description: "List all notification targets (endpoints of every type: sendmail, smtp, gotify, webhook) with type, disabled state, origin and comment. details=true adds each endpoint's configuration (secrets redacted). Matchers decide which notifications go to which target; see proxmox_list_notification_matchers.",
 		Input:       []Prop{P("details", Bool().Opt().D("Include each endpoint's full configuration (one extra call per type)"))},
@@ -427,6 +428,7 @@ func registerNotifications(c *Context) {
 
 	c.Define("proxmox_list_notification_matchers", Def{
 		Toolset:     notificationsToolset,
+		List:        &listing{},
 		Title:       "List notification matchers",
 		Description: "List notification matchers: rules that route notifications (by severity, metadata fields such as type/hostname/job-id, and calendar time) to targets.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {

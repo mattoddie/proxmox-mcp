@@ -26,9 +26,9 @@ func TestClusterRedaction(t *testing.T) {
 			{"id":"influx","type":"influxdb","server":"10.0.0.5","port":8086,"token":"abc"},
 			{"id":"otel","type":"opentelemetry","server":"otel.lan","port":4318,"otel-headers":"eyJBdXRob3JpemF0aW9uIjoiQmVhcmVyIHgifQ=="}]`)
 		res := env.call(t, "proxmox_list_metric_servers", nil)
-		eqAt(t, res, "0.token", "<redacted>")
-		eqAt(t, res, "1.otel-headers", "<redacted>")
-		eqAt(t, res, "1.server", "otel.lan")
+		eqAt(t, res, "items.0.token", "<redacted>")
+		eqAt(t, res, "items.1.otel-headers", "<redacted>")
+		eqAt(t, res, "items.1.server", "otel.lan")
 	})
 }
 

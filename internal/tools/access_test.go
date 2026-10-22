@@ -337,8 +337,8 @@ func TestAccess(t *testing.T) {
 		env.mock.Reply("GET", `^/access/domains$`, `[{"realm":"pam","type":"pam","comment":"Linux PAM"},{"realm":"corp","type":"ldap","tfa":"oath"},{"realm":"yk","type":"pve","tfa":"type=yubico,id=42,key=yubisecret,url=https://yk"}]`)
 		env.mock.Reply("GET", `^/access/domains/corp$`, `{"type":"ldap","server1":"ldap.corp","base_dn":"dc=corp","bind_dn":"cn=bind,dc=corp","password":"bindpw","client-key":"oidc-secret","digest":"d1"}`)
 		list := env.call(t, "proxmox_list_realms", nil)
-		eqAt(t, list, "1", `{"realm":"corp","type":"ldap","tfa":"oath"}`)
-		eqAt(t, list, "2.tfa", "type=yubico,id=42,key=<redacted>,url=https://yk")
+		eqAt(t, list, "items.1", `{"realm":"corp","type":"ldap","tfa":"oath"}`)
+		eqAt(t, list, "items.2.tfa", "type=yubico,id=42,key=<redacted>,url=https://yk")
 		r := env.call(t, "proxmox_get_realm", `{"realm":"corp"}`)
 		eqAt(t, r, "realm", "corp")
 		eqAt(t, r, "server1", "ldap.corp")
@@ -400,15 +400,15 @@ func TestAccess(t *testing.T) {
 			{"userid":"alice@pve","totp-locked":1,"tfa-locked-until":%d,"entries":[{"id":"t1","type":"totp","description":"phone","created":1700000000,"enable":0}]}]`, accessTestFuture))
 		env.mock.Reply("GET", `^/access/tfa/alice%40pve$`, `[{"id":"t1","type":"totp","description":"phone","created":1700000000,"enable":1}]`)
 		all := env.call(t, "proxmox_list_tfa", nil)
-		eqAt(t, all, "0.userid", "alice@pve")
-		eqAt(t, all, "0.totp_locked", true)
-		truthy(t, at(all, "0.tfa_locked_until"))
-		eqAt(t, all, "0.entries.0.enabled", false)
-		eqAt(t, all, "1.entries.0", js.O("id", "r1", "type", "recovery", "created", accessISO(1700000000), "enabled", true))
+		eqAt(t, all, "items.0.userid", "alice@pve")
+		eqAt(t, all, "items.0.totp_locked", true)
+		truthy(t, at(all, "items.0.tfa_locked_until"))
+		eqAt(t, all, "items.0.entries.0.enabled", false)
+		eqAt(t, all, "items.1.entries.0", js.O("id", "r1", "type", "recovery", "created", accessISO(1700000000), "enabled", true))
 
 		one := env.call(t, "proxmox_list_tfa", `{"userid":"alice@pve"}`)
 		eqAt(t, one, "userid", "alice@pve")
-		eqAt(t, one, "entries.0.description", "phone")
+		eqAt(t, one, "items.0.description", "phone")
 	})
 
 	t.Run("deletes TFA entries and unlocks TFA", func(t *testing.T) {
@@ -431,7 +431,7 @@ func TestAccess(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/jobs/realm-sync$`, `[{"id":"nightly","realm":"corp","enabled":1,"schedule":"daily","scope":"both","last-run":1700000000,"next-run":1700086400}]`)
 		env.mock.Reply("GET", `^/cluster/jobs/realm-sync/nightly$`, `{"id":"nightly","realm":"corp","schedule":"daily"}`)
 		jobs := env.call(t, "proxmox_list_realm_sync_jobs", nil)
-		eqAt(t, jobs, "0", js.O("id", "nightly", "realm", "corp", "enabled", true, "schedule", "daily", "scope", "both",
+		eqAt(t, jobs, "items.0", js.O("id", "nightly", "realm", "corp", "enabled", true, "schedule", "daily", "scope", "both",
 			"last_run", accessISO(1700000000), "next_run", accessISO(1700086400)))
 
 		env.call(t, "proxmox_save_realm_sync_job", `{"id":"nightly","create":true,"realm":"corp","schedule":"daily","scope":"users","enable_new":false}`)

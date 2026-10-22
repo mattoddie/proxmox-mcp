@@ -8,3 +8,4 @@ website
 *.md
 docs
 !docs/tools.md
+dist

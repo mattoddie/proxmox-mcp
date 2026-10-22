@@ -429,6 +429,7 @@ func registerBackup(c *Context) {
 
 	c.Define("proxmox_list_backup_jobs", Def{
 		Toolset:     "backup",
+		List:        &listing{},
 		Title:       "List backup jobs",
 		Description: "List the cluster's scheduled backup (vzdump) jobs: schedule, next run, enabled, target storage, mode, which guests (all/VMID list/pool, exclusions), compression and retention. See proxmox_get_backup_job for one job with the guests and disks it covers, and proxmox_list_unbacked_guests for guests no job covers.",
 		Input:       []Prop{P("search", searchArg), P("raw", rawArg)},
@@ -741,6 +742,7 @@ func registerBackup(c *Context) {
 
 	c.Define("proxmox_list_unbacked_guests", Def{
 		Toolset:     "backup",
+		List:        &listing{},
 		Title:       "List guests without backup job",
 		Description: "List VMs and containers that no backup job covers, with node and status. Use it to audit backup coverage; add them with proxmox_save_backup_job or back them up once with proxmox_backup_guests.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -856,6 +858,7 @@ func registerBackup(c *Context) {
 
 	c.Define("proxmox_list_backups", Def{
 		Toolset:     "backup",
+		List:        &listing{},
 		Title:       "List backups",
 		Description: "List backup archives across every storage that holds backups (local dirs, NFS/CIFS, Proxmox Backup Server...), newest first: volume ID, guest, time, size, format, notes, protection and PBS verification state. Filter by vmid, type, storage, node or age. Shared storages are listed once. Use the volid with proxmox_restore_backup, proxmox_get_backup_config, proxmox_update_backup or proxmox_delete_backup.",
 		Input: []Prop{
@@ -1272,6 +1275,7 @@ func registerBackup(c *Context) {
 
 	c.Define("proxmox_list_backup_files", Def{
 		Toolset:     "backup",
+		List:        &listing{Items: "entries", Limit: 500},
 		Title:       "Browse files in a PBS backup",
 		Description: "Browse the files inside a Proxmox Backup Server backup (single-file restore): start at path \"/\" to see the archives (disk images/filesystem archives), then drill into directories. Only works for PBS storages. Opening VM disk images starts a temporary restore VM on the node and can take a while on first access.",
 		Input: []Prop{

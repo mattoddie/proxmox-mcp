@@ -158,7 +158,7 @@ func TestHaTools(t *testing.T) {
 	run("groups/lists and gets groups", func(t *testing.T) {
 		groups()
 		env.mock.Reply("GET", `^/cluster/ha/groups/pref1$`, `{"nodes":"pve1:2,pve2:1","restricted":1,"digest":"g"}`)
-		eq(t, env.call(t, "proxmox_list_ha_groups", nil), `[{"group":"pref1","nodes":["pve1:2","pve2:1"],"restricted":false,"nofailback":true}]`)
+		eq(t, env.call(t, "proxmox_list_ha_groups", nil), `{"total":1,"returned":1,"items":[{"group":"pref1","nodes":["pve1:2","pve2:1"],"restricted":false,"nofailback":true}]}`)
 		eq(t, env.call(t, "proxmox_get_ha_group", `{"group":"pref1"}`), `{"group":"pref1","nodes":["pve1:2","pve2:1"],"restricted":true,"nofailback":false,"digest":"g"}`)
 	})
 
@@ -190,8 +190,8 @@ func TestHaTools(t *testing.T) {
 	run("rules/lists rules with filters", func(t *testing.T) {
 		rules()
 		out := env.call(t, "proxmox_list_ha_rules", `{"type":"resource-affinity","resource":100}`)
-		eqAt(t, out, "length", 2)
-		eqAt(t, out, "1", `{"rule":"apart","type":"resource-affinity","resources":["vm:100","vm:101"],"affinity":"negative","disabled":true,"comment":"spread"}`)
+		eqAt(t, out, "total", 2)
+		eqAt(t, out, "items.1", `{"rule":"apart","type":"resource-affinity","resources":["vm:100","vm:101"],"affinity":"negative","disabled":true,"comment":"spread"}`)
 		eq(t, env.mock.RequestsTo("/cluster/ha/rules", "")[0].Query, `{"type":"resource-affinity","resource":"vm:100"}`)
 	})
 

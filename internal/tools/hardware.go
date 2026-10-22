@@ -165,6 +165,7 @@ func registerHardware(c *Context) {
 
 	c.Define("proxmox_list_node_pci_devices", Def{
 		Toolset:     "hardware",
+		List:        &listing{},
 		Title:       "List PCI devices",
 		Description: "List a node's PCI devices for passthrough planning: address, class, vendor/device names and IDs, IOMMU group (with the other devices in the same group, which must be passed through together) and whether it supports mediated devices (vGPU). Memory controllers, bridges and processors are hidden unless all=true. IOMMU group -1 means IOMMU is off.",
 		Input: []Prop{
@@ -238,6 +239,7 @@ func registerHardware(c *Context) {
 
 	c.Define("proxmox_list_node_mdev_types", Def{
 		Toolset:     "hardware",
+		List:        &listing{Items: "types"},
 		Title:       "List mediated device types",
 		Description: "List the mediated device (mdev, e.g. NVIDIA vGPU / Intel GVT-g) types a PCI device offers, with how many instances are still available. Use a device with mdev support from proxmox_list_node_pci_devices.",
 		Input: []Prop{
@@ -261,6 +263,7 @@ func registerHardware(c *Context) {
 
 	c.Define("proxmox_list_node_usb_devices", Def{
 		Toolset:     "hardware",
+		List:        &listing{},
 		Title:       "List USB devices",
 		Description: "List a node's USB devices for passthrough: vendor:product ID, manufacturer and product names, bus/port path, speed and serial. Pass a device to a VM by ID (host=vendor:product) or port (host=bus-port), or via a USB resource mapping.",
 		Input:       []Prop{P("node", nodeArg), P("search", searchArg)},
@@ -376,6 +379,7 @@ func registerHardware(c *Context) {
 
 	c.Define("proxmox_list_resource_mappings", Def{
 		Toolset:     "hardware",
+		List:        &listing{},
 		Title:       "List resource mappings",
 		Description: "List cluster resource mappings of one kind: PCI or USB devices, or directories (for virtiofs), each mapping a logical name to the device/path on every node. VMs reference them as e.g. hostpci0: mapping=<id>, which allows migration. With check_node, Proxmox validates the entries for that node.",
 		Input: []Prop{
@@ -503,6 +507,7 @@ func registerHardware(c *Context) {
 
 	c.Define("proxmox_list_custom_cpu_models", Def{
 		Toolset:     "hardware",
+		List:        &listing{},
 		Title:       "List custom CPU models",
 		Description: "List cluster-wide custom CPU models (base model plus flag changes). VMs use them as cpu: custom-<name>. Related: proxmox_get_node_capabilities for built-in models and flags.",
 		Input:       []Prop{P("raw", rawArg)},

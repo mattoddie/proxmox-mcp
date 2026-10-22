@@ -40,20 +40,20 @@ func TestFirewallTools(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/firewall/rules$`, firewallTestRules)
 		out := env.call(t, "proxmox_list_firewall_rules", `{"scope":"cluster"}`)
 		eqAt(t, out, "scope", "cluster")
-		eqAt(t, out, "count", 3)
+		eqAt(t, out, "total", 3)
 		eqAt(t, out, "enabled", 2)
 		eqAt(t, out, "digest", "d1")
-		eq(t, pluck(at(out, "rules"), "pos"), "[0,1,2]")
-		eqAt(t, out, "rules.0.rule", "IN SSH(ACCEPT) -i net0 -source +dc/management -log info # admins")
-		eqAt(t, out, "rules.0.enable", true)
-		eqAt(t, out, "rules.1.enable", false)
+		eq(t, pluck(at(out, "items"), "pos"), "[0,1,2]")
+		eqAt(t, out, "items.0.rule", "IN SSH(ACCEPT) -i net0 -source +dc/management -log info # admins")
+		eqAt(t, out, "items.0.enable", true)
+		eqAt(t, out, "items.1.enable", false)
 	})
 
 	run("defaults to cluster scope and returns raw rules on request", func(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/firewall/rules$`, firewallTestRules)
 		out := env.call(t, "proxmox_list_firewall_rules", `{"raw":true}`)
 		eqAt(t, out, "scope", "cluster")
-		eqAt(t, out, "rules.0.digest", "d1")
+		eqAt(t, out, "items.0.digest", "d1")
 	})
 
 	run("infers node, guest and group scope from the arguments", func(t *testing.T) {

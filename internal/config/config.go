@@ -57,6 +57,34 @@ type Tools struct {
 	// (its `redact: false` argument); PROXMOX_ALLOW_UNREDACTED.
 	AllowUnredacted bool
 	Toolsets        map[string]bool
+	// AuditLog is where calls of tools that change things are logged (PROXMOX_AUDIT_LOG): a file
+	// path, AuditLogStderr, or "" for no log.
+	AuditLog string
+}
+
+// AuditLogStderr is the PROXMOX_AUDIT_LOG value that writes the audit log to standard error.
+const AuditLogStderr = "stderr"
+
+// AuditLogMode is the permission an audit log file is created with: only the server's user can
+// read it, since it records what was changed and with which arguments.
+const AuditLogMode = 0o600
+
+// OpenAuditLog opens an audit log file for appending, creating it if needed.
+func OpenAuditLog(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, AuditLogMode)
+}
+
+// CheckAuditLog checks that PROXMOX_AUDIT_LOG can be written, so a mistake is reported at
+// startup rather than on the first change.
+func CheckAuditLog(path string) error {
+	if path == "" || path == AuditLogStderr {
+		return nil
+	}
+	f, err := OpenAuditLog(path)
+	if err != nil {
+		return fmt.Errorf("PROXMOX_AUDIT_LOG: cannot write to %s: %s. Its directory must exist and be writable by the server (in Docker, mount a writable directory; the image runs as UID 65532)", path, errText(err))
+	}
+	return f.Close()
 }
 
 // AllTools enables every tool, for documentation and tests.
@@ -124,24 +152,38 @@ func MapEnv(m map[string]string) Env {
 	return func(k string) (string, bool) { v, ok := m[k]; return v, ok }
 }
 
-// read returns a trimmed variable ("" when unset or blank), also honouring the <NAME>_FILE
-// convention so secrets can be supplied as Docker secrets mounted under /run/secrets.
+// placeholder matches a ${user_config.<key>} reference that an MCP Bundle host such as Claude
+// Desktop passed through unchanged because the user left an optional setting empty. It means
+// "not set", not a value.
+var placeholder = regexp.MustCompile(`^\$\{user_config\.[^}]*\}$`)
+
+// lookup returns a variable as set, or "" when it is unset or an unfilled bundle placeholder.
+func lookup(env Env, name string) string {
+	v, _ := env(name)
+	if placeholder.MatchString(strings.TrimSpace(v)) {
+		return ""
+	}
+	return v
+}
+
+// read returns a trimmed variable ("" when unset, blank or an unfilled bundle placeholder), also
+// honouring the <NAME>_FILE convention so secrets can be supplied as Docker secrets mounted under
+// /run/secrets.
 func read(env Env, name string) (string, error) {
-	if file, _ := env(name + "_FILE"); file != "" {
+	if file := strings.TrimSpace(lookup(env, name+"_FILE")); file != "" {
 		b, err := os.ReadFile(file)
 		if err != nil {
 			return "", fmt.Errorf("Could not read %s_FILE (%s): %s", name, file, errText(err))
 		}
 		return strings.TrimSpace(string(b)), nil
 	}
-	v, _ := env(name)
-	return strings.TrimSpace(v), nil
+	return strings.TrimSpace(lookup(env, name)), nil
 }
 
 // readSecret is read for a value that may legitimately start or end with spaces, such as a
 // password: the environment value is kept as is, and a _FILE only loses its final line break.
 func readSecret(env Env, name string) (string, error) {
-	if file, _ := env(name + "_FILE"); file != "" {
+	if file := strings.TrimSpace(lookup(env, name+"_FILE")); file != "" {
 		b, err := os.ReadFile(file)
 		if err != nil {
 			return "", fmt.Errorf("Could not read %s_FILE (%s): %s", name, file, errText(err))
@@ -149,8 +191,7 @@ func readSecret(env Env, name string) (string, error) {
 		s := strings.TrimSuffix(string(b), "\n")
 		return strings.TrimSuffix(s, "\r"), nil
 	}
-	v, _ := env(name)
-	return v, nil
+	return lookup(env, name), nil
 }
 
 // ErrTLSChoiceRequired is returned for an https PROXMOX_URL with no way to check the certificate chosen.
@@ -345,6 +386,7 @@ func Load(env Env) (*Config, error) {
 	allowDeletes := boolValue(get("PROXMOX_ALLOW_DELETES"), false)
 	allowExec := boolValue(get("PROXMOX_ALLOW_EXEC"), false)
 	allowUnredacted := boolValue(get("PROXMOX_ALLOW_UNREDACTED"), false)
+	auditLog := get("PROXMOX_AUDIT_LOG")
 	if firstErr != nil {
 		return nil, firstErr
 	}
@@ -353,6 +395,10 @@ func Load(env Env) (*Config, error) {
 	}
 	if allowExec && !allowWrites {
 		return nil, errors.New("PROXMOX_ALLOW_EXEC=true also requires PROXMOX_ALLOW_WRITES=true")
+	}
+
+	if err := CheckAuditLog(auditLog); err != nil {
+		return nil, err
 	}
 
 	toolsetList := get("PROXMOX_TOOLSETS")
@@ -443,7 +489,7 @@ func Load(env Env) (*Config, error) {
 			TaskTimeoutMs:   taskTimeoutMs,
 			DefaultNode:     defaultNode,
 		},
-		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets},
+		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets, AuditLog: auditLog},
 		Transport: transport,
 		HTTP: HTTP{
 			Host:                 host,

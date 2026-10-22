@@ -349,6 +349,7 @@ func registerContainers(c *Context) {
 
 	c.Define("proxmox_list_containers", Def{
 		Toolset:     "containers",
+		List:        &listing{},
 		Title:       "List containers",
 		Description: "List LXC containers across the cluster with status, node, CPU, memory, disk, uptime, tags and pool. For VMs and containers together use proxmox_list_guests.",
 		Input: []Prop{

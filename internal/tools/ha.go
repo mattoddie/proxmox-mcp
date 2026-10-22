@@ -248,6 +248,7 @@ func registerHa(c *Context) {
 
 	c.Define("proxmox_list_ha_resources", Def{
 		Toolset:     "ha",
+		List:        &listing{},
 		Title:       "List HA resources",
 		Description: "List HA-managed VMs and containers with their requested state, group, restart/relocate limits, failback, comment, guest name and current status (node and CRM state).",
 		Input: []Prop{
@@ -444,6 +445,7 @@ func registerHa(c *Context) {
 
 	c.Define("proxmox_list_ha_groups", Def{
 		Toolset:     "ha",
+		List:        &listing{},
 		Title:       "List HA groups",
 		Description: "List HA groups (node lists with priorities, restricted, nofailback). Deprecated in PVE 9, where groups are migrated to node-affinity rules (proxmox_list_ha_rules).",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -529,6 +531,7 @@ func registerHa(c *Context) {
 
 	c.Define("proxmox_list_ha_rules", Def{
 		Toolset:     "ha",
+		List:        &listing{},
 		Title:       "List HA rules",
 		Description: "List HA rules (PVE 9+): node-affinity rules (which nodes resources prefer or must run on, with priorities) and resource-affinity rules (keep resources together or apart).",
 		Input: []Prop{

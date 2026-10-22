@@ -17,3 +17,7 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    # To keep an audit log (PROXMOX_AUDIT_LOG=/audit/audit.jsonl in .env), mount a directory the
+    # image's user (UID 65532) can write to:
+    # volumes:
+    #   - ./audit:/audit

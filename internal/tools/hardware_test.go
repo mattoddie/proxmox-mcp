@@ -75,8 +75,8 @@ func TestHardware(t *testing.T) {
 			return []any{js.O("type", "i915-GVTg_V5_4", "name", name, "available", 2, "description", "low_gm_size: 128MB")}
 		})
 		res := env.call(t, "proxmox_list_node_mdev_types", `{"pci_id":"0000:03:00.0"}`)
-		eqAt(t, res, "types.0.available", 2)
-		eqStr(t, at(res, "types.0.name"), "0000:03:00.0")
+		eqAt(t, res, "items.0.available", 2)
+		eqStr(t, at(res, "items.0.name"), "0000:03:00.0")
 	})
 
 	run("lists USB devices", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestHardware(t *testing.T) {
 
 	run("lists and gets custom CPU models", func(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/qemu/custom-cpu-models$`, `[{"cputype":"custom-safe","reported-model":"EPYC-Rome","flags":"+aes;-pcid","hidden":1,"digest":"x"}]`)
-		eq(t, env.call(t, "proxmox_list_custom_cpu_models", `{}`), `[{"name":"custom-safe","reported_model":"EPYC-Rome","flags":["+aes","-pcid"],"hidden":true}]`)
+		eq(t, env.call(t, "proxmox_list_custom_cpu_models", `{}`), `{"total":1,"returned":1,"items":[{"name":"custom-safe","reported_model":"EPYC-Rome","flags":["+aes","-pcid"],"hidden":true}]}`)
 		env.mock.Reply("GET", `^/cluster/qemu/custom-cpu-models/safe$`, `{"cputype":"custom-safe","digest":"x"}`)
 		eqAt(t, env.call(t, "proxmox_get_custom_cpu_model", `{"name":"safe"}`), "digest", "x")
 	})

@@ -512,7 +512,7 @@ func TestNodesClusterACME(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/acme/account$`, `[{"name":"default"}]`)
 		env.mock.Reply("GET", `^/cluster/acme/account/default$`, `{"directory":"https://acme-v02.api.letsencrypt.org/directory","location":"https://acme/acct/1",
 			"account":{"status":"valid","contact":["mailto:a@b.c"],"key":{"kty":"RSA","n":"pub"}}}`)
-		eq(t, env.call(t, "proxmox_list_acme_accounts", nil), `[{"name":"default","directory":"https://acme-v02.api.letsencrypt.org/directory","status":"valid","contact":["mailto:a@b.c"]}]`)
+		eq(t, env.call(t, "proxmox_list_acme_accounts", nil), `{"total":1,"returned":1,"items":[{"name":"default","directory":"https://acme-v02.api.letsencrypt.org/directory","status":"valid","contact":["mailto:a@b.c"]}]}`)
 		acc := env.call(t, "proxmox_get_acme_account", `{}`)
 		eqAt(t, acc, "account.status", "valid")
 		eqAt(t, acc, "name", "default")
@@ -541,7 +541,7 @@ func TestNodesClusterACME(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/acme/directories$`, `[{"name":"Let's Encrypt V2","url":"https://le/dir"}]`)
 		env.mock.Reply("GET", `^/cluster/acme/meta$`, `{"termsOfService":"https://le/tos","externalAccountRequired":false}`)
 		r := env.call(t, "proxmox_list_acme_directories", `{"directory":"https://le/dir"}`)
-		eqAt(t, r, "directories.length", 1)
+		eqAt(t, r, "total", 1)
 		eqAt(t, r, "meta.termsOfService", "https://le/tos")
 		eqAt(t, r, "meta.externalAccountRequired", false)
 		eq(t, env.mock.RequestsTo("/cluster/acme/meta", "")[0].Query, `{"directory":"https://le/dir"}`)
@@ -554,13 +554,13 @@ func TestNodesClusterACME(t *testing.T) {
 		if len(env.mock.RequestsTo("/cluster/acme/meta", "")) != 0 || len(env.mock.RequestsTo("/cluster/acme/tos", "")) != 0 {
 			t.Fatal("the directory was fetched read-only")
 		}
-		eq(t, parseResult(t, callOn(t, ro, "proxmox_list_acme_directories", `{}`)), `{"directories":[]}`)
+		eq(t, parseResult(t, callOn(t, ro, "proxmox_list_acme_directories", `{}`)), `{"total":0,"returned":0,"items":[]}`)
 	})
 
 	nodesRun(t, env, "falls back to the terms of service on older versions", func(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/acme/directories$`, `[]`)
 		env.mock.Reply("GET", `^/cluster/acme/tos$`, "https://le/tos")
-		eq(t, env.call(t, "proxmox_list_acme_directories", `{"directory":"https://le/dir"}`), `{"directories":[],"meta":{"directory":"https://le/dir","termsOfService":"https://le/tos"}}`)
+		eq(t, env.call(t, "proxmox_list_acme_directories", `{"directory":"https://le/dir"}`), `{"total":0,"returned":0,"items":[],"meta":{"directory":"https://le/dir","termsOfService":"https://le/tos"}}`)
 	})
 
 	nodesRun(t, env, "lists, gets and saves plugins without exposing credentials", func(t *testing.T) {
@@ -568,7 +568,7 @@ func TestNodesClusterACME(t *testing.T) {
 		env.mock.Reply("GET", `^/cluster/acme/plugins$`, `[`+plugin+`,{"plugin":"standalone","type":"standalone"}]`)
 		env.mock.Reply("GET", `^/cluster/acme/plugins/cf$`, plugin)
 		list := env.call(t, "proxmox_list_acme_plugins", `{}`)
-		eqAt(t, list, "0.data_keys", `["CF_Token=<redacted>","CF_Account_ID=<redacted>"]`)
+		eqAt(t, list, "items.0.data_keys", `["CF_Token=<redacted>","CF_Account_ID=<redacted>"]`)
 		nodesNotLeaked(t, list, "supersecret")
 		one := env.call(t, "proxmox_get_acme_plugin", `{"id":"cf"}`)
 		eqAt(t, one, "api", "cf")

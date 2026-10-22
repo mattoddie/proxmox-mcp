@@ -289,6 +289,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_storage", Def{
 		Toolset:     "storage",
+		List:        &listing{},
 		Title:       "List storage",
 		Description: "List the datacenter's storage definitions (local dirs, LVM, ZFS, NFS, CIFS, PBS, Ceph...) with type, allowed content, shared/enabled flags, node restriction, server/path/pool details and backup retention, merged with each node's live status and usage. Use proxmox_list_storage_content to see what's on one.",
 		Input: []Prop{
@@ -541,6 +542,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_storage_content", Def{
 		Toolset:     "storage",
+		List:        &listing{},
 		Title:       "List storage content",
 		Description: "List the volumes on a storage: ISO images, container templates, backups, VM/CT disks, snippets and import files, with format, size, owner VMID, creation time, notes and protection. Filter by content type or VMID (e.g. all backups of guest 100).",
 		Input: []Prop{
@@ -738,6 +740,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_appliance_templates", Def{
 		Toolset:     "storage",
+		List:        &listing{},
 		Title:       "List appliance templates",
 		Description: "List the LXC container templates available for download from the Proxmox appliance index (Debian, Ubuntu, Alpine..., and TurnKey apps). Download one with proxmox_download_appliance_template. If the list is empty, the node may need `pveam update`.",
 		Input: []Prop{
@@ -931,6 +934,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_disks", Def{
 		Toolset:     "storage",
+		List:        &listing{Items: "disks"},
 		Title:       "List physical disks",
 		Description: "List a node's physical disks with device path, model, serial, size, type (ssd/hdd/nvme/usb), SMART health, wearout and what uses them (LVM, ZFS, Ceph OSD, partitions, mounted). Use type=unused to find disks free for new storage.",
 		Input: []Prop{
@@ -995,6 +999,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_zfs_pools", Def{
 		Toolset:     "storage",
+		List:        &listing{Items: "pools"},
 		Title:       "List ZFS pools",
 		Description: "List a node's ZFS pools (zpools) with size, allocation, fragmentation, dedup ratio and health. Use proxmox_get_zfs_pool for the vdev tree and scrub status.",
 		Input:       []Prop{P("node", nodeArg)},
@@ -1039,6 +1044,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_lvm", Def{
 		Toolset:     "storage",
+		List:        &listing{Items: "volume_groups"},
 		Title:       "List LVM volume groups",
 		Description: "List a node's LVM volume groups with size, free space and physical volumes.",
 		Input:       []Prop{P("node", nodeArg)},
@@ -1068,6 +1074,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_lvm_thin", Def{
 		Toolset:     "storage",
+		List:        &listing{Items: "thin_pools"},
 		Title:       "List LVM thin pools",
 		Description: "List a node's LVM thin pools with data and metadata usage. Thin pools that run out of metadata space fail badly, so watch metadata_usage.",
 		Input:       []Prop{P("node", nodeArg)},
@@ -1089,6 +1096,7 @@ func registerStorage(c *Context) {
 
 	c.Define("proxmox_list_directory_mounts", Def{
 		Toolset:     "storage",
+		List:        &listing{Items: "directories"},
 		Title:       "List directory mounts",
 		Description: "List the directory storages Proxmox manages on a node's disks (filesystems mounted under /mnt/pve/<name> via systemd mount units).",
 		Input:       []Prop{P("node", nodeArg)},
