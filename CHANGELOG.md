@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-22
+
 ### Added
 
 - **Listed in the MCP Registry** as `io.github.mattoddie/proxmox-mcp`. Each stable release publishes [`server.json`](server.json) to the [MCP Registry](https://registry.modelcontextprotocol.io), with the Docker image (run over stdio) and the Claude Desktop bundles, so clients that browse the registry can install proxmox-mcp and ask for its settings. The image gains the `io.modelcontextprotocol.server.name` label the registry checks, `make server-json VERSION=x.y.z` stamps the version and bundle checksums, and CI validates the file and checks its settings match the bundle's.
@@ -113,7 +115,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...v0.3.0
