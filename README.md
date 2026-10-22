@@ -85,6 +85,8 @@ Now ask *"How's my Proxmox cluster doing?"* in Claude Code.
 
 Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`.
 
+proxmox-mcp is listed in the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp) as `io.github.mattoddie/proxmox-mcp`, so clients that browse the registry can install it (as the Docker image over stdio, or as a Claude Desktop bundle) and ask for the settings.
+
 ## Turning on changes
 
 Out of the box the assistant can look but not touch. To let it make changes, add these to `.env` and run `docker compose up -d`:

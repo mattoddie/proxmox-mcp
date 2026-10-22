@@ -6,6 +6,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Added
+
+- **Listed in the MCP Registry** as `io.github.mattoddie/proxmox-mcp`. Each stable release publishes [`server.json`](server.json) to the [MCP Registry](https://registry.modelcontextprotocol.io), with the Docker image (run over stdio) and the Claude Desktop bundles, so clients that browse the registry can install proxmox-mcp and ask for its settings. The image gains the `io.modelcontextprotocol.server.name` label the registry checks, `make server-json VERSION=x.y.z` stamps the version and bundle checksums, and CI validates the file and checks its settings match the bundle's.
+
 ## [0.5.0] - 2026-10-22
 
 ### Added

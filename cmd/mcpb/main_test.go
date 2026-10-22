@@ -2,10 +2,14 @@ package main
 
 import (
 	"archive/zip"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mattoddie/proxmox-mcp/internal/js"
@@ -117,5 +121,149 @@ func TestManifestUpToDate(t *testing.T) {
 	}
 	if got := js.Stringify(m, "  "); got != want {
 		t.Error("mcpb/manifest.json is out of date: run make docs")
+	}
+}
+
+// serverJSON is the part of server.json (the MCP Registry entry) that the tests check.
+type serverJSON struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Packages    []struct {
+		RegistryType string `json:"registryType"`
+		Identifier   string `json:"identifier"`
+		FileSha256   string `json:"fileSha256"`
+		Transport    struct {
+			Type string `json:"type"`
+		} `json:"transport"`
+		EnvironmentVariables []struct {
+			Name       string `json:"name"`
+			Value      string `json:"value"`
+			Default    string `json:"default"`
+			Format     string `json:"format"`
+			IsRequired bool   `json:"isRequired"`
+			IsSecret   bool   `json:"isSecret"`
+		} `json:"environmentVariables"`
+	} `json:"packages"`
+}
+
+// notInImage lists the bundle's settings that the Docker package leaves out, with the reason.
+var notInImage = map[string]string{
+	"PROXMOX_CA_FILE": "a file on the user's computer isn't visible inside the container",
+}
+
+// server.json must offer the same settings as the bundle, so the registry entry doesn't drift
+// from the manifest (which TestManifestUpToDate checks against the server), and list a bundle
+// for every platform `make mcpb` builds. The release stamps the version and checksums in.
+func TestServerJSON(t *testing.T) {
+	m := readManifest(t)
+	data, err := os.ReadFile("../../server.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s serverJSON
+	if err := json.Unmarshal(data, &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "io.github.mattoddie/proxmox-mcp" {
+		t.Errorf("name %q", s.Name)
+	}
+	if n := len([]rune(s.Description)); n == 0 || n > 100 {
+		t.Errorf("description is %d characters; the registry allows 1 to 100", n)
+	}
+	if s.Version != "0.0.0-dev" {
+		t.Errorf("version %q: keep 0.0.0-dev, which `make server-json` replaces", s.Version)
+	}
+
+	makefile, err := os.ReadFile("../../Makefile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	platforms := regexp.MustCompile(`(?m)^MCPB_PLATFORMS := (.+)$`).FindSubmatch(makefile)
+	if platforms == nil {
+		t.Fatal("no MCPB_PLATFORMS in the Makefile")
+	}
+	var wantBundles, bundles []string
+	for _, p := range strings.Fields(string(platforms[1])) {
+		wantBundles = append(wantBundles, "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-"+strings.ReplaceAll(p, "/", "-")+".mcpb")
+	}
+
+	userConfig := m.ObjAt("user_config")
+	manifestEnv := m.ObjAt("server").ObjAt("mcp_config").ObjAt("env")
+	images := 0
+	for _, p := range s.Packages {
+		if p.Transport.Type != "stdio" {
+			t.Errorf("%s: transport %q, want stdio", p.Identifier, p.Transport.Type)
+		}
+		switch p.RegistryType {
+		case "mcpb":
+			bundles = append(bundles, p.Identifier)
+			if len(p.FileSha256) != 64 {
+				t.Errorf("%s: fileSha256 %q", p.Identifier, p.FileSha256)
+			}
+		case "oci":
+			images++
+			if p.Identifier != "ghcr.io/mattoddie/proxmox-mcp:0.0.0-dev" {
+				t.Errorf("image %q", p.Identifier)
+			}
+			seen := map[string]bool{}
+			for _, v := range p.EnvironmentVariables {
+				seen[v.Name] = true
+				if v.Name == "MCP_TRANSPORT" {
+					// The image defaults to HTTP; the registry's clients start it over stdio.
+					if v.Value != "stdio" {
+						t.Errorf("MCP_TRANSPORT value %q, want stdio", v.Value)
+					}
+					continue
+				}
+				if reason, ok := notInImage[v.Name]; ok {
+					t.Errorf("%s is in the image's settings, but %s", v.Name, reason)
+					continue
+				}
+				ref := userConfigRef.FindStringSubmatch(js.Str(manifestEnv.Get(v.Name)))
+				if ref == nil {
+					t.Errorf("%s isn't a setting in mcpb/manifest.json", v.Name)
+					continue
+				}
+				setting := userConfig.ObjAt(ref[1])
+				if v.IsRequired != setting.Truthy("required") {
+					t.Errorf("%s: isRequired %v, but the manifest's required is %v", v.Name, v.IsRequired, setting.Truthy("required"))
+				}
+				if v.IsSecret != setting.Truthy("sensitive") {
+					t.Errorf("%s: isSecret %v, but the manifest's sensitive is %v", v.Name, v.IsSecret, setting.Truthy("sensitive"))
+				}
+				if setting.Str("type") == "boolean" && v.Format != "boolean" {
+					t.Errorf("%s: format %q, want boolean", v.Name, v.Format)
+				}
+				def := ""
+				if setting.Defined("default") {
+					def = fmt.Sprint(setting.Get("default"))
+				}
+				if def != v.Default {
+					t.Errorf("%s: default %q, but the manifest's is %q", v.Name, v.Default, def)
+				}
+			}
+			for _, name := range manifestEnv.Keys() {
+				if _, skip := notInImage[name]; !skip && !seen[name] {
+					t.Errorf("%s is a setting in mcpb/manifest.json but not in server.json", name)
+				}
+			}
+		default:
+			t.Errorf("unexpected package type %q", p.RegistryType)
+		}
+	}
+	if images != 1 {
+		t.Errorf("%d Docker image packages, want 1", images)
+	}
+	if !reflect.DeepEqual(bundles, wantBundles) {
+		t.Errorf("bundles:\n%s\nwant (from the Makefile):\n%s", strings.Join(bundles, "\n"), strings.Join(wantBundles, "\n"))
+	}
+
+	dockerfile, err := os.ReadFile("../../Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(dockerfile), `io.modelcontextprotocol.server.name="`+s.Name+`"`) {
+		t.Error("the Dockerfile has no io.modelcontextprotocol.server.name label for " + s.Name)
 	}
 }

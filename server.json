@@ -1,0 +1,136 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mattoddie/proxmox-mcp",
+  "title": "Proxmox VE",
+  "description": "Monitor and manage Proxmox VE clusters: VMs, containers, storage and backups. Read-only by default.",
+  "repository": {
+    "url": "https://github.com/mattoddie/proxmox-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://proxmox-mcp.mattoddie.dev",
+  "version": "0.0.0-dev",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/mattoddie/proxmox-mcp:0.0.0-dev",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MCP_TRANSPORT",
+          "description": "Runs the server over stdio. The image defaults to HTTP.",
+          "value": "stdio"
+        },
+        {
+          "name": "PROXMOX_URL",
+          "description": "Address of any node in the cluster, with the port.",
+          "placeholder": "https://pve.example.lan:8006",
+          "isRequired": true
+        },
+        {
+          "name": "PROXMOX_API_TOKEN",
+          "description": "Recommended. The whole API token as user@realm!tokenid=secret. Leave empty to use a username and password.",
+          "isSecret": true
+        },
+        {
+          "name": "PROXMOX_USERNAME",
+          "description": "Used instead of an API token, as user@realm (e.g. mcp@pve)."
+        },
+        {
+          "name": "PROXMOX_PASSWORD",
+          "description": "The user's password, used with the username.",
+          "isSecret": true
+        },
+        {
+          "name": "PROXMOX_TLS_FINGERPRINT",
+          "description": "Recommended for Proxmox's self-signed certificate: its SHA-256 fingerprint. An https URL needs this or PROXMOX_VERIFY_SSL.",
+          "placeholder": "AA:BB:CC:…"
+        },
+        {
+          "name": "PROXMOX_VERIFY_SSL",
+          "description": "Leave empty when you set a fingerprint. true: the certificate is publicly trusted. false: skip the check (insecure)."
+        },
+        {
+          "name": "PROXMOX_DEFAULT_NODE",
+          "description": "Node used when a request doesn't name one. Not needed on a single-node install."
+        },
+        {
+          "name": "PROXMOX_ALLOW_WRITES",
+          "description": "Allow changes: start and stop guests, edit configuration, create VMs, snapshots and backups.",
+          "format": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "PROXMOX_ALLOW_DELETES",
+          "description": "Also allow deleting guests, volumes, snapshots, backups and configuration. Needs writes.",
+          "format": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "PROXMOX_ALLOW_EXEC",
+          "description": "Also allow commands and file access inside VMs through the guest agent. Needs writes.",
+          "format": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "PROXMOX_TOOLSETS",
+          "description": "Optional comma-separated toolsets, to expose fewer tools. Empty means all (except raw).",
+          "placeholder": "cluster,nodes,vms,containers,backup"
+        },
+        {
+          "name": "PROXMOX_AUDIT_LOG",
+          "description": "Optional. stderr, or a file path inside the container, to log every change as a JSON line."
+        }
+      ]
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-darwin-arm64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-darwin-amd64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-windows-amd64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-windows-arm64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-linux-amd64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mattoddie/proxmox-mcp/releases/download/v0.0.0-dev/proxmox-mcp-0.0.0-dev-linux-arm64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
