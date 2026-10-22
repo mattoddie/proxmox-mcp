@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-22
+
 ### Added
 
 - **Claude Desktop bundles.** Each release now has an MCP Bundle (`.mcpb`) for macOS, Windows and Linux on amd64 and arm64. Open it in Claude Desktop and fill in a settings form: URL, API token or username and password, certificate check, default node, the write, delete and exec switches, toolsets and audit log. No Docker needed. `make mcpb VERSION=x.y.z` builds them, and CI validates them with the `mcpb` CLI.
@@ -107,7 +109,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.1.0...v0.2.0
