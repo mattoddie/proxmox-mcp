@@ -9,6 +9,8 @@ proxmox-mcp supports both standard MCP transports:
 
 On **Claude Desktop** you can skip Docker altogether: install the [extension bundle](#claude-desktop), which runs the server for you over stdio.
 
+proxmox-mcp is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp) as `io.github.mattoddie/proxmox-mcp`. Clients that install servers from the registry run the Docker image in [stdio mode](#stdio-mode), or the Claude Desktop bundle, and ask you for the settings. A CA certificate file isn't offered for the Docker image, because the container can't see files on your computer: use `PROXMOX_TLS_FINGERPRINT` instead.
+
 The HTTP endpoint is **stateless**: each request is handled on its own, so you can restart the container at any time. Every request must send `Authorization: Bearer <token>` with your `MCP_AUTH_TOKEN`; the server won't start in HTTP mode without one.
 
 In the examples below, replace `<docker-host>` with the machine running the container and `<token>` with your `MCP_AUTH_TOKEN`. The server is called `proxmox` in every example. If you use a different name, the prompt slash commands change to match.

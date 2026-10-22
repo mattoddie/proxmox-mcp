@@ -1,6 +1,7 @@
 # Publishing a GitHub release (tag vX.Y.Z) builds the Docker image for
 # amd64 and arm64 and pushes it to ghcr.io/<owner>/proxmox-mcp, then builds the
-# MCP Bundles for Claude Desktop and uploads them to the release.
+# MCP Bundles for Claude Desktop and uploads them to the release. Stable releases are then
+# published to the MCP Registry.
 # See docs/releasing.md.
 name: Release
 
@@ -23,6 +24,9 @@ jobs:
       packages: write # push to ghcr.io
       id-token: write # sign the build provenance attestation
       attestations: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      stable: ${{ steps.version.outputs.stable }}
     env:
       IMAGE: ghcr.io/${{ github.repository }}
       TAG: ${{ github.event.release.tag_name }}
@@ -198,3 +202,60 @@ jobs:
             echo "| Linux | \`proxmox-mcp-$version-linux-amd64.mcpb\`, \`proxmox-mcp-$version-linux-arm64.mcpb\` |"
           } >> notes.md
           gh release edit "$TAG" --notes-file notes.md
+
+  registry:
+    name: Publish to the MCP Registry
+    # After the image and the bundles: the registry checks the image's label, and server.json
+    # carries the bundles' checksums. Pre-releases aren't listed.
+    needs: [image, mcpb]
+    if: needs.image.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # download the bundles from the release
+      id-token: write # log in to the registry with GitHub OIDC
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      VERSION: ${{ needs.image.outputs.version }}
+      # Pinned like everything else. To update, take the checksum of
+      # mcp-publisher_linux_amd64.tar.gz from the release's registry_<version>_checksums.txt.
+      MCP_PUBLISHER_VERSION: 1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release download "$TAG" --pattern '*.mcpb' --dir dist
+
+      - name: Stamp server.json
+        run: |
+          make server-json VERSION="$VERSION"
+          jq . dist/server.json
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v$MCP_PUBLISHER_VERSION/mcp-publisher_linux_amd64.tar.gz"
+          echo "$MCP_PUBLISHER_SHA256  mcp-publisher.tar.gz" | sha256sum -c -
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Validate
+        run: ./mcp-publisher validate dist/server.json
+
+      - name: Publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish dist/server.json
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published \`io.github.mattoddie/proxmox-mcp\` $VERSION to the MCP Registry"
+            echo
+            echo "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp"
+          } >> "$GITHUB_STEP_SUMMARY"
