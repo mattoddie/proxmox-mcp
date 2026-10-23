@@ -144,6 +144,8 @@ The docs are also published at **[proxmox-mcp.mattoddie.dev/docs](https://proxmo
 | 🩹 [Troubleshooting](docs/troubleshooting.md) | Common errors and how to fix them |
 | 🛠️ [Development](docs/development.md) | Architecture, adding a tool, testing |
 
+On your phone? [Proxly](https://proxly.mattoddie.dev) is a free Proxmox VE app for iPhone by the same author: monitor nodes, VMs and containers, start and stop guests, and take snapshots and backups without reaching for a laptop.
+
 ## Contributing
 
 Contributions are very welcome, whether that's bug reports, compatibility reports from your cluster, docs or new tools. Read the [contributing guide](CONTRIBUTING.md) to get started, and please follow the [code of conduct](CODE_OF_CONDUCT.md). To report a vulnerability, see the [security policy](SECURITY.md). Please don't open a public issue for one.
