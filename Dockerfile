@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 
 # Distroless: no shell, no package manager, just CA certificates, tzdata and a
 # non-root user (65532), so there is very little for CVE scanners to find.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 # The MCP Registry reads io.modelcontextprotocol.server.name to check that the image belongs
 # to the server in server.json.
 LABEL org.opencontainers.image.title="proxmox-mcp" \
