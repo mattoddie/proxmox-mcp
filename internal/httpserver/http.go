@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/mattoddie/proxmox-mcp/internal/config"
+	"github.com/mattoddie/proxmox-mcp/internal/oauth"
 )
 
 // maxBodyBytes bounds a request body; tool arguments are small.
@@ -118,6 +119,11 @@ func originAllowed(allowed []string, origin string) bool {
 // Handler serves /mcp (stateless Streamable HTTP, so the container can be restarted or scaled
 // freely) and /health.
 func Handler(cfg config.HTTP, server *mcp.Server) http.Handler {
+	return HandlerWithOAuth(cfg, server, nil)
+}
+
+// HandlerWithOAuth adds native OAuth without changing tool authorization.
+func HandlerWithOAuth(cfg config.HTTP, server *mcp.Server, auth *oauth.Server) http.Handler {
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
 		Stateless:    true,
 		JSONResponse: true,
@@ -127,6 +133,9 @@ func Handler(cfg config.HTTP, server *mcp.Server) http.Handler {
 		MaxRequestBodyBytes:        maxBodyBytes,
 	})
 	mux := http.NewServeMux()
+	if auth != nil {
+		auth.Register(mux)
+	}
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
@@ -148,8 +157,25 @@ func Handler(cfg config.HTTP, server *mcp.Server) http.Handler {
 				}
 			}
 		}
-		if cfg.AuthToken != "" && !tokenMatches(r.Header.Get("Authorization"), cfg.AuthToken) {
+		authorized := cfg.AuthToken != "" && tokenMatches(r.Header.Get("Authorization"), cfg.AuthToken)
+		if auth != nil && !authorized {
+			if m := bearerRe.FindStringSubmatch(r.Header.Get("Authorization")); m != nil {
+				if !auth.RequestAllowed(r) {
+					rpcError(w, http.StatusForbidden, "Host or Origin is not allowed")
+					return
+				}
+				authorized = auth.Valid(m[1])
+			}
+		}
+		if (cfg.AuthToken != "" || cfg.OAuth.Enabled() || auth != nil) && !authorized {
 			w.Header().Set("WWW-Authenticate", "Bearer")
+			if auth != nil {
+				challenge := auth.Challenge()
+				if r.Header.Get("Authorization") != "" {
+					challenge += `, error="invalid_token"`
+				}
+				w.Header().Set("WWW-Authenticate", challenge)
+			}
 			rpcError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
@@ -202,7 +228,7 @@ func Serve(srv *http.Server, ln net.Listener, cfg config.HTTP) error {
 		auth = " (bearer auth enabled)"
 	}
 	log.Printf("proxmox-mcp listening on http://%s:%d/mcp%s", cfg.Host, cfg.Port, auth)
-	if cfg.AuthToken == "" {
+	if cfg.AuthToken == "" && !cfg.OAuth.Enabled() {
 		log.Printf("WARNING: MCP_ALLOW_UNAUTHENTICATED=true: anyone who can reach this port can use every enabled tool. Only run it like this behind something else that authenticates.")
 	}
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {

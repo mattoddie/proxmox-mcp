@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/mattoddie/proxmox-mcp/internal/js"
+	"github.com/mattoddie/proxmox-mcp/internal/oauth"
 )
 
 // Toolsets are the groups of tools that can be switched on and off with PROXMOX_TOOLSETS, in
@@ -98,6 +99,7 @@ func AllTools() Tools {
 
 // HTTP holds the Streamable HTTP transport settings.
 type HTTP struct {
+	OAuth     oauth.Config
 	Host      string
 	Port      int
 	AuthToken string
@@ -126,6 +128,17 @@ const MinAuthTokenLength = 16
 // MinAuthTokenLength characters, or MCP_ALLOW_UNAUTHENTICATED=true together with a Host
 // allow-list.
 func CheckHTTPAuth(h HTTP) error {
+	if err := h.OAuth.Validate(); err != nil {
+		return err
+	}
+	if h.OAuth.Enabled() {
+		if h.AllowUnauthenticated {
+			return errors.New("OAuth cannot be combined with unauthenticated mode")
+		}
+		if h.AuthToken == "" {
+			return nil
+		}
+	}
 	if h.AuthToken == "" {
 		if !h.AllowUnauthenticated {
 			return ErrAuthTokenRequired
@@ -438,12 +451,18 @@ func Load(env Env) (*Config, error) {
 		}
 	}
 	authToken := get("MCP_AUTH_TOKEN")
+	oauthCfg := oauth.Config{Issuer: get("MCP_OAUTH_ISSUER"), AdminHash: get("MCP_OAUTH_ADMIN_HASH"), Directory: get("MCP_OAUTH_STATE_DIR")}
+	for _, u := range strings.Split(get("MCP_OAUTH_REDIRECT_URIS"), ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			oauthCfg.Redirects = append(oauthCfg.Redirects, u)
+		}
+	}
 	allowUnauthenticated := boolValue(get("MCP_ALLOW_UNAUTHENTICATED"), false)
 	if firstErr != nil {
 		return nil, firstErr
 	}
 	if transport == "http" {
-		if err := CheckHTTPAuth(HTTP{AuthToken: authToken, AllowUnauthenticated: allowUnauthenticated, AllowedHosts: allowedHosts}); err != nil {
+		if err := CheckHTTPAuth(HTTP{OAuth: oauthCfg, AuthToken: authToken, AllowUnauthenticated: allowUnauthenticated, AllowedHosts: allowedHosts}); err != nil {
 			return nil, err
 		}
 	}
@@ -492,6 +511,7 @@ func Load(env Env) (*Config, error) {
 		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets, AuditLog: auditLog},
 		Transport: transport,
 		HTTP: HTTP{
+			OAuth:                oauthCfg,
 			Host:                 host,
 			Port:                 port,
 			AuthToken:            authToken,
