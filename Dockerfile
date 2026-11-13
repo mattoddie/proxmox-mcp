@@ -2,7 +2,7 @@
 
 # The binary is static Go, so the build stage runs on the build machine's own
 # platform and cross-compiles: multi-arch builds don't need emulation.
-FROM --platform=$BUILDPLATFORM golang:1.27@sha256:f20d83a83e18dbd2a4714b8ffd4b30b287b6243962dd75608e86abcc63ba4efc AS build
+FROM --platform=$BUILDPLATFORM golang:1.27@sha256:ec47ea3725fea0cc88f6de94919aef19f40f12fc1ec0e2d1b3426dbf15ecca04 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 
 # Distroless: no shell, no package manager, just CA certificates, tzdata and a
 # non-root user (65532), so there is very little for CVE scanners to find.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 # The MCP Registry reads io.modelcontextprotocol.server.name to check that the image belongs
 # to the server in server.json.
 LABEL org.opencontainers.image.title="proxmox-mcp" \
