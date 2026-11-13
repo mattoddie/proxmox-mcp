@@ -6,6 +6,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-13
+
 ### Added
 
 - Each release now has plain binaries for macOS, Linux and Windows on `amd64` and `arm64`, with a `SHA256SUMS` file and build provenance attestations, so you can run proxmox-mcp without Docker. See [Running without Docker](docs/deployment.md#running-without-docker).
@@ -123,7 +125,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.3.0...v0.4.0
