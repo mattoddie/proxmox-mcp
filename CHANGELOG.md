@@ -6,6 +6,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.27.4, which fixes an HTTP/1 server crash in the standard library's `net/http` (GO-2026-6859).
+
 ## [0.5.1] - 2026-10-22
 
 ### Added
