@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are driven by **version tags**. Pushing a tag like `v1.2.3` triggers the [Release workflow](../.github/workflows/release.yml). That workflow creates a draft GitHub release, builds the Docker image for `linux/amd64` and `linux/arm64` and pushes it to `ghcr.io/mattoddie/proxmox-mcp`, attaches the MCP Bundles to the draft, publishes the release and, for stable releases, publishes the server to the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mattoddie/proxmox-mcp`. Nothing is published by merging to `main` alone.
+Releases are driven by **version tags**. Pushing a tag like `v1.2.3` triggers the [Release workflow](../.github/workflows/release.yml). That workflow creates a draft GitHub release, builds the Docker image for `linux/amd64` and `linux/arm64` and pushes it to `ghcr.io/mattoddie/proxmox-mcp`, attaches the MCP Bundles and plain binary archives to the draft with a `SHA256SUMS` file, publishes the release and, for stable releases, publishes the server to the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mattoddie/proxmox-mcp`. Nothing is published by merging to `main` alone.
 
 - [Versioning](#versioning)
 - [Release checklist](#release-checklist)
@@ -35,7 +35,7 @@ The version comes **from the tag**. `package.json` stays at `0.0.0-dev` in the r
    git push origin v1.2.0
    ```
 
-4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. It creates a draft release with notes generated from the merged PRs and adds a *Container image* section with the pull command, digest and tags. Then the MCP Bundles for Claude Desktop are built, attached to the draft and listed in a *Claude Desktop* section, and the release is published. Last, a stable release is published to the MCP Registry.
+4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. It creates a draft release with notes generated from the merged PRs and adds a *Container image* section with the pull command, digest and tags. Then the MCP Bundles for Claude Desktop and the binary archives are built, attached to the draft and listed in *Claude Desktop* and *Binaries* sections, and the release is published. Last, a stable release is published to the MCP Registry.
 5. **Edit the release notes** if needed. The notes and title of a published release can still be edited; its assets and tag can't.
 6. **Check the image:** `docker pull ghcr.io/mattoddie/proxmox-mcp:1.2.0`.
 7. **Check the registry entry:** `curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp&version=latest" | jq '.servers[].server.version'` prints `"1.2.0"`.
@@ -64,7 +64,7 @@ Pre-releases are published only under their exact version (`ghcr.io/mattoddie/pr
 | Push | To `ghcr.io/mattoddie/proxmox-mcp` using the workflow's `GITHUB_TOKEN`. No personal tokens are needed. |
 | Supply chain | Attaches an SBOM and SLSA provenance to the image, and pushes a signed build provenance attestation (`gh attestation verify`). |
 | Release notes | Appends the pull command, digest and tags. |
-| MCP Bundles | After the image, `make mcpb` builds one `.mcpb` per platform (macOS, Windows and Linux, amd64 and arm64), validates each manifest with the `mcpb` CLI, attests them and uploads them to the draft release. |
+| MCP Bundles and binaries | After the image, `make dist` builds one `.mcpb` per platform (macOS, Windows and Linux, amd64 and arm64), the same binaries as `proxmox-mcp-X.Y.Z-<os>-<arch>.tar.gz` (`.zip` for Windows) with the licence, and `SHA256SUMS`. It checks the Linux binary reports the version and the checksums match, validates each manifest with the `mcpb` CLI, attests the bundles and archives and uploads everything to the draft release. |
 | Publish | Publishes the draft once the image and the bundles are in place. Published releases are [immutable](#immutable-releases). |
 | MCP Registry | Stable releases only, after the release is published. Downloads the bundles from the release, stamps the version, image tag and each bundle's SHA-256 into [`server.json`](../server.json) (`make server-json`), installs the pinned `mcp-publisher`, checks its checksum, validates the file, logs in with GitHub OIDC (no secrets) and publishes. |
 

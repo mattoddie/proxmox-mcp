@@ -17,6 +17,9 @@ This guide takes you from nothing to asking your first question about your Proxm
 - **A machine that runs Docker** and can reach a Proxmox node on port 8006. This could be a NAS, a home server, a small VM or container on the cluster itself, or your laptop. The image supports both `amd64` and `arm64`.
 - **An MCP client**, such as [Claude Code](https://claude.com/claude-code), Claude Desktop, VS Code, Cursor or Codex.
 
+> [!TIP]
+> **No Docker?** On Claude Desktop, install the [extension bundle](clients.md#claude-desktop) instead. For other clients, each release also has plain binaries for macOS, Linux and Windows. See [Running without Docker](deployment.md#running-without-docker) and [connecting a client to the binary](clients.md#without-docker).
+
 ## 1. Find your Proxmox URL
 
 This is the address you use to open the Proxmox web interface, without any path, for example `https://192.168.1.10:8006` or `https://pve1.example.lan:8006`. Include the port.

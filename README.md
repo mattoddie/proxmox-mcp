@@ -35,7 +35,7 @@ Ask about your cluster in plain English. The assistant picks from **300+ tools**
 
 ## Highlights
 
-- **🐳 Docker-first.** There's one small, distroless image (`ghcr.io/mattoddie/proxmox-mcp`) for `linux/amd64` and `linux/arm64`. It serves Streamable HTTP for a long-running service, or stdio for `docker run -i`.
+- **🐳 Docker-first.** There's one small, distroless image (`ghcr.io/mattoddie/proxmox-mcp`) for `linux/amd64` and `linux/arm64`. It serves Streamable HTTP for a long-running service, or stdio for `docker run -i`. Each release also has plain binaries for macOS, Linux and Windows on `amd64` and `arm64`.
 - **🖱️ One-click Claude Desktop install.** Each release has an MCP Bundle (`.mcpb`) for macOS, Windows and Linux: open it and fill in a settings form. No Docker needed.
 - **🛡️ Safe by default.** The server is read-only unless you turn on writes. Deleting needs a second switch, and running commands inside guests needs a third. Tools that aren't allowed aren't registered at all, destructive tools are labelled so your MCP client asks before running them, every change can be previewed with `dry_run` and recorded in an audit log, and passwords and keys are redacted from output.
 - **🧰 Broad coverage.** It covers 19 toolsets: cluster, nodes, VMs, containers, guest agent, snapshots, storage, backups, tasks, access control, firewall, HA, SDN, Ceph, pools, replication, notifications, hardware and a raw API tool.
@@ -83,7 +83,7 @@ Now ask *"How's my Proxmox cluster doing?"* in Claude Code.
 
 **On Claude Desktop?** Skip Docker: download the `.mcpb` bundle for your computer from the [latest release](https://github.com/mattoddie/proxmox-mcp/releases/latest), open it, and fill in the settings form. See [Claude Desktop](docs/clients.md#claude-desktop).
 
-Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`.
+Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`, or a [release binary](docs/deployment.md#running-without-docker) without Docker.
 
 proxmox-mcp is listed in the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp) as `io.github.mattoddie/proxmox-mcp`, so clients that browse the registry can install it (as the Docker image over stdio, or as a Claude Desktop bundle) and ask for the settings.
 

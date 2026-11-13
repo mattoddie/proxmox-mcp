@@ -6,6 +6,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Added
+
+- Each release now has plain binaries for macOS, Linux and Windows on `amd64` and `arm64`, with a `SHA256SUMS` file and build provenance attestations, so you can run proxmox-mcp without Docker. See [Running without Docker](docs/deployment.md#running-without-docker).
+
 ### Security
 
 - Built with Go 1.27.4, which fixes an HTTP/1 server crash in the standard library's `net/http` (GO-2026-6859).
