@@ -6,6 +6,16 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Added
+
+- Structured, secret-free server-side OAuth authorization rejection reasons, with generic public errors and regression coverage for mounted bcrypt hash whitespace.
+
+- Optional native MCP OAuth with administrator consent, PKCE, discovery, dynamic client registration, rotating tokens, restricted ChatGPT CIMD and fail-closed persistent revocation; static Bearer authentication remains supported.
+
+### Fixed
+
+- Reject invalid OAuth consent decisions and passwords over 72 bytes before expensive bcrypt verification, retaining approval rate limiting and one-time consent.
+
 ## [0.5.1] - 2026-10-22
 
 ### Added
