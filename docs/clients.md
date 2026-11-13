@@ -217,3 +217,34 @@ Tips:
 - **Always pass `-i` and never `-t`.** A TTY corrupts the MCP message stream.
 - **Docker on another machine** works too. Set `DOCKER_HOST` in the client's `env`, and note that `PROXMOX_URL` must be reachable from that machine.
 - **Pin a version** (for example `:1.2.3`) so a new `latest` doesn't surprise you. See [Deployment](deployment.md#image-tags).
+
+### Without Docker
+
+With a [release binary](deployment.md#download-a-release-binary), the client runs it directly. Use the binary's full path as the command, and pass the settings as environment variables. In a JSON client config, that looks like:
+
+```json
+{
+  "mcpServers": {
+    "proxmox": {
+      "command": "/usr/local/bin/proxmox-mcp",
+      "env": {
+        "PROXMOX_URL": "https://192.168.1.10:8006",
+        "PROXMOX_TOKEN_ID": "mcp@pve!mcp",
+        "PROXMOX_TOKEN_SECRET": "your-token-secret",
+        "PROXMOX_TLS_FINGERPRINT": "AB:CD:..."
+      }
+    }
+  }
+}
+```
+
+The binary uses stdio by default, so there's no `MCP_TRANSPORT` to set. In Claude Code:
+
+```sh
+claude mcp add proxmox \
+  --env PROXMOX_URL=https://192.168.1.10:8006 \
+  --env 'PROXMOX_TOKEN_ID=mcp@pve!mcp' \
+  --env PROXMOX_TOKEN_SECRET=your-token-secret \
+  --env PROXMOX_TLS_FINGERPRINT=AB:CD:... \
+  -- /usr/local/bin/proxmox-mcp
+```

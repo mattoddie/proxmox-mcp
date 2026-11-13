@@ -168,12 +168,45 @@ Running Docker directly on a Proxmox node is possible but not recommended by Pro
 
 ## Running without Docker
 
-Docker is the supported way to run proxmox-mcp, but the server is a single static Go binary with no runtime dependencies. Build it with Go (the version in `go.mod`), or copy `/proxmox-mcp` out of the image:
+Docker is the main way to run proxmox-mcp, but the server is a single static Go binary with no runtime dependencies.
+
+### Download a release binary
+
+Each [release](https://github.com/mattoddie/proxmox-mcp/releases/latest) has an archive for macOS, Linux and Windows on `amd64` and `arm64`. Each archive holds the `proxmox-mcp` binary and the licence. For example, on a 64-bit Arm Linux machine:
+
+```sh
+VERSION=1.2.3   # the latest release, without the v
+curl -fsSLO https://github.com/mattoddie/proxmox-mcp/releases/download/v$VERSION/proxmox-mcp-$VERSION-linux-arm64.tar.gz
+curl -fsSLO https://github.com/mattoddie/proxmox-mcp/releases/download/v$VERSION/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing   # on macOS: shasum -a 256 -c SHA256SUMS --ignore-missing
+tar -xzf proxmox-mcp-$VERSION-linux-arm64.tar.gz
+sudo install proxmox-mcp /usr/local/bin/
+```
+
+Use `darwin-arm64` for a Mac with Apple silicon, `darwin-amd64` for an Intel Mac, `linux-amd64` for most PCs and servers, and the `windows` `.zip` files on Windows.
+
+Each archive also has a signed build provenance attestation. To check that a file was built by this repository's release workflow, run `gh release verify-asset v$VERSION proxmox-mcp-$VERSION-linux-arm64.tar.gz -R mattoddie/proxmox-mcp`.
+
+> [!NOTE]
+> The macOS binaries aren't notarised by Apple. A file downloaded with `curl`, as above, runs as is. If you download it in a browser, macOS blocks it the first time. Either allow it under **System Settings → Privacy & Security → Open Anyway**, or run `xattr -d com.apple.quarantine proxmox-mcp`.
+
+Release binaries don't update themselves. Watch the repository's releases (**Watch → Custom → Releases**) to hear about new versions.
+
+### Build it yourself
+
+Build it with Go (the version in `go.mod`), or copy `/proxmox-mcp` out of the image:
 
 ```sh
 git clone https://github.com/mattoddie/proxmox-mcp.git
 cd proxmox-mcp
 make build   # or: go build -o bin/proxmox-mcp ./cmd/proxmox-mcp
+```
+
+### Run it
+
+With a release binary installed, use `proxmox-mcp` in place of `bin/proxmox-mcp`:
+
+```sh
 PROXMOX_URL=https://pve1:8006 PROXMOX_TLS_FINGERPRINT=AB:CD:... PROXMOX_API_TOKEN='mcp@pve!mcp=...' bin/proxmox-mcp   # stdio by default
 MCP_TRANSPORT=http MCP_AUTH_TOKEN=... PROXMOX_URL=... PROXMOX_API_TOKEN=... bin/proxmox-mcp   # listens on 127.0.0.1:8080
 ```
