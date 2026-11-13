@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are driven by **GitHub releases**. Publishing a release with a tag like `v1.2.3` triggers the [Release workflow](../.github/workflows/release.yml). That workflow builds the Docker image for `linux/amd64` and `linux/arm64` and pushes it to `ghcr.io/mattoddie/proxmox-mcp`, attaches the MCP Bundles to the release and, for stable releases, publishes the server to the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mattoddie/proxmox-mcp`. Nothing is published by merging to `main` alone.
+Releases are driven by **version tags**. Pushing a tag like `v1.2.3` triggers the [Release workflow](../.github/workflows/release.yml). That workflow creates a draft GitHub release, builds the Docker image for `linux/amd64` and `linux/arm64` and pushes it to `ghcr.io/mattoddie/proxmox-mcp`, attaches the MCP Bundles to the draft, publishes the release and, for stable releases, publishes the server to the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mattoddie/proxmox-mcp`. Nothing is published by merging to `main` alone.
 
 - [Versioning](#versioning)
 - [Release checklist](#release-checklist)
@@ -27,28 +27,28 @@ The version comes **from the tag**. `package.json` stays at `0.0.0-dev` in the r
 
 1. **Check `main` is green** on [CI](https://github.com/mattoddie/proxmox-mcp/actions/workflows/ci.yml).
 2. **Update the changelog.** In a small PR titled `chore(release): v1.2.0`, move the **Unreleased** entries in [`CHANGELOG.md`](../CHANGELOG.md) under a new heading, `## [1.2.0] - YYYY-MM-DD`, and update the comparison links at the bottom. Fill in the final tool and prompt counts from the top of [`docs/tools.md`](tools.md). Merge it.
-3. **Publish the release.** Use either the CLI or the web UI.
-
-   With the CLI:
+3. **Push the tag.** Tag the changelog commit on `main`:
 
    ```sh
-   gh release create v1.2.0 --target main --title "v1.2.0" --generate-notes
+   git switch main && git pull
+   git tag -s v1.2.0 -m v1.2.0
+   git push origin v1.2.0
    ```
 
-   Or in the web UI: **Releases → Draft a new release → Choose a tag → type `v1.2.0` → Create new tag on publish**, target `main`. Click **Generate release notes**, edit them as needed, then **Publish release**.
-
-4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. When it finishes, the release notes gain a *Container image* section with the pull command, digest and tags. Then the MCP Bundles for Claude Desktop are built, attached to the release and listed in a *Claude Desktop* section. Last, a stable release is published to the MCP Registry.
-5. **Check the image:** `docker pull ghcr.io/mattoddie/proxmox-mcp:1.2.0`.
-6. **Check the registry entry:** `curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp&version=latest" | jq '.servers[].server.version'` prints `"1.2.0"`.
+4. **Watch the workflow.** Open **Actions → Release**. It takes a few minutes. It creates a draft release with notes generated from the merged PRs and adds a *Container image* section with the pull command, digest and tags. Then the MCP Bundles for Claude Desktop are built, attached to the draft and listed in a *Claude Desktop* section, and the release is published. Last, a stable release is published to the MCP Registry.
+5. **Edit the release notes** if needed. The notes and title of a published release can still be edited; its assets and tag can't.
+6. **Check the image:** `docker pull ghcr.io/mattoddie/proxmox-mcp:1.2.0`.
+7. **Check the registry entry:** `curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp&version=latest" | jq '.servers[].server.version'` prints `"1.2.0"`.
 
 Release notes are generated from merged PR titles and grouped by label. The groups are set in [`.github/release.yml`](../.github/release.yml). Label PRs `breaking`, `enhancement`, `new-tool`, `bug`, `compatibility`, `documentation` or `dependencies` to sort them, or `skip-changelog` to leave a PR out.
 
 ## Pre-releases
 
-To test a release candidate, use a pre-release tag and tick **Set as a pre-release**:
+To test a release candidate, push a pre-release tag. The workflow marks a release as a pre-release when its tag has a suffix:
 
 ```sh
-gh release create v1.3.0-rc.1 --target main --prerelease --generate-notes
+git tag -s v1.3.0-rc.1 -m v1.3.0-rc.1
+git push origin v1.3.0-rc.1
 ```
 
 Pre-releases are published only under their exact version (`ghcr.io/mattoddie/proxmox-mcp:1.3.0-rc.1`). They never move `latest`, `1` or `1.3`. They get MCP Bundles but aren't published to the MCP Registry, where a published version can't be changed or reused.
@@ -57,20 +57,23 @@ Pre-releases are published only under their exact version (`ghcr.io/mattoddie/pr
 
 | Step | Detail |
 |---|---|
-| Validate the tag | Must match `vMAJOR.MINOR.PATCH` with an optional `-prerelease` suffix, otherwise the workflow fails before building. |
+| Validate the tag | Must match `vMAJOR.MINOR.PATCH` with an optional `-prerelease` suffix and point to a commit on `main`, otherwise the workflow fails before building. |
+| Draft release | Creates a draft release for the tag with generated notes, marked as a pre-release if the tag has a suffix. |
 | Build | `docker buildx` for `linux/amd64` and `linux/arm64`, from scratch with no build cache. The test suite runs inside the build, so failing tests mean no image. |
 | Tag | `X.Y.Z` always. For stable releases also `X.Y`, `X` (from `1.0.0` on) and `latest`. |
 | Push | To `ghcr.io/mattoddie/proxmox-mcp` using the workflow's `GITHUB_TOKEN`. No personal tokens are needed. |
 | Supply chain | Attaches an SBOM and SLSA provenance to the image, and pushes a signed build provenance attestation (`gh attestation verify`). |
 | Release notes | Appends the pull command, digest and tags. |
-| MCP Bundles | After the image, `make mcpb` builds one `.mcpb` per platform (macOS, Windows and Linux, amd64 and arm64), validates each manifest with the `mcpb` CLI, attests them and uploads them to the release. |
-| MCP Registry | Stable releases only, after the image and the bundles. Downloads the bundles from the release, stamps the version, image tag and each bundle's SHA-256 into [`server.json`](../server.json) (`make server-json`), installs the pinned `mcp-publisher`, checks its checksum, validates the file, logs in with GitHub OIDC (no secrets) and publishes. |
+| MCP Bundles | After the image, `make mcpb` builds one `.mcpb` per platform (macOS, Windows and Linux, amd64 and arm64), validates each manifest with the `mcpb` CLI, attests them and uploads them to the draft release. |
+| Publish | Publishes the draft once the image and the bundles are in place. Published releases are [immutable](#immutable-releases). |
+| MCP Registry | Stable releases only, after the release is published. Downloads the bundles from the release, stamps the version, image tag and each bundle's SHA-256 into [`server.json`](../server.json) (`make server-json`), installs the pinned `mcp-publisher`, checks its checksum, validates the file, logs in with GitHub OIDC (no secrets) and publishes. |
 
 ## If something goes wrong
 
-- **The workflow failed** for a transient reason: re-run it from the Actions tab. It's safe to re-run, and it pushes the same tags again.
-- **The release was wrong** (bad code or wrong tag): don't move or reuse a published tag, because people may already have pulled it. Fix the problem on `main` and publish the next patch version. You can delete the bad GitHub release and mark it as such in the changelog, but leave the image tag alone.
-- **Wrong tag format** (e.g. `1.2.0` without the `v`): delete the release and tag (`gh release delete 1.2.0 --cleanup-tag`) and publish again with the right tag.
+- **The workflow failed** for a transient reason: re-run it from the Actions tab. It's safe to re-run. It finds the draft it created, and pushes the same image tags again. If the release was already published, its bundles can't change, so a re-run rebuilds the image only.
+- **The release was wrong** (bad code or wrong tag): a published tag can't be moved or reused. Fix the problem on `main` and publish the next patch version. You can delete the bad GitHub release and mark it as such in the changelog, but leave the image tag alone.
+- **The workflow failed before publishing** and the tag itself is wrong: delete the draft and the tag (`gh release delete v1.2.0 --cleanup-tag`), then tag again.
+- **Wrong tag format** (e.g. `1.2.0` without the `v`): the workflow doesn't run for it. Delete the tag (`git push origin :refs/tags/1.2.0`) and push the right one.
 - **The MCP Registry job failed.** Its log says why. A failure before *Publish* (the download, the checksum, validation, or the registry being unavailable) is safe to retry: open the workflow run and click **Re-run failed jobs**, which re-runs only *Publish to the MCP Registry*. If the version already reached the registry, the job notices and skips *Publish*. A published version can't be changed: if its `server.json` was wrong, fix it on `main` and release the next patch version.
 
 ### Publishing to the MCP Registry by hand
@@ -98,13 +101,18 @@ Two rulesets protect the repository. You can view and edit them under **Settings
 **Protect main** (the default branch):
 
 - Changes land only through pull requests. Nobody can push directly, force-push or delete the branch, and there are no bypasses.
-- The CI checks *Test* and *Docker image* must pass, and the branch must be up to date with `main`.
+- The CI checks *Test*, *Docker image* and *Dependency review* must pass. The branch doesn't need to be up to date with `main`.
+- CodeQL must not find new high or critical security alerts, or error-level alerts.
 - Review threads must be resolved before merging. The only merge method is squash.
 - No approving review is required yet, because GitHub doesn't let authors approve their own pull requests and the project has a single maintainer. Raise this when there are more maintainers.
 
 **Protect release tags** (`v*`):
 
 - Only repository admins can create, move or delete version tags, so only maintainers can publish releases. Published versions can't be re-pointed.
+
+### Immutable releases
+
+[Immutable releases](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/immutable-releases) are on (**Settings → General → Releases**). Once a release is published, its assets can't be added, changed or deleted, and its tag can't be moved or reused, even by admins. GitHub also attaches a release attestation (`gh release verify`). That's why the workflow attaches everything to a draft and publishes last.
 
 > [!NOTE]
 > Required checks are matched by job name. If you rename a job in [`ci.yml`](../.github/workflows/ci.yml), update the *Protect main* ruleset in the same change. Otherwise pull requests wait forever for a check that never reports.
