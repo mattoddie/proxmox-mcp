@@ -42,6 +42,8 @@ The version comes **from the tag**. `package.json` stays at `0.0.0-dev` in the r
 
 Release notes are generated from merged PR titles and grouped by label. The groups are set in [`.github/release.yml`](../.github/release.yml). Label PRs `breaking`, `enhancement`, `new-tool`, `bug`, `compatibility`, `documentation` or `dependencies` to sort them, or `skip-changelog` to leave a PR out.
 
+**Homebrew.** The [tap](https://github.com/mattoddie/homebrew-tap) checks for new stable releases every hour. It verifies the archives' checksums and build provenance, tests the formula on macOS and Linux, then publishes it. Nothing needs doing here. To update it straight away, run the tap's *Update formulas* workflow. Pre-releases aren't published to the tap.
+
 ## Pre-releases
 
 To test a release candidate, push a pre-release tag. The workflow marks a release as a pre-release when its tag has a suffix:

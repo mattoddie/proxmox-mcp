@@ -83,7 +83,7 @@ Now ask *"How's my Proxmox cluster doing?"* in Claude Code.
 
 **On Claude Desktop?** Skip Docker: download the `.mcpb` bundle for your computer from the [latest release](https://github.com/mattoddie/proxmox-mcp/releases/latest), open it, and fill in the settings form. See [Claude Desktop](docs/clients.md#claude-desktop).
 
-Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`, or a [release binary](docs/deployment.md#running-without-docker) without Docker.
+Using **VS Code, Cursor or Codex**? See [Connecting MCP clients](docs/clients.md). Prefer not to run a service? Use [stdio mode](docs/clients.md#stdio-mode) with `docker run -i`, or a [release binary](docs/deployment.md#running-without-docker) without Docker. On macOS or Linux: `brew install mattoddie/tap/proxmox-mcp`.
 
 proxmox-mcp is listed in the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.mattoddie/proxmox-mcp) as `io.github.mattoddie/proxmox-mcp`, so clients that browse the registry can install it (as the Docker image over stdio, or as a Claude Desktop bundle) and ask for the settings.
 

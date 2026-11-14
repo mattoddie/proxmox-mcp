@@ -18,7 +18,7 @@ This guide takes you from nothing to asking your first question about your Proxm
 - **An MCP client**, such as [Claude Code](https://claude.com/claude-code), Claude Desktop, VS Code, Cursor or Codex.
 
 > [!TIP]
-> **No Docker?** On Claude Desktop, install the [extension bundle](clients.md#claude-desktop) instead. For other clients, each release also has plain binaries for macOS, Linux and Windows. See [Running without Docker](deployment.md#running-without-docker) and [connecting a client to the binary](clients.md#without-docker).
+> **No Docker?** On Claude Desktop, install the [extension bundle](clients.md#claude-desktop) instead. For other clients, each release also has plain binaries for macOS, Linux and Windows. See [Running without Docker](deployment.md#running-without-docker) and [connecting a client to the binary](clients.md#without-docker). On macOS or Linux, `brew install mattoddie/tap/proxmox-mcp` installs it with Homebrew.
 
 ## 1. Find your Proxmox URL
 
