@@ -170,6 +170,16 @@ Running Docker directly on a Proxmox node is possible but not recommended by Pro
 
 Docker is the main way to run proxmox-mcp, but the server is a single static Go binary with no runtime dependencies.
 
+### With Homebrew
+
+On macOS or Linux, install the release binary with [Homebrew](https://brew.sh):
+
+```sh
+brew install mattoddie/tap/proxmox-mcp
+```
+
+`brew upgrade` picks up new releases, usually within an hour of them being published. The formula installs the same release archive described below, after checking its checksum and build provenance. See [mattoddie/homebrew-tap](https://github.com/mattoddie/homebrew-tap).
+
 ### Download a release binary
 
 Each [release](https://github.com/mattoddie/proxmox-mcp/releases/latest) has an archive for macOS, Linux and Windows on `amd64` and `arm64`. Each archive holds the `proxmox-mcp` binary and the licence. For example, on a 64-bit Arm Linux machine:
