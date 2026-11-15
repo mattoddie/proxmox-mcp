@@ -256,7 +256,7 @@ func registerNotifications(c *Context) {
 			"webhook: url and method (required), headers, body (plain text; Proxmox templates like {{ title }} / {{ message }} work), secrets (referenced as {{ secrets.<name> }}). " +
 			"Header, body and secret values are base64-encoded for you. Afterwards route notifications to it with proxmox_save_notification_matcher and try it with proxmox_test_notification_target.",
 		Write:       true,
-		Destructive: False,
+		Destructive: True,
 		Input: []Prop{
 			P("type", notificationsEndpointTypeArg),
 			P("name", notificationsNameArg),

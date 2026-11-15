@@ -439,7 +439,7 @@ func registerStorage(c *Context) {
 			P("extra", extraArg),
 		},
 		Write:       true,
-		Destructive: False,
+		Destructive: True,
 		Idempotent:  true,
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			exists, err := storageExists(ctx, c, a.Get("storage"))
@@ -883,6 +883,10 @@ func registerStorage(c *Context) {
 			P("portal", Str().Opt().D("iscsi: portal IP or name, optionally with :port")),
 			P("vg", Str().Opt().D("lvmthin: volume group to list thin pools of")),
 		},
+		// Remote scans make the node connect out, so with writes on they get dry runs and the
+		// audit log.
+		Reads:    func(a *Obj) bool { return !storageRemoteScanTypes[a.Str("type")] },
+		ReadOnly: boolPtr(!c.AllowWrites),
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			typ := a.Str("type")
 			// Remote scans make the node connect to an arbitrary server (and send it credentials), so they count as writes.
@@ -922,7 +926,11 @@ func registerStorage(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			items, err := client.GetList(ctx, "/nodes/"+enc(node)+"/scan/"+typ, params)
+			scanCtx := ctx
+			if storageRemoteScanTypes[typ] {
+				scanCtx = proxmox.AsChange(ctx)
+			}
+			items, err := client.GetList(scanCtx, "/nodes/"+enc(node)+"/scan/"+typ, params)
 			if err != nil {
 				return nil, err
 			}

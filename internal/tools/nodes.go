@@ -719,7 +719,8 @@ func registerNodes(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			v, err := client.Get(ctx, nodesPath(node)+"/query-url-metadata", defined(js.O("url", a.Get("url"), "verify-certificates", a.Get("verify_certificates"))))
+			// AsChange: a dry run must not send it either.
+			v, err := client.Get(proxmox.AsChange(ctx), nodesPath(node)+"/query-url-metadata", defined(js.O("url", a.Get("url"), "verify-certificates", a.Get("verify_certificates"))))
 			if err != nil {
 				return nil, err
 			}
@@ -1603,7 +1604,7 @@ func registerNodes(c *Context) {
 		Title:       "Enable, disable or add an APT repository",
 		Description: "Enable or disable an existing APT repository (give path and index from proxmox_list_node_repositories plus enabled), or add a standard Proxmox repository by handle (e.g. no-subscription, enterprise, test, ceph-squid-no-subscription). Refresh with proxmox_refresh_node_updates afterwards.",
 		Write:       true,
-		Destructive: False,
+		Destructive: True,
 		Idempotent:  true,
 		Input: []Prop{
 			P("node", nodeArg),
@@ -1668,6 +1669,7 @@ func registerNodes(c *Context) {
 		Write:       true,
 		Destructive: False,
 		Idempotent:  true,
+		Secrets:     []string{"key"},
 		Input: []Prop{
 			P("node", nodeArg),
 			P("key", Str().Opt().D("Subscription key, e.g. pve2c-0123456789 (omit to just refresh the status)")),
@@ -1739,6 +1741,7 @@ func registerNodes(c *Context) {
 		Description: "Install a custom TLS certificate (PEM chain) and private key for a node's web interface/API (pveproxy-ssl). Replaces an existing custom/ACME certificate only with force=true; restart=true restarts pveproxy to use it. The key is sent to Proxmox only and never returned.",
 		Write:       true,
 		Destructive: True,
+		Secrets:     []string{"key"},
 		Input: []Prop{
 			P("node", nodeArg),
 			P("certificates", Str().D("PEM certificate chain (server certificate first)")),
@@ -1920,6 +1923,10 @@ func registerNodes(c *Context) {
 		Title:       "List ACME directories",
 		Description: "List the known ACME CA directories (Let's Encrypt production/staging...). With `directory`, also fetch that CA's metadata: terms-of-service URL (needed to register an account) and whether external account binding is required. Fetching `directory` makes the node connect to that URL, so it needs write access.",
 		Input:       []Prop{P("directory", Str().Opt().D("Also fetch metadata for this directory URL"))},
+		// With directory the node connects out, so with writes on such calls get dry runs and
+		// the audit log.
+		Reads:    func(a *Obj) bool { return !a.Truthy("directory") },
+		ReadOnly: boolPtr(!c.AllowWrites),
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			directories, err := client.Get(ctx, "/cluster/acme/directories", nil)
 			if err != nil {
@@ -1932,10 +1939,15 @@ func registerNodes(c *Context) {
 			if !c.AllowWrites {
 				return nil, proxmox.Errorf("Fetching metadata for `directory` makes the node connect to that URL and needs write access (PROXMOX_ALLOW_WRITES=true); without it only the known directories are listed")
 			}
-			meta, err := client.Get(ctx, "/cluster/acme/meta", js.O("directory", a.Get("directory")))
+			out := proxmox.AsChange(ctx)
+			meta, err := client.Get(out, "/cluster/acme/meta", js.O("directory", a.Get("directory")))
+			var dry *proxmox.DryRunError
+			if errors.As(err, &dry) {
+				return nil, err
+			}
 			if err != nil {
 				// Older versions only have /tos.
-				tos, err := client.Get(ctx, "/cluster/acme/tos", js.O("directory", a.Get("directory")))
+				tos, err := client.Get(out, "/cluster/acme/tos", js.O("directory", a.Get("directory")))
 				if err != nil {
 					return nil, err
 				}
@@ -2003,6 +2015,7 @@ func registerNodes(c *Context) {
 		Description: "Create (create=true) or update an ACME challenge plugin. For DNS validation give api (e.g. cf) and data with the API credentials as key/value pairs (see proxmox_get_acme_challenge_schema); they are base64-encoded for Proxmox and never echoed back. On update, data replaces all existing credentials.",
 		Write:       true,
 		Destructive: False,
+		Secrets:     []string{"data"},
 		Input: []Prop{
 			P("id", Str().D("Plugin ID, e.g. cloudflare")),
 			P("create", Bool().Opt().D("Create a new plugin (default false = update)")),

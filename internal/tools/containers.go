@@ -963,7 +963,7 @@ func registerContainers(c *Context) {
 	c.Define("proxmox_move_container_volume", Def{
 		Toolset:     "containers",
 		Title:       "Move a container volume",
-		Description: "Move a container's rootfs or mount point to another storage (storage), or reassign a volume to another container (target_vmid, optional target_volume). The container usually must be stopped to move rootfs. By default the original is kept as an unusedN entry; delete_source=true removes it after a successful copy.",
+		Description: "Move a container's rootfs or mount point to another storage (storage), or reassign a volume to another container (target_vmid, optional target_volume). The container usually must be stopped to move rootfs. By default the original is kept as an unusedN entry; delete_source=true removes it after a successful copy and needs delete access (PROXMOX_ALLOW_DELETES).",
 		Write:       true,
 		Destructive: True,
 		Input: []Prop{
@@ -982,6 +982,9 @@ func registerContainers(c *Context) {
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			if !a.Truthy("storage") && js.IsUndef(a.Get("target_vmid")) {
 				return nil, errors.New("Give storage (move to storage) or target_vmid (reassign to container)")
+			}
+			if a.Truthy("delete_source") && !c.AllowDeletes {
+				return nil, errors.New("delete_source permanently deletes the original volume and needs delete access (PROXMOX_ALLOW_DELETES=true); without it the original is kept as an unusedN entry")
 			}
 			g, err := ct(ctx, a)
 			if err != nil {

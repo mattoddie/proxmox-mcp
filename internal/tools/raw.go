@@ -81,7 +81,7 @@ func registerRaw(c *Context) {
 	}
 	// Appended, so the sentences above stay as they were.
 	if c.AllowWrites && !c.AllowDeletes {
-		desc += " Requests that destroy data without DELETE are refused too: wiping or initialising disks, restoring over a guest (force), deleting unusedN volumes, unlink with force, move_disk/move_volume with delete, purge or destroy-unreferenced-disks, and remote_migrate."
+		desc += " Requests that destroy data without DELETE are refused too: wiping or initialising disks, restoring over a guest (force), deleting unusedN volumes, removing VM disks or unlink with force, vzdump or backup jobs that prune old backups, realm sync that removes vanished users or ACLs, move_disk/move_volume with delete, purge or destroy-unreferenced-disks, and remote_migrate."
 	}
 	if !c.AllowWrites {
 		desc += " Remote storage scans (nfs, cifs, pbs, iscsi), query-url-metadata and ACME directory lookups make the node connect out, so they need write access."
@@ -105,7 +105,7 @@ func registerRaw(c *Context) {
 		Title:       "Raw Proxmox API request",
 		Description: desc,
 		ReadOnly:    boolPtr(!c.AllowWrites),
-		Reads:       func(a *Obj) bool { return js.Str(or(a.Get("method"), "GET")) == "GET" },
+		Reads:       rawIsRead,
 		Destructive: boolPtr(c.AllowWrites),
 		Input:       input,
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -163,6 +163,10 @@ func registerRaw(c *Context) {
 			if err := rawGateError(c, method, []string{decoded, sent}, params); err != nil {
 				return nil, err
 			}
+			if rawOutbound(method, []string{decoded, sent}, params) {
+				// The node connects out: a dry run stops it and the audit log records it.
+				ctx = proxmox.AsChange(ctx)
+			}
 			data, err := client.Request(ctx, method, path, params)
 			if err != nil {
 				return nil, err
@@ -213,6 +217,8 @@ var rawRules = []rawRule{
 		reason: "restores over an existing guest (force), destroying its disks and config"},
 	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)(/|$)`), nonGET: true, when: func(p *Obj) bool { return deletesUnusedVolume(p.Get("delete")) }, gate: Delete,
 		reason: "deletes an unusedN entry, which destroys its volume"},
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/qemu/[^/]+/config/?$`), nonGET: true, when: rawParamTrue("force"), gate: Delete,
+		reason: "removes disks with force, which destroys the volumes instead of keeping them as unusedN"},
 	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/qemu/[^/]+/unlink/?$`), when: rawParamTrue("force"), gate: Delete,
 		reason: "unlinks disks with force, which destroys the volumes"},
 	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu/[^/]+/move_disk|lxc/[^/]+/move_volume)/?$`), when: rawParamTrue("delete"), gate: Delete,
@@ -222,6 +228,26 @@ var rawRules = []rawRule{
 	// and possibly a destroyed guest, not command execution, so it sits with deletes.
 	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/(qemu|lxc)/[^/]+/remote_migrate/?$`), gate: Delete,
 		reason: "migrates the guest to another cluster (copying its data out, and with delete=1 removing the original)"},
+	// vzdump prunes older backups unless remove=0 (Proxmox defaults it to 1), and backup jobs
+	// prune on every run with their own retention.
+	{path: regexp.MustCompile(`(?i)^/nodes/[^/]+/vzdump/?$`), nonGET: true, when: func(p *Obj) bool {
+		return p.Present("prune-backups") || !p.Present("remove") || paramTruthy(p.Get("remove"))
+	}, gate: Delete,
+		reason: "prunes older backups (pass remove=0 to keep them)"},
+	{path: regexp.MustCompile(`(?i)^/cluster/backup/?$`), nonGET: true, when: func(p *Obj) bool {
+		return p.Present("prune-backups") || !p.Present("remove") || paramTruthy(p.Get("remove"))
+	}, gate: Delete,
+		reason: "creates a backup job that prunes older backups (pass remove=0 to keep them)"},
+	{path: regexp.MustCompile(`(?i)^/cluster/backup/[^/]+/?$`), nonGET: true, when: func(p *Obj) bool {
+		return p.Present("prune-backups") || paramTruthy(p.Get("remove")) || deletesKey(p.Get("delete"), "remove", "prune-backups")
+	}, gate: Delete,
+		reason: "sets a backup job to prune older backups"},
+	// Realm sync with remove-vanished entry or acl deletes users, groups and ACLs that are no
+	// longer in the directory.
+	{path: regexp.MustCompile(`(?i)^/(access/domains/[^/]+/sync|cluster/jobs/realm-sync/[^/]+)/?$`), nonGET: true, when: func(p *Obj) bool {
+		return removesVanished(p.Get("remove-vanished")) && !paramTruthy(p.Get("dry-run"))
+	}, gate: Delete,
+		reason: "removes vanished users, groups or ACLs (remove-vanished entry or acl)"},
 	{path: regexp.MustCompile(`^/`), nonGET: true, when: func(p *Obj) bool {
 		return paramTruthy(p.Get("purge")) || paramTruthy(p.Get("destroy-unreferenced-disks"))
 	}, gate: Delete,
@@ -240,22 +266,55 @@ var rawRules = []rawRule{
 		reason: "makes the node fetch a URL of the caller's choosing"},
 }
 
-// rawGateError checks every rule that applies to a request and fails on the first one whose
-// setting is off.
-func rawGateError(c *Context, method string, paths []string, params *Obj) error {
+// rawMatchingRules returns the rules that apply to a request.
+func rawMatchingRules(method string, paths []string, params *Obj) []rawRule {
+	var out []rawRule
 	for _, r := range rawRules {
 		if (r.nonGET && method == "GET") || (r.when != nil && !r.when(params)) {
 			continue
 		}
-		matched := false
 		for _, p := range paths {
 			if r.path.MatchString(rawSlashesRe.ReplaceAllString(p, "/")) {
-				matched = true
+				out = append(out, r)
+				break
 			}
 		}
-		if !matched {
-			continue
+	}
+	return out
+}
+
+// rawOutbound reports whether a GET makes the node connect to a server of the caller's choosing
+// (a Write rule matches): such a request is a change for dry runs and the audit log.
+func rawOutbound(method string, paths []string, params *Obj) bool {
+	if method != "GET" {
+		return false
+	}
+	for _, r := range rawMatchingRules(method, paths, params) {
+		if r.gate == Write {
+			return true
 		}
+	}
+	return false
+}
+
+// rawIsRead is the raw tool's Def.Reads: a GET, unless it makes the node connect out.
+func rawIsRead(a *Obj) bool {
+	method := js.Str(or(a.Get("method"), "GET"))
+	if method != "GET" {
+		return false
+	}
+	path := strings.TrimPrefix(a.Str("path"), "/api2/json")
+	if decoded, err := decodeURIComponent(path); err == nil {
+		path = decoded
+	}
+	params, _ := a.Get("params").(*Obj)
+	return !rawOutbound(method, []string{path}, params)
+}
+
+// rawGateError checks every rule that applies to a request and fails on the first one whose
+// setting is off.
+func rawGateError(c *Context, method string, paths []string, params *Obj) error {
+	for _, r := range rawMatchingRules(method, paths, params) {
 		switch {
 		case r.gate == Write && !c.AllowWrites:
 			return fmt.Errorf("This request %s, so it needs write access. Set PROXMOX_ALLOW_WRITES=true to allow it.", r.reason)

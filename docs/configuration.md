@@ -93,7 +93,7 @@ Every tool that changes something also takes `dry_run`. With `dry_run: true` the
 |---|---|---|
 | `PROXMOX_AUDIT_LOG` | (off) | Record every call of a tool that changes things. A file path appends JSON Lines to that file, which is created with mode `0600` if it doesn't exist; its directory must exist, or the server won't start. `stderr` writes the lines to standard error, next to the server's other logs. |
 
-Each line is one call of a write, delete or exec tool, or of `proxmox_api_request` with a method other than `GET`. Read-only tools aren't logged. Dry runs, calls that failed and calls refused for invalid arguments are all logged:
+Each line is one call of a write, delete or exec tool, of `proxmox_api_request` with a method other than `GET`, or of a request that makes a node connect to a server you name (remote storage scans, URL metadata and ACME directory lookups, through their tools or the raw API tool). Read-only tools aren't logged. Dry runs, calls that failed and calls refused for invalid arguments are all logged:
 
 ```json
 {"time":"2026-10-22T09:14:03.120Z","tool":"proxmox_update_vm_config","dry_run":false,"arguments":{"vmid":100,"memory_mb":8192,"extra":{"cipassword":"<redacted>"}},"requests":[{"method":"POST","path":"/nodes/pve1/qemu/100/config","status":200}],"outcome":"ok"}

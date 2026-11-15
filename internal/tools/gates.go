@@ -51,6 +51,29 @@ func deletesUnusedVolume(v any) bool {
 	return false
 }
 
+// deletesKey reports whether a `delete` parameter lists any of keys.
+func deletesKey(v any, keys ...string) bool {
+	for _, k := range configKeys(v) {
+		for _, want := range keys {
+			if strings.EqualFold(k, want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// removesVanished reports whether a realm sync `remove-vanished` value deletes something: entry
+// removes users and groups, acl their permissions. (properties only clears attributes.)
+func removesVanished(v any) bool {
+	for _, k := range configKeys(v) {
+		if strings.EqualFold(k, "entry") || strings.EqualFold(k, "acl") {
+			return true
+		}
+	}
+	return false
+}
+
 // checkGuestConfigGates guards guest config parameters that reach beyond a plain config write:
 // deleting an unusedN key destroys that volume, and a hookscript runs as root on the node at
 // every lifecycle event. hint is appended to the delete error (e.g. the tool that does it

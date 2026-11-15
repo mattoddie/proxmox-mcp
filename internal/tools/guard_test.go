@@ -111,7 +111,7 @@ func TestDryRun(t *testing.T) {
 		for name, info := range registered {
 			has := hasProp(info.Props, "dry_run")
 			want := info.Gate != Read && name != "proxmox_get_guest_exec_status" && name != "proxmox_guest_read_file"
-			if name == "proxmox_api_request" || name == "proxmox_query_url_metadata" {
+			if info.Reads || name == "proxmox_query_url_metadata" {
 				want = true
 			}
 			if has != want {

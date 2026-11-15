@@ -24,6 +24,7 @@ type Call struct {
 	fetched     []fetched
 	intercepted *Intercepted
 	blocked     int
+	secrets     []string
 }
 
 // SentRequest is a state-changing request that was sent to Proxmox.
@@ -42,6 +43,8 @@ type Intercepted struct {
 	// Current is the object the request would change, when the call read it earlier (or the
 	// preview read it afterwards).
 	Current *js.Obj
+	// Secrets are parameter names to redact beyond those that look secret (SetSecretKeys).
+	Secrets []string
 }
 
 type fetched struct {
@@ -52,6 +55,8 @@ type fetched struct {
 type callKey struct{}
 
 type readKey struct{}
+
+type changeKey struct{}
 
 // WithCall returns a context whose requests are recorded in call.
 func WithCall(ctx context.Context, call *Call) context.Context {
@@ -71,7 +76,17 @@ func AsRead(ctx context.Context) context.Context {
 	return context.WithValue(ctx, readKey{}, true)
 }
 
+// AsChange marks the requests made with the returned context as changes even when they are GETs:
+// some make the node connect to a server of the caller's choosing (remote storage scans, URL
+// metadata, ACME directories). A dry run stops them, and the audit log records them.
+func AsChange(ctx context.Context) context.Context {
+	return context.WithValue(ctx, changeKey{}, true)
+}
+
 func isRead(ctx context.Context, method string) bool {
+	if c, _ := ctx.Value(changeKey{}).(bool); c {
+		return false
+	}
 	if method == "GET" {
 		return true
 	}
@@ -84,6 +99,14 @@ func (c *Call) SetDryRun() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.dryRun = true
+}
+
+// SetSecretKeys names parameters whose values the preview always redacts, for secrets under a
+// generic name (a certificate's `key`, an ACME plugin's `data`).
+func (c *Call) SetSecretKeys(keys ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.secrets = append(c.secrets, keys...)
 }
 
 // DryRun reports whether the call is a dry run.
@@ -132,7 +155,7 @@ func (c *Call) intercept(method, path string, params *js.Obj) error {
 		if params != nil {
 			p = params.Clone()
 		}
-		i := &Intercepted{Method: method, Path: path, Params: p}
+		i := &Intercepted{Method: method, Path: path, Params: p, Secrets: append([]string(nil), c.secrets...)}
 		for j := len(c.fetched) - 1; j >= 0 && method != "POST"; j-- {
 			if o, ok := c.fetched[j].data.(*js.Obj); ok && o != nil && c.fetched[j].path == path {
 				i.Current = o
@@ -167,18 +190,19 @@ var controlParams = map[string]bool{"digest": true, "delete": true, "revert": tr
 func (i *Intercepted) Preview() *js.Obj {
 	send := js.O("method", i.Method, "path", i.Path)
 	out := js.O("dry_run", true, "would_send", send)
+	opt := RedactOptions{Keys: i.Secrets}
 	if i.Params != nil && i.Params.Len() > 0 {
-		send.Set("params", RedactSecrets(i.Params))
+		send.Set("params", RedactSecrets(i.Params, opt))
 	}
 	if i.Current == nil {
 		return out
 	}
 	if i.Method == "DELETE" {
-		out.Set("current", RedactSecrets(i.Current))
+		out.Set("current", RedactSecrets(i.Current, opt))
 		return out
 	}
 	if i.ConfigPath() {
-		out.Set("changes", Diff(i.Current, i.Params))
+		out.Set("changes", diff(i.Current, i.Params, i.Secrets))
 	}
 	return out
 }
@@ -187,7 +211,11 @@ func (i *Intercepted) Preview() *js.Obj {
 // value differs from the current one as Proxmox would store it (booleans as 1/0), and the keys
 // named in `delete`, whose value becomes null. Proxmox updates are partial, so keys the request
 // doesn't mention are left alone and not listed. Secret values are redacted.
-func Diff(current, params *js.Obj) *js.Obj {
+func Diff(current, params *js.Obj) *js.Obj { return diff(current, params, nil) }
+
+// diff is Diff that also redacts the values of the keys in secrets.
+func diff(current, params *js.Obj, secrets []string) *js.Obj {
+	secret := func(k string) bool { return IsSecretKey(k) || (RedactOptions{Keys: secrets}).forced(k) }
 	out := js.NewObj()
 	if params == nil {
 		return out
@@ -213,11 +241,11 @@ func Diff(current, params *js.Obj) *js.Obj {
 		if v := params.Get(k); len(sent[k]) == 1 {
 			toVal = v
 		}
-		out.Set(k, change(k, from, toVal))
+		out.Set(k, change(secret(k), from, toVal))
 	}
 	for _, k := range strings.FieldsFunc(js.Str(or(params.Get("delete"), "")), func(r rune) bool { return r == ',' || r == ';' || r == ' ' }) {
 		if from := current.Get(k); !js.IsUndef(from) && !out.Has(k) {
-			out.Set(k, change(k, from, nil))
+			out.Set(k, change(secret(k), from, nil))
 		}
 	}
 	return out
@@ -242,11 +270,11 @@ func wireValue(v any) string {
 	return js.Str(v)
 }
 
-func change(key string, from, to any) *js.Obj {
+func change(secret bool, from, to any) *js.Obj {
 	if js.IsUndef(from) {
 		from = nil
 	}
-	if IsSecretKey(key) {
+	if secret {
 		if from != nil {
 			from = Redacted
 		}

@@ -734,7 +734,7 @@ List a node's APT repositories by file with enabled/disabled state, URIs, suites
 
 ### proxmox_set_node_repository
 
-🟠 write
+🟠 write · destructive
 
 Enable or disable an existing APT repository (give path and index from proxmox_list_node_repositories plus enabled), or add a standard Proxmox repository by handle (e.g. no-subscription, enterprise, test, ceph-squid-no-subscription). Refresh with proxmox_refresh_node_updates afterwards.
 
@@ -893,6 +893,7 @@ List the known ACME CA directories (Let's Encrypt production/staging...). With `
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `directory` | string |  | Also fetch metadata for this directory URL |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -1247,7 +1248,7 @@ Grow a VM disk, e.g. size='+10G' to add 10 GiB or '64G' for an absolute size. Di
 
 🟠 write · destructive
 
-Move a VM disk to another storage (works live on running VMs) or reassign it to another VM (target_vmid, optionally target_disk). After a storage move the old copy is kept as an unused disk unless delete_source=true.
+Move a VM disk to another storage (works live on running VMs) or reassign it to another VM (target_vmid, optionally target_disk). After a storage move the old copy is kept as an unused disk unless delete_source=true, which needs delete access (PROXMOX_ALLOW_DELETES).
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -1619,7 +1620,7 @@ Grow a container's rootfs or mount point volume. size is absolute ("20G") or rel
 
 🟠 write · destructive
 
-Move a container's rootfs or mount point to another storage (storage), or reassign a volume to another container (target_vmid, optional target_volume). The container usually must be stopped to move rootfs. By default the original is kept as an unusedN entry; delete_source=true removes it after a successful copy.
+Move a container's rootfs or mount point to another storage (storage), or reassign a volume to another container (target_vmid, optional target_volume). The container usually must be stopped to move rootfs. By default the original is kept as an unusedN entry; delete_source=true removes it after a successful copy and needs delete access (PROXMOX_ALLOW_DELETES).
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -2049,7 +2050,7 @@ Get one storage definition (full config, secrets redacted) and its status/usage 
 
 ### proxmox_save_storage
 
-🟠 write
+🟠 write · destructive
 
 Create a storage definition, or update an existing one (decided by whether the storage ID exists). Typed fields cover dir, nfs, cifs, lvm, lvmthin, zfspool, pbs, cephfs, rbd and iscsi; anything else goes in `extra`. On update, type and location fields (path, export, share, vgname, thinpool, datastore, portal, target) can't be changed. Use proxmox_scan_storage first to discover NFS exports, CIFS shares, PBS datastores, VGs and pools. Passwords and keys are redacted from the output.
 
@@ -2264,6 +2265,7 @@ Discover storage that can be added with proxmox_save_storage: NFS exports or CIF
 | `port` | integer |  | pbs: port (default 8007) |
 | `portal` | string |  | iscsi: portal IP or name, optionally with :port |
 | `vg` | string |  | lvmthin: volume group to list thin pools of |
+| `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_list_disks
 
@@ -2467,9 +2469,9 @@ Get one backup job's settings plus the guests it currently includes and, per gue
 
 ### proxmox_save_backup_job
 
-🟠 write
+🟠 write · destructive
 
-Create a scheduled backup job, or update an existing one when `id` names one. Choose guests with exactly one of vmids, all (optionally with exclude) or pool; on update, giving a new selection replaces the old one. schedule uses systemd calendar syntax, e.g. "daily", "sat 02:00", "mon..fri 21:30" (check with proxmox_simulate_schedule). Only given fields change on update. Run a job immediately with proxmox_run_backup_job.
+Create a scheduled backup job, or update an existing one when `id` names one. Choose guests with exactly one of vmids, all (optionally with exclude) or pool; on update, giving a new selection replaces the old one. schedule uses systemd calendar syntax, e.g. "daily", "sat 02:00", "mon..fri 21:30" (check with proxmox_simulate_schedule). Only given fields change on update. Run a job immediately with proxmox_run_backup_job. retention and remove_old=true prune backups and need delete access (PROXMOX_ALLOW_DELETES); without it new jobs are created with remove_old=false.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -2510,7 +2512,7 @@ Delete a scheduled backup job. Existing backups are kept. To pause a job instead
 
 🟠 write · destructive
 
-Run a scheduled backup job immediately with its own settings (storage, mode, compression, retention...), the way the scheduler would: one vzdump task per node for the guests on that node. By default waits for all tasks; with wait=false returns the task IDs. Note that with remove_old (the default) old backups are pruned per the job's retention.
+Run a scheduled backup job immediately with its own settings (storage, mode, compression, retention...), the way the scheduler would: one vzdump task per node for the guests on that node. By default waits for all tasks; with wait=false returns the task IDs. With delete access (PROXMOX_ALLOW_DELETES), old backups are pruned per the job's retention when the job has remove_old (the default); without it the run doesn't prune.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -2533,7 +2535,7 @@ List VMs and containers that no backup job covers, with node and status. Use it 
 
 🟠 write · destructive
 
-Back up one or more VMs/containers now (vzdump), e.g. before an upgrade. Guests are grouped by node and one task runs per node. Defaults come from the node's vzdump defaults and the storage. Use protected=true or notes_template to label a one-off backup, and remove_old=false to avoid pruning older backups as a side effect. Waits for completion by default (large guests can exceed the wait; follow with proxmox_get_task).
+Back up one or more VMs/containers now (vzdump), e.g. before an upgrade. Guests are grouped by node and one task runs per node. Defaults come from the node's vzdump defaults and the storage. Use protected=true or notes_template to label a one-off backup, and remove_old=false to avoid pruning older backups as a side effect. Pruning (retention, remove_old=true) deletes backups and needs delete access (PROXMOX_ALLOW_DELETES); without it remove_old defaults to false. Waits for completion by default (large guests can exceed the wait; follow with proxmox_get_task).
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -2834,7 +2836,7 @@ Get one user's configuration: enabled state, expiry, name, email, groups, commen
 
 ### proxmox_save_user
 
-🟠 write
+🟠 write · destructive
 
 Create (create=true) or update a Proxmox user. Only the given fields change on update. `password` is only accepted on create and only for the pve realm (pam users need a Linux account on every node); change existing passwords with proxmox_change_password. Groups replace the user's groups unless append=true. Grant permissions afterwards with proxmox_update_acl.
 
@@ -3164,7 +3166,7 @@ Delete an authentication realm. Users of that realm can no longer log in (their 
 
 🟠 write · destructive
 
-Sync users and/or groups from an LDAP, AD or OpenID realm into Proxmox. Use dry_run=true first to see what would change (in the task log). Options not given fall back to the realm's sync-defaults-options. Synced groups are named <group>-<realm>.
+Sync users and/or groups from an LDAP, AD or OpenID realm into Proxmox. Use dry_run=true first to see what would change (in the task log). Options not given fall back to the realm's sync-defaults-options. Synced groups are named <group>-<realm>. remove_vanished with entry or acl (given or from the realm's defaults) deletes users, groups or ACLs and needs delete access (PROXMOX_ALLOW_DELETES) unless dry_run=true.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -3226,7 +3228,7 @@ List scheduled realm sync jobs (periodic LDAP/AD/OpenID user and group sync) wit
 
 🟠 write
 
-Create (create=true, with realm and schedule) or update a scheduled realm sync job. Check schedules with proxmox_simulate_schedule. For a one-off sync use proxmox_sync_realm.
+Create (create=true, with realm and schedule) or update a scheduled realm sync job. Check schedules with proxmox_simulate_schedule. For a one-off sync use proxmox_sync_realm. remove_vanished with entry or acl needs delete access (PROXMOX_ALLOW_DELETES).
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -4829,7 +4831,7 @@ Get one notification endpoint's configuration. The type is looked up when omitte
 
 ### proxmox_save_notification_endpoint
 
-🟠 write
+🟠 write · destructive
 
 Create (create=true) or update a notification endpoint of any type. Only the given fields change on update. sendmail: mailto and/or mailto_user, from_address, author. smtp: server, from_address (required), port, mode, username, password, mailto/mailto_user, author. gotify: server URL and token (required). webhook: url and method (required), headers, body (plain text; Proxmox templates like {{ title }} / {{ message }} work), secrets (referenced as {{ secrets.<name> }}). Header, body and secret values are base64-encoded for you. Afterwards route notifications to it with proxmox_save_notification_matcher and try it with proxmox_test_notification_target.
 

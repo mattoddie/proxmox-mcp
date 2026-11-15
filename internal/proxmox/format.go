@@ -294,8 +294,9 @@ var (
 // Redacted replaces secret values.
 const Redacted = "<redacted>"
 
-// IsSecretKey reports whether a field name looks like it holds a secret.
-func IsSecretKey(k string) bool { return secretKeyRe.MatchString(k) }
+// IsSecretKey reports whether a field name looks like it holds a secret. Underscores count as
+// hyphens, so a tool argument such as client_key matches like Proxmox's client-key.
+func IsSecretKey(k string) bool { return secretKeyRe.MatchString(strings.ReplaceAll(k, "_", "-")) }
 
 // RedactPluginData keeps only the keys of an ACME plugin's `data`, which holds DNS API
 // credentials as KEY=value lines and which the API returns base64-encoded. (Splitting the base64
@@ -354,6 +355,43 @@ type RedactOptions struct {
 	// AcmePluginData treats every `data` string as ACME plugin credentials (e.g. for anything
 	// under /cluster/acme/plugins).
 	AcmePluginData bool
+	// Keys are further field names whose values are always redacted, whatever their type: an
+	// object keeps its keys with each value redacted. For secrets a generic name such as `key`
+	// or `data` holds only in one place (a tool's arguments).
+	Keys []string
+}
+
+func (o RedactOptions) forced(k string) bool {
+	for _, x := range o.Keys {
+		if x == k {
+			return true
+		}
+	}
+	return false
+}
+
+// redactAll redacts every value in v, keeping an object's keys.
+func redactAll(v any) any {
+	switch x := v.(type) {
+	case *js.Obj:
+		if x == nil {
+			return x
+		}
+		out := js.NewObj()
+		for _, k := range x.Keys() {
+			out.Set(k, redactAll(x.Get(k)))
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = redactAll(e)
+		}
+		return out
+	case nil, js.Undefined:
+		return v
+	}
+	return Redacted
 }
 
 // RedactSecrets replaces the values of password/secret/key-like fields with "<redacted>",
@@ -383,8 +421,10 @@ func redact(value any, opt RedactOptions) any {
 		acme := isAcmePlugin(x) || (opt.AcmePluginData && dataStr)
 		for _, k := range x.Keys() {
 			v := x.Get(k)
-			secret := secretKeyRe.MatchString(k)
+			secret := IsSecretKey(k)
 			switch {
+			case opt.forced(k):
+				out.Set(k, redactAll(v))
 			case acme && k == "data" && js.Truthy(v):
 				lines := RedactPluginData(v).([]any)
 				parts := make([]string, len(lines))

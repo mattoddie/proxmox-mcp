@@ -6,6 +6,18 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Security
+
+- **Breaking:** without `PROXMOX_ALLOW_DELETES`, arguments that delete data are refused: `delete_source` on `proxmox_move_vm_disk` and `proxmox_move_container_volume`, `retention` and `remove_old=true` on `proxmox_backup_guests` and `proxmox_save_backup_job`, and `remove_vanished` with `entry` or `acl` on `proxmox_sync_realm` (also when it comes from the realm's sync defaults, unless `dry_run`) and `proxmox_save_realm_sync_job`. Backups made without delete access are sent with `remove=0`, because Proxmox prunes older backups by default: `proxmox_backup_guests` and `proxmox_run_backup_job` no longer prune, and new backup jobs are created with `remove_old=false`.
+- **Breaking:** the raw API tool refuses the same without delete access: a VM `config` update with `force` (which deletes removed disks), `vzdump` without `remove=0` or with `prune-backups`, backup jobs that prune, and realm sync with `remove-vanished` containing `entry` or `acl`.
+- Remote storage scans (`proxmox_scan_storage` with nfs, cifs, pbs or iscsi), `proxmox_list_acme_directories` with `directory`, `proxmox_query_url_metadata` and the matching raw API `GET`s make the node connect out, so with writes on they now take `dry_run` (which no longer sends them) and are recorded in the audit log. `proxmox_scan_storage` and `proxmox_list_acme_directories` are no longer marked read-only when writes are on.
+- Secrets under generic names are now redacted in the audit log and dry-run previews: the private `key` of `proxmox_upload_node_certificate`, the subscription `key`, the PowerDNS `key` and the ACME plugin `data`. Field names with underscores, such as `client_key` and `encryption_key`, are matched like their hyphenated forms.
+- `proxmox_save_storage`, `proxmox_save_user`, `proxmox_save_backup_job`, `proxmox_set_node_repository` and `proxmox_save_notification_endpoint` are now marked destructive, because their updates can overwrite or disable what's there.
+
+### Changed
+
+- The `go` directive in `go.mod` is now 1.26, since Go 1.25 is no longer supported. The toolchain stays Go 1.27.4.
+
 ## [0.5.2] - 2026-11-13
 
 ### Added

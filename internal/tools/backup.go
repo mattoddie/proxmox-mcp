@@ -322,6 +322,30 @@ func backupCheckHookParams(c *Context, extra any) error {
 // behaviour; never taken from `extra` (either guest type).
 var backupRestoreReserved = []string{"vmid", "force", "archive", "ostemplate", "restore", "unique", "storage", "live-restore"}
 
+// backupPruneError refuses arguments that prune older backups when deletes are off: pruning
+// deletes backups, so it needs PROXMOX_ALLOW_DELETES like proxmox_delete_backup.
+func backupPruneError(c *Context, a *Obj) error {
+	if c.AllowDeletes {
+		return nil
+	}
+	if a.Defined("retention") || a.Get("remove_old") == true {
+		return proxmox.Errorf("Pruning older backups (retention or remove_old=true) deletes backups and needs delete access (PROXMOX_ALLOW_DELETES=true); without it backups are made with remove=0")
+	}
+	if deletesKey(a.Get("delete"), "remove", "prune-backups") {
+		return proxmox.Errorf("Deleting remove or prune-backups turns pruning back on and needs delete access (PROXMOX_ALLOW_DELETES=true)")
+	}
+	return nil
+}
+
+// backupRemove is the vzdump `remove` parameter for remove_old: Proxmox defaults it to 1 (prune
+// after the backup), so without delete access it is sent as 0.
+func backupRemove(c *Context, removeOld any) any {
+	if !c.AllowDeletes && js.IsUndef(removeOld) {
+		return false
+	}
+	return removeOld
+}
+
 // backupJobOnlyKeys are job keys that describe the schedule/job rather than vzdump options.
 var backupJobOnlyKeys = map[string]bool{"id": true, "type": true, "schedule": true, "enabled": true, "comment": true, "repeat-missed": true, "next-run": true, "starttime": true, "dow": true, "node": true, "digest": true}
 
@@ -506,9 +530,9 @@ func registerBackup(c *Context) {
 	c.Define("proxmox_save_backup_job", Def{
 		Toolset:     "backup",
 		Title:       "Create or update backup job",
-		Description: "Create a scheduled backup job, or update an existing one when `id` names one. Choose guests with exactly one of vmids, all (optionally with exclude) or pool; on update, giving a new selection replaces the old one. schedule uses systemd calendar syntax, e.g. \"daily\", \"sat 02:00\", \"mon..fri 21:30\" (check with proxmox_simulate_schedule). Only given fields change on update. Run a job immediately with proxmox_run_backup_job.",
+		Description: "Create a scheduled backup job, or update an existing one when `id` names one. Choose guests with exactly one of vmids, all (optionally with exclude) or pool; on update, giving a new selection replaces the old one. schedule uses systemd calendar syntax, e.g. \"daily\", \"sat 02:00\", \"mon..fri 21:30\" (check with proxmox_simulate_schedule). Only given fields change on update. Run a job immediately with proxmox_run_backup_job. retention and remove_old=true prune backups and need delete access (PROXMOX_ALLOW_DELETES); without it new jobs are created with remove_old=false.",
 		Write:       true,
-		Destructive: False,
+		Destructive: True,
 		Idempotent:  true,
 		Input: []Prop{
 			P("id", Str().Opt().D("Job ID. Updates the job if it exists; otherwise creates it with this ID (auto-generated when omitted)")),
@@ -534,6 +558,9 @@ func registerBackup(c *Context) {
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			if err := backupCheckHookParams(c, a.Get("extra")); err != nil {
+				return nil, err
+			}
+			if err := backupPruneError(c, a); err != nil {
 				return nil, err
 			}
 			exists := false
@@ -586,7 +613,7 @@ func registerBackup(c *Context) {
 				"mode", a.Get("mode"),
 				"compress", a.Get("compress"),
 				"prune-backups", backupRetentionString(a.Get("retention")),
-				"remove", a.Get("remove_old"),
+				"remove", pick(exists, a.Get("remove_old"), backupRemove(c, a.Get("remove_old"))),
 				"notes-template", a.Get("notes_template"),
 				"protected", a.Get("protected"),
 				"comment", a.Get("comment"),
@@ -649,7 +676,7 @@ func registerBackup(c *Context) {
 	c.Define("proxmox_run_backup_job", Def{
 		Toolset:     "backup",
 		Title:       "Run backup job now",
-		Description: "Run a scheduled backup job immediately with its own settings (storage, mode, compression, retention...), the way the scheduler would: one vzdump task per node for the guests on that node. By default waits for all tasks; with wait=false returns the task IDs. Note that with remove_old (the default) old backups are pruned per the job's retention.",
+		Description: "Run a scheduled backup job immediately with its own settings (storage, mode, compression, retention...), the way the scheduler would: one vzdump task per node for the guests on that node. By default waits for all tasks; with wait=false returns the task IDs. With delete access (PROXMOX_ALLOW_DELETES), old backups are pruned per the job's retention when the job has remove_old (the default); without it the run doesn't prune.",
 		Write:       true,
 		Destructive: True,
 		Input:       []Prop{P("id", Str().Min(1).D("Backup job ID (see proxmox_list_backup_jobs)")), P("wait", waitArg)},
@@ -663,6 +690,11 @@ func registerBackup(c *Context) {
 				if v := job.Get(k); !backupJobOnlyKeys[k] && !js.Nullish(v) {
 					base.Set(k, backupToParam(v))
 				}
+			}
+			// The job's own retention prunes older backups, which needs delete access.
+			if !c.AllowDeletes {
+				base.Delete("prune-backups")
+				base.Set("remove", false)
 			}
 			nodes, guests, err := clusterMap(ctx)
 			if err != nil {
@@ -783,7 +815,7 @@ func registerBackup(c *Context) {
 	c.Define("proxmox_backup_guests", Def{
 		Toolset:     "backup",
 		Title:       "Back up guests now",
-		Description: "Back up one or more VMs/containers now (vzdump), e.g. before an upgrade. Guests are grouped by node and one task runs per node. Defaults come from the node's vzdump defaults and the storage. Use protected=true or notes_template to label a one-off backup, and remove_old=false to avoid pruning older backups as a side effect. Waits for completion by default (large guests can exceed the wait; follow with proxmox_get_task).",
+		Description: "Back up one or more VMs/containers now (vzdump), e.g. before an upgrade. Guests are grouped by node and one task runs per node. Defaults come from the node's vzdump defaults and the storage. Use protected=true or notes_template to label a one-off backup, and remove_old=false to avoid pruning older backups as a side effect. Pruning (retention, remove_old=true) deletes backups and needs delete access (PROXMOX_ALLOW_DELETES); without it remove_old defaults to false. Waits for completion by default (large guests can exceed the wait; follow with proxmox_get_task).",
 		Write:       true,
 		Destructive: True,
 		Input: []Prop{
@@ -801,6 +833,9 @@ func registerBackup(c *Context) {
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			if err := backupCheckHookParams(c, a.Get("extra")); err != nil {
+				return nil, err
+			}
+			if err := backupPruneError(c, a); err != nil {
 				return nil, err
 			}
 			_, guests, err := clusterMap(ctx)
@@ -825,7 +860,7 @@ func registerBackup(c *Context) {
 				"compress", a.Get("compress"),
 				"notes-template", a.Get("notes_template"),
 				"protected", a.Get("protected"),
-				"remove", a.Get("remove_old"),
+				"remove", backupRemove(c, a.Get("remove_old")),
 				"prune-backups", backupRetentionString(a.Get("retention")),
 				"bwlimit", a.Get("bwlimit"),
 			), a.Get("extra"), "vmid", "all", "pool", "exclude")

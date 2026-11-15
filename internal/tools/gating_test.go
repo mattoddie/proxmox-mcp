@@ -160,7 +160,7 @@ func TestToolGating(t *testing.T) {
 		for _, tool := range listAll(t, connect(t, client, config.AllTools())) {
 			info := registered[tool.Name]
 			a := tool.Annotations
-			if info.Gate == Read && tool.Name != "proxmox_api_request" && (a.DestructiveHint != nil || !a.ReadOnlyHint) {
+			if info.Gate == Read && !info.Reads && (a.DestructiveHint != nil || !a.ReadOnlyHint) {
 				t.Fatalf("%s: read tools carry no destructive hint", tool.Name)
 			}
 			if (info.Gate == Delete || info.Gate == Exec) && !a.ReadOnlyHint && (a.DestructiveHint == nil || !*a.DestructiveHint) {

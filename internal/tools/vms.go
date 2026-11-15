@@ -1365,7 +1365,7 @@ func registerVms(c *Context) {
 	c.Define("proxmox_move_vm_disk", Def{
 		Toolset:     "vms",
 		Title:       "Move a VM disk",
-		Description: "Move a VM disk to another storage (works live on running VMs) or reassign it to another VM (target_vmid, optionally target_disk). After a storage move the old copy is kept as an unused disk unless delete_source=true.",
+		Description: "Move a VM disk to another storage (works live on running VMs) or reassign it to another VM (target_vmid, optionally target_disk). After a storage move the old copy is kept as an unused disk unless delete_source=true, which needs delete access (PROXMOX_ALLOW_DELETES).",
 		Write:       true,
 		Destructive: True,
 		Input: []Prop{
@@ -1388,6 +1388,9 @@ func registerVms(c *Context) {
 			}
 			if a.Truthy("storage") && a.Defined("target_vmid") {
 				return nil, errors.New("Give either storage or target_vmid, not both")
+			}
+			if a.Truthy("delete_source") && !c.AllowDeletes {
+				return nil, errors.New("delete_source permanently deletes the original disk and needs delete access (PROXMOX_ALLOW_DELETES=true); without it the old copy is kept as an unusedN disk")
 			}
 			g, err := vm(ctx, a)
 			if err != nil {

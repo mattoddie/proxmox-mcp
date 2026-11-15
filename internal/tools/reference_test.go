@@ -68,6 +68,27 @@ func applyDeliberateChanges(ref *Obj, registered map[string]Info) {
 			tool.ObjAt("inputSchema").ObjAt("properties").ObjAt("redact").Set("description", "Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")
 		case "proxmox_list_acme_directories":
 			tool.Set("description", js.Str(tool.Get("description"))+" Fetching `directory` makes the node connect to that URL, so it needs write access.")
+			// 0.6: with writes on, a call with directory gets dry runs and the audit log.
+			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
+		case "proxmox_scan_storage":
+			// 0.6: with writes on, remote scans get dry runs and the audit log.
+			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
+		case "proxmox_save_storage", "proxmox_save_user", "proxmox_save_backup_job", "proxmox_set_node_repository", "proxmox_save_notification_endpoint":
+			// 0.6: updates can overwrite or disable what's there, so clients confirm first.
+			tool.ObjAt("annotations").Set("destructiveHint", true)
+		}
+		// 0.6: deletes and pruning need delete access, and the descriptions say so.
+		if extra, ok := securityNotes[name]; ok {
+			desc := js.Str(tool.Get("description"))
+			if extra[0] != "" {
+				if !strings.Contains(desc, extra[0]) {
+					panic(name + ": reference description changed")
+				}
+				desc = strings.Replace(desc, extra[0], extra[1], 1)
+			} else {
+				desc += extra[1]
+			}
+			tool.Set("description", desc)
 		}
 		// 0.5: tools that change things take dry_run (realm sync keeps its own, which Proxmox
 		// runs), and list tools take search, limit (long lists) and fields.
@@ -100,6 +121,18 @@ func applyDeliberateChanges(ref *Obj, registered map[string]Info) {
 		}
 	}
 	read.Set("tools", tools)
+}
+
+// securityNotes are the 0.6 description changes for delete-gated arguments: {old, new} replaces
+// old, or {"", text} appends text.
+var securityNotes = map[string][2]string{
+	"proxmox_move_vm_disk":          {"unless delete_source=true.", "unless delete_source=true, which needs delete access (PROXMOX_ALLOW_DELETES)."},
+	"proxmox_move_container_volume": {"after a successful copy.", "after a successful copy and needs delete access (PROXMOX_ALLOW_DELETES)."},
+	"proxmox_save_backup_job":       {"", " retention and remove_old=true prune backups and need delete access (PROXMOX_ALLOW_DELETES); without it new jobs are created with remove_old=false."},
+	"proxmox_run_backup_job":        {"Note that with remove_old (the default) old backups are pruned per the job's retention.", "With delete access (PROXMOX_ALLOW_DELETES), old backups are pruned per the job's retention when the job has remove_old (the default); without it the run doesn't prune."},
+	"proxmox_backup_guests":         {"as a side effect. ", "as a side effect. Pruning (retention, remove_old=true) deletes backups and needs delete access (PROXMOX_ALLOW_DELETES); without it remove_old defaults to false. "},
+	"proxmox_sync_realm":            {"", " remove_vanished with entry or acl (given or from the realm's defaults) deletes users, groups or ACLs and needs delete access (PROXMOX_ALLOW_DELETES) unless dry_run=true."},
+	"proxmox_save_realm_sync_job":   {"", " remove_vanished with entry or acl needs delete access (PROXMOX_ALLOW_DELETES)."},
 }
 
 // listTools returns the tools a server with opts lists, by name, with their schemas decoded

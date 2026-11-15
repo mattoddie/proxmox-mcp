@@ -57,6 +57,8 @@ type Info struct {
 	Order int
 	// List is set for list tools.
 	List *listing
+	// Reads is set for tools that change things only for some arguments (Def.Reads).
+	Reads bool
 }
 
 // Handler runs a tool with its validated arguments and returns a value to render as JSON.
@@ -88,6 +90,10 @@ type Def struct {
 	// NativeDryRun marks a tool whose own dry_run argument asks Proxmox for a dry run (realm
 	// sync): the request is sent, so the server doesn't add or intercept dry_run itself.
 	NativeDryRun bool
+	// Secrets names arguments (and the Proxmox parameters they become) that hold a secret under
+	// a name RedactSecrets can't recognise, such as a certificate's `key` or an ACME plugin's
+	// `data`. Their values are redacted in the audit log and dry-run previews.
+	Secrets []string
 	// List makes this a list tool: see listing.
 	List    *listing
 	Handler Handler
@@ -190,7 +196,8 @@ func (c *Context) Define(name string, d Def) {
 			return run(ctx, req.Params.Arguments, nil, nil), nil
 		}
 		call := &proxmox.Call{}
-		state := &guarded{}
+		call.SetSecretKeys(d.Secrets...)
+		state := &guarded{secrets: d.Secrets}
 		res := run(proxmox.WithCall(ctx, call), req.Params.Arguments, state, call)
 		if c.audit != nil && !state.read {
 			c.audit.record(name, req.Params.Arguments, state, call, res)
@@ -198,7 +205,7 @@ func (c *Context) Define(name string, d Def) {
 		return res, nil
 	})
 	if c.Registered != nil {
-		c.Registered[name] = Info{Toolset: d.Toolset, Gate: d.gate(), Props: props, Order: len(c.Registered), List: d.List}
+		c.Registered[name] = Info{Toolset: d.Toolset, Gate: d.gate(), Props: props, Order: len(c.Registered), List: d.List, Reads: d.Reads != nil}
 	}
 }
 

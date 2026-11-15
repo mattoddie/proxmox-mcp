@@ -666,6 +666,7 @@ func registerSdn(c *Context) {
 		Description: "Create (create=true) or update an SDN DNS plugin (PowerDNS) used to register guest hostnames for zones with dns/dnszone set. Only given fields change on update. " + sdnNote,
 		Write:       true,
 		Destructive: False,
+		Secrets:     []string{"key"},
 		Input: []Prop{
 			P("dns", Str().D("DNS plugin ID")),
 			P("create", sdnCreateArg),

@@ -122,12 +122,15 @@ The `Def` fields that control registration:
 | `Idempotent: true` | Repeating the call with the same arguments has no further effect. Sets `idempotentHint`. |
 | `ReadOnly` | Overrides the read-only hint. Used, for example, by exec tools that only read. |
 | `List` | Makes it a list tool: see below. |
-| `Reads` | For a tool that changes things only for some arguments (the raw API tool), says which calls are reads, so they aren't audited. |
+| `Reads` | For a tool that changes things only for some arguments (the raw API tool, remote storage scans), says which calls are reads, so they aren't audited. |
+| `Secrets` | Argument names whose values are always redacted in the audit log and dry-run previews. |
 | `NativeDryRun` | The tool has its own `dry_run` that Proxmox runs (realm sync), so the server doesn't add one. |
 
 `Delete` and `Exec` imply `Write`, so a tool with `Delete: true` is never registered without writes.
 
-Every tool that changes something gets a `dry_run` argument automatically, and its calls go to the audit log. In a dry run `Client.Request()` sends reads but stops the first request that would change something, and the tool returns a preview of it instead. A `POST` that only reads (such as the guest agent's ping) must use `proxmox.AsRead(ctx)` so a dry run still sends it.
+Every tool that changes something gets a `dry_run` argument automatically, and its calls go to the audit log. In a dry run `Client.Request()` sends reads but stops the first request that would change something, and the tool returns a preview of it instead. A `POST` that only reads (such as the guest agent's ping) must use `proxmox.AsRead(ctx)` so a dry run still sends it. The opposite, `proxmox.AsChange(ctx)`, is for a `GET` that makes the node connect to a server of the caller's choosing (a remote storage scan): a dry run stops it and the audit log records it.
+
+Arguments that hold a secret under a name the redaction can't recognise, such as a certificate's `key` or an ACME plugin's `data`, go in `Def.Secrets`, which redacts them in the audit log and dry-run previews.
 
 List tools set `List: &listing{}`. The handler returns its items as an array, or as an object holding the array under `listing.Items` (such as `{node, pools: [...]}`), and the listing adds `search`, `fields` and, with `Limit` set, `limit`, then shapes the result as `{total, returned, items}`. Tools that already filter with `filterAndLimit()` keep their own `search` and `limit` and only gain `fields`.
 
