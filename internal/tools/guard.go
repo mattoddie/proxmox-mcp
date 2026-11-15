@@ -46,6 +46,9 @@ func (c *Context) dryRun(ctx context.Context, call *proxmox.Call, a *Obj, handle
 		if err != nil {
 			return nil, err
 		}
+		if p, ok := out.(plannedChanges); ok {
+			return js.Spread(js.O("dry_run", true), p.plan, js.O("note", "Nothing was changed: this was a dry run. The changes listed were not made. Call the tool again without dry_run to make them.")), nil
+		}
 		return js.O("dry_run", true, "would_send", nil, "note", "The tool would not send any request that changes something. result is what it returned.", "result", out), nil
 	}
 	if req.Current == nil && (req.ConfigPath() || req.Method == "DELETE") {

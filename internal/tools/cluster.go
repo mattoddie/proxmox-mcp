@@ -361,6 +361,7 @@ func registerCluster(c *Context) {
 	})
 
 	defineCapacityReport(c)
+	defineTagTools(c)
 
 	c.Define("proxmox_get_next_vmid", Def{
 		Toolset:     "cluster",

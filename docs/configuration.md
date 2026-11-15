@@ -158,7 +158,7 @@ If both `NAME` and `NAME_FILE` are set, the file wins. `PROXMOX_CA_FILE` is alre
 
 ## Keeping the tool list small
 
-Most MCP clients send every tool's name, description and argument schema to the model with each request. With every toolset enabled that's about 134 KB for the 156 read-only tools, 351 KB for 264 tools with writes on, and 404 KB for all 316 tools with deletes and exec on too. That uses up context you'd rather spend on your conversation and your cluster's data, and some clients warn about or cap the number of tools.
+Most MCP clients send every tool's name, description and argument schema to the model with each request. With every toolset enabled that's about 134 KB for the 156 read-only tools, 355 KB for 266 tools with writes on, and 408 KB for all 318 tools with deletes and exec on too. That uses up context you'd rather spend on your conversation and your cluster's data, and some clients warn about or cap the number of tools.
 
 `PROXMOX_TOOLSETS` is the way to keep the list small. Enable only the toolsets you need: the model sees fewer tools, picks the right one more easily, and can't reach the rest at all.
 
@@ -168,7 +168,7 @@ Clients with their own tool search, such as Claude Code, load tool definitions o
 
 | Toolset | Tools | Use it for |
 |---|---:|---|
-| `cluster` | 16 | Cluster overview, nodes and guests at a glance. **Always include it.** |
+| `cluster` | 18 | Cluster overview, nodes and guests at a glance. **Always include it.** |
 | `nodes` | 49 | Node status, services, network, updates, certificates, logs |
 | `vms` | 21 | QEMU virtual machines |
 | `containers` | 16 | LXC containers |
@@ -196,15 +196,15 @@ The sizes are the `tools/list` result the client receives, measured by starting 
 
 | Goal | `PROXMOX_TOOLSETS` | Read-only | With writes | With deletes |
 |---|---|---:|---:|---:|
-| Everyday monitoring | `cluster,nodes,vms,containers,storage,backup,tasks` | 78 tools, 69 KB | 130 tools, 184 KB | 147 tools, 202 KB |
-| Running guests day to day | `cluster,vms,containers,agent,snapshots,backup,tasks` | 46 tools, 43 KB | 79 tools, 124 KB | 87 tools, 134 KB |
-| Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` | 42 tools, 38 KB | 60 tools, 77 KB | 70 tools, 89 KB |
-| Security review | `cluster,nodes,access,firewall,tasks` | 66 tools, 53 KB | 106 tools, 119 KB | 124 tools, 134 KB |
-| Network and SDN | `cluster,nodes,sdn,firewall` | 54 tools, 47 KB | 91 tools, 115 KB | 104 tools, 127 KB |
-| Everything except the raw API tool (default) | `all` | 156 tools, 134 KB | 264 tools, 351 KB | 309 tools, 395 KB |
-| Everything, including the raw API tool | `all,raw` | 157 tools, 136 KB | 265 tools, 353 KB | 310 tools, 396 KB |
+| Everyday monitoring | `cluster,nodes,vms,containers,storage,backup,tasks` | 78 tools, 69 KB | 132 tools, 188 KB | 149 tools, 206 KB |
+| Running guests day to day | `cluster,vms,containers,agent,snapshots,backup,tasks` | 46 tools, 43 KB | 81 tools, 128 KB | 89 tools, 138 KB |
+| Backup and snapshot hygiene | `cluster,snapshots,backup,storage,tasks` | 42 tools, 38 KB | 62 tools, 81 KB | 72 tools, 93 KB |
+| Security review | `cluster,nodes,access,firewall,tasks` | 66 tools, 53 KB | 108 tools, 123 KB | 126 tools, 138 KB |
+| Network and SDN | `cluster,nodes,sdn,firewall` | 54 tools, 47 KB | 93 tools, 118 KB | 106 tools, 131 KB |
+| Everything except the raw API tool (default) | `all` | 156 tools, 134 KB | 266 tools, 355 KB | 311 tools, 399 KB |
+| Everything, including the raw API tool | `all,raw` | 157 tools, 136 KB | 267 tools, 357 KB | 312 tools, 400 KB |
 
-Turning on exec as well adds the guest agent and monitor tools: `all` grows to 316 tools and 404 KB.
+Turning on exec as well adds the guest agent and monitor tools: `all` grows to 318 tools and 408 KB.
 
 List tools also take `search`, `fields` and, on long lists, `limit`, so the model can fetch only the items and fields it needs instead of whole lists.
 

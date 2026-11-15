@@ -105,7 +105,7 @@ Every tool that changes something takes `dry_run`, so you can ask the assistant 
 
 | Toolset | What's covered |
 |---|---|
-| `cluster` | Cluster overview, nodes and guests at a glance, capacity and overcommit, datacenter options, corosync config, metric servers, bulk guest actions |
+| `cluster` | Cluster overview, nodes and guests at a glance, capacity and overcommit, bulk tagging and tag options, datacenter options, corosync config, metric servers, bulk guest actions |
 | `nodes` | Node status and statistics, services, network interfaces, DNS, time, updates and repositories, subscriptions, certificates and ACME, logs, node power |
 | `vms` | QEMU VMs: status, configuration, power, create, clone, import from ESXi or OVA, disks, migration, templates, cloud-init, statistics |
 | `containers` | LXC containers: status, configuration, power, create, clone, volumes, migration, templates, interfaces, statistics |
