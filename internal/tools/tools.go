@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -46,6 +48,8 @@ type Context struct {
 	// Registered records each registered tool's toolset and gate, for the docs generator and tests.
 	Registered map[string]Info
 	audit      *auditLog
+	// known collects every tool name defined, registered or not (for CheckDenyTools).
+	known map[string]bool
 }
 
 // Info describes a registered tool.
@@ -122,7 +126,10 @@ func (d Def) gate() Gate {
 
 // Define registers a tool if its toolset and gate are enabled.
 func (c *Context) Define(name string, d Def) {
-	if !c.Toolsets[d.Toolset] {
+	if c.known != nil {
+		c.known[name] = true
+	}
+	if !c.Toolsets[d.Toolset] || c.DenyTools[name] {
 		return
 	}
 	write := d.Write || d.Delete || d.Exec
@@ -268,6 +275,13 @@ func NewServer(client *proxmox.Client, opts config.Tools, registered map[string]
 		Instructions: Instructions(opts),
 	})
 	c := &Context{Server: server, Client: client, Tools: opts, Registered: registered, audit: newAuditLog(opts.AuditLog)}
+	registerAll(c)
+	registerPrompts(server)
+	return server
+}
+
+// registerAll registers every toolset; Define decides which tools are kept.
+func registerAll(c *Context) {
 	registerCluster(c)
 	registerNodes(c)
 	registerVms(c)
@@ -287,6 +301,25 @@ func NewServer(client *proxmox.Client, opts config.Tools, registered map[string]
 	registerNotifications(c)
 	registerHardware(c)
 	registerRaw(c)
-	registerPrompts(server)
-	return server
+}
+
+// CheckDenyTools reports names in PROXMOX_DENY_TOOLS that aren't tools, so a typo doesn't
+// silently leave a tool enabled. Every tool counts, whatever the toolsets and access level.
+func CheckDenyTools(deny map[string]bool) error {
+	if len(deny) == 0 {
+		return nil
+	}
+	c := &Context{Server: mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: Version}, nil), known: map[string]bool{}}
+	registerAll(c)
+	var unknown []string
+	for name := range deny {
+		if !c.known[name] {
+			unknown = append(unknown, strconv.Quote(name))
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf("Unknown tool %s in PROXMOX_DENY_TOOLS; use the names in the tool reference (https://proxmox-mcp.mattoddie.dev/docs/tools/), such as proxmox_delete_vm", strings.Join(unknown, ", "))
 }

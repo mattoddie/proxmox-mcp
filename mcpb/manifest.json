@@ -37,6 +37,7 @@
         "PROXMOX_ALLOW_DELETES": "${user_config.allow_deletes}",
         "PROXMOX_ALLOW_EXEC": "${user_config.allow_exec}",
         "PROXMOX_TOOLSETS": "${user_config.toolsets}",
+        "PROXMOX_DENY_TOOLS": "${user_config.deny_tools}",
         "PROXMOX_AUDIT_LOG": "${user_config.audit_log}"
       },
       "platform_overrides": {
@@ -823,6 +824,12 @@
       "type": "string",
       "title": "Toolsets",
       "description": "Optional comma-separated list to expose fewer tools, e.g. cluster,nodes,vms,containers,backup. Empty means all (except raw).",
+      "default": ""
+    },
+    "deny_tools": {
+      "type": "string",
+      "title": "Denied tools",
+      "description": "Optional comma-separated tool names never to offer, e.g. proxmox_delete_vm,proxmox_vm_power. An unknown name stops the server from starting.",
       "default": ""
     },
     "audit_log": {

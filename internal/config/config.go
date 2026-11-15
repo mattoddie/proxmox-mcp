@@ -57,6 +57,9 @@ type Tools struct {
 	// (its `redact: false` argument); PROXMOX_ALLOW_UNREDACTED.
 	AllowUnredacted bool
 	Toolsets        map[string]bool
+	// DenyTools are tool names never to register (PROXMOX_DENY_TOOLS), whatever the toolsets and
+	// access level allow. The tools package checks that each one exists.
+	DenyTools map[string]bool
 	// AuditLog is where calls of tools that change things are logged (PROXMOX_AUDIT_LOG): a file
 	// path, AuditLogStderr, or "" for no log.
 	AuditLog string
@@ -431,6 +434,13 @@ func Load(env Env) (*Config, error) {
 		toolsets[t] = true
 	}
 
+	denyTools := map[string]bool{}
+	for _, name := range strings.Split(get("PROXMOX_DENY_TOOLS"), ",") {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
+			denyTools[name] = true
+		}
+	}
+
 	var allowedHosts []string
 	for _, h := range strings.Split(get("MCP_ALLOWED_HOSTS"), ",") {
 		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
@@ -489,7 +499,7 @@ func Load(env Env) (*Config, error) {
 			TaskTimeoutMs:   taskTimeoutMs,
 			DefaultNode:     defaultNode,
 		},
-		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets, AuditLog: auditLog},
+		Tools:     Tools{AllowWrites: allowWrites, AllowDeletes: allowDeletes, AllowExec: allowExec, AllowUnredacted: allowUnredacted, Toolsets: toolsets, DenyTools: denyTools, AuditLog: auditLog},
 		Transport: transport,
 		HTTP: HTTP{
 			Host:                 host,

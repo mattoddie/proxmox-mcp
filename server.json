@@ -79,6 +79,11 @@
           "placeholder": "cluster,nodes,vms,containers,backup"
         },
         {
+          "name": "PROXMOX_DENY_TOOLS",
+          "description": "Optional comma-separated tool names never to offer. An unknown name stops the server from starting.",
+          "placeholder": "proxmox_delete_vm,proxmox_vm_power"
+        },
+        {
           "name": "PROXMOX_AUDIT_LOG",
           "description": "Optional. stderr, or a file path inside the container, to log every change as a JSON line."
         }

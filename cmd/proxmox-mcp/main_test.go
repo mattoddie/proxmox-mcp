@@ -22,6 +22,17 @@ func TestServeRefusesHTTPWithoutAToken(t *testing.T) {
 	}
 }
 
+func TestServeRefusesUnknownDeniedTools(t *testing.T) {
+	t.Setenv("PROXMOX_URL", "https://pve.invalid")
+	t.Setenv("PROXMOX_VERIFY_SSL", "false")
+	t.Setenv("PROXMOX_TOKEN_ID", "root@pam!test")
+	t.Setenv("PROXMOX_TOKEN_SECRET", "x")
+	t.Setenv("PROXMOX_DENY_TOOLS", "proxmox_delete_vm,proxmox_no_such_tool")
+	if err := serve(); err == nil || !strings.Contains(err.Error(), `Unknown tool "proxmox_no_such_tool" in PROXMOX_DENY_TOOLS`) {
+		t.Fatalf("serve with an unknown denied tool: %v", err)
+	}
+}
+
 func TestHealthcheck(t *testing.T) {
 	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {

@@ -83,6 +83,7 @@ To update, install the bundle from a newer release the same way.
 | **Allow deletes** | `PROXMOX_ALLOW_DELETES` | Also allows deleting guests, volumes, snapshots, backups and configuration. Needs **Allow changes**. |
 | **Allow exec** | `PROXMOX_ALLOW_EXEC` | Also allows running commands and reading and writing files inside VMs through the guest agent. Needs **Allow changes**. |
 | **Toolsets** | `PROXMOX_TOOLSETS` | Optional, such as `cluster,nodes,vms,containers,backup,tasks`. Empty means all except `raw`, which is 131 KB of the model's context read-only and up to 397 KB with everything allowed. See [Keeping the tool list small](configuration.md#keeping-the-tool-list-small). |
+| **Denied tools** | `PROXMOX_DENY_TOOLS` | Optional comma-separated tool names never to offer, such as `proxmox_delete_vm,proxmox_vm_power`. An unknown name stops the server, which then shows in the extension's log. |
 | **Audit log file** | `PROXMOX_AUDIT_LOG` | Optional full path to a file, such as `/Users/you/proxmox-mcp-audit.jsonl`, that records every change Claude makes or previews. The folder must exist; the file is created. `stderr` writes the entries to the extension's log instead. Off when empty. See [Audit log](configuration.md#audit-log). |
 
 Fill in either the API token or the username and password. Settings you leave empty use their defaults, as described in [Configuration](configuration.md).

@@ -153,6 +153,10 @@ func TestConfig(t *testing.T) {
 			t.Fatal(names)
 		}
 		wantErr(t, env("PROXMOX_URL", "https://pve", "PROXMOX_TOOLSETS", "cluster,bogus"), `Unknown toolset "bogus"`)
+		deny := load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_DENY_TOOLS", " proxmox_delete_vm, PROXMOX_VM_POWER,,")).Tools.DenyTools
+		if !reflect.DeepEqual(deny, map[string]bool{"proxmox_delete_vm": true, "proxmox_vm_power": true}) {
+			t.Fatal(deny)
+		}
 		// Anything but 1/true/yes/on is false, as before.
 		if load(t, env("PROXMOX_URL", "https://pve", "PROXMOX_ALLOW_WRITES", "maybe")).Tools.AllowWrites {
 			t.Fatal("maybe is false")
@@ -279,6 +283,7 @@ func TestBundleUnsetValues(t *testing.T) {
 			"PROXMOX_ALLOW_DELETES":   "false",
 			"PROXMOX_ALLOW_EXEC":      "false",
 			"PROXMOX_TOOLSETS":        unset("toolsets"),
+			"PROXMOX_DENY_TOOLS":      unset("deny_tools"),
 			"PROXMOX_AUDIT_LOG":       unset("audit_log"),
 		}
 		cfg := load(t, MapEnv(vars))
@@ -286,7 +291,7 @@ func TestBundleUnsetValues(t *testing.T) {
 		if p.TokenID != "root@pam!mcp" || p.Username != "" || p.Password != "" || p.CACert != "" || p.DefaultNode != "" || len(p.TLSFingerprints) != 1 {
 			t.Errorf("%q: proxmox: %+v", vars["PROXMOX_USERNAME"], p)
 		}
-		if tl := cfg.Tools; tl.AllowWrites || tl.AuditLog != "" || len(tl.Toolsets) != len(Toolsets)-1 {
+		if tl := cfg.Tools; tl.AllowWrites || tl.AuditLog != "" || len(tl.Toolsets) != len(Toolsets)-1 || len(tl.DenyTools) != 0 {
 			t.Errorf("%q: tools: %+v", vars["PROXMOX_USERNAME"], tl)
 		}
 		// With nothing to check the certificate, an https URL is still refused.

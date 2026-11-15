@@ -29,6 +29,7 @@ Run `docker compose logs proxmox-mcp`. The last line names the problem, for exam
 | `PROXMOX_API_TOKEN must look like user@realm!tokenid=secret` | The combined form needs the `=` between the token ID and the secret. |
 | `PROXMOX_ALLOW_DELETES=true also requires PROXMOX_ALLOW_WRITES=true` | Turn on writes too, or turn deletes off. The same applies to `PROXMOX_ALLOW_EXEC`. |
 | `Unknown toolset "x" in PROXMOX_TOOLSETS` | Fix the typo. The message lists the valid names. |
+| `Unknown tool "x" in PROXMOX_DENY_TOOLS` | Fix the tool name. Names are listed in the [tool reference](tools.md), such as `proxmox_delete_vm`. |
 | `Could not read PROXMOX_TOKEN_SECRET_FILE (…)` | The secret file isn't mounted where the variable points. |
 | `Could not read PROXMOX_CA_FILE (…)` | The certificate file isn't mounted where the variable points. |
 | `MCP_HTTP_PORT must be a positive integer` | Fix the value. The same applies to the `_TIMEOUT_MS` variables. |

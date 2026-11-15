@@ -71,6 +71,7 @@ How each method works:
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_UNREDACTED` | `false` | Offer the raw API tool's `redact: false` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
 | `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#toolsets) to expose. See [Keeping the tool list small](#keeping-the-tool-list-small). `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
+| `PROXMOX_DENY_TOOLS` | | Comma-separated tool names never to register, whatever the toolsets and access level allow, e.g. `proxmox_delete_vm,proxmox_vm_power,proxmox_migrate_vm`. Use it to keep one or two tools out of a toolset you otherwise want. An unknown name stops the server at startup, so a typo can't leave a tool on. The raw API tool (`raw` toolset) can still reach the same endpoints, so don't enable it alongside a deny list you rely on. |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
 

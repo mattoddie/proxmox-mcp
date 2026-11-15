@@ -68,6 +68,9 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	if err := tools.CheckDenyTools(cfg.Tools.DenyTools); err != nil {
+		return err
+	}
 	client, err := proxmox.New(cfg.Proxmox)
 	if err != nil {
 		return err
@@ -89,6 +92,9 @@ func serve() error {
 		writes += " (with exec)"
 	}
 	log.Printf("proxmox-mcp %s: Proxmox %s, auth %s, writes %s, toolsets %d, transport %s", tools.Version, cfg.Proxmox.URL, auth, writes, len(t.Toolsets), cfg.Transport)
+	if len(t.DenyTools) > 0 {
+		log.Printf("Denied tools (PROXMOX_DENY_TOOLS): %d", len(t.DenyTools))
+	}
 	if t.AuditLog != "" {
 		log.Printf("Audit log: %s", t.AuditLog)
 	}
