@@ -9,6 +9,7 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 ### Added
 
 - **Import from ESXi and OVA/OVF.** `proxmox_get_import_metadata` reads what Proxmox recognises in an ESXi VM or an OVA/OVF appliance on an import storage (suggested settings, disks, NICs and warnings), and `proxmox_import_vm` (write) creates the VM from it, importing each disk onto a target storage with `import-from`. Proxmox VE 8.2+ (OVA/OVF 8.3+).
+- **Capacity report.** `proxmox_get_capacity_report` compares what guests are allocated with the physical capacity per node and for the cluster: vCPUs against CPU threads, guest memory against RAM, and the provisioned size of guest disks against each storage's size (thin-provisioning overcommit), for running guests and for all guests.
 
 ### Security
 

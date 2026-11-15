@@ -92,6 +92,10 @@
       "description": "Get one backup job's settings plus the guests it currently includes and, per guest, which disks are backed up (and why others are excluded, e.g. backup=0)."
     },
     {
+      "name": "proxmox_get_capacity_report",
+      "description": "Compare what guests are allocated with the physical capacity, per node and for the cluster: vCPUs against the node's CPU threads, configured guest memory against the node's RAM, and (unless storage=false) the provisioned size of VM and container disks on each storage against its size, which shows thin-provisioning overcommit. Each figure is given for running guests and for all guests (as if every guest were started); templates are left out. A ratio above 1 means overcommitted. Read-only. The storage part lists the disk volumes on each storage, so it takes longer on big clusters."
+    },
+    {
       "name": "proxmox_get_ceph_config",
       "description": "Read Ceph configuration: the configuration database (`ceph config dump`: section, name, value) and/or the ceph.conf file. Secrets such as keys are redacted."
     },

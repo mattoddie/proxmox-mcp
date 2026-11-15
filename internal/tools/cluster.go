@@ -360,6 +360,8 @@ func registerCluster(c *Context) {
 		},
 	})
 
+	defineCapacityReport(c)
+
 	c.Define("proxmox_get_next_vmid", Def{
 		Toolset:     "cluster",
 		Title:       "Get next free VMID",
