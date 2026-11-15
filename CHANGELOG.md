@@ -6,12 +6,15 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-15
+
 ### Added
 
 - **Import from ESXi and OVA/OVF.** `proxmox_get_import_metadata` reads what Proxmox recognises in an ESXi VM or an OVA/OVF appliance on an import storage (suggested settings, disks, NICs and warnings), and `proxmox_import_vm` (write) creates the VM from it, importing each disk onto a target storage with `import-from`. Proxmox VE 8.2+ (OVA/OVF 8.3+).
 - **Capacity report.** `proxmox_get_capacity_report` compares what guests are allocated with the physical capacity per node and for the cluster: vCPUs against CPU threads, guest memory against RAM, and the provisioned size of guest disks against each storage's size (thin-provisioning overcommit), for running guests and for all guests.
 - **`PROXMOX_DENY_TOOLS`**: comma-separated tool names never to register, whatever the toolsets and access level allow. An unknown name stops the server at startup. It's also a setting in the Claude Desktop bundle and the MCP Registry entry.
 - **Tag management.** `proxmox_bulk_tag_guests` (write) adds and removes tags across many VMs and containers, chosen by VMID or by an existing tag (so it can rename a tag), with a dry run that lists every change. `proxmox_set_tag_options` (write) sets the datacenter's `tag-style` (shape, ordering, colours, case sensitivity), `user-tag-access` and `registered-tags`, changing only the fields given.
+- proxmox-mcp now has 319 tools (up from 314) and 8 prompts.
 
 ### Security
 
@@ -144,7 +147,8 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.4.0...v0.5.0
