@@ -107,7 +107,7 @@ Every tool that changes something takes `dry_run`, so you can ask the assistant 
 |---|---|
 | `cluster` | Cluster overview, nodes and guests at a glance, datacenter options, corosync config, metric servers, bulk guest actions |
 | `nodes` | Node status and statistics, services, network interfaces, DNS, time, updates and repositories, subscriptions, certificates and ACME, logs, node power |
-| `vms` | QEMU VMs: status, configuration, power, create, clone, disks, migration, templates, cloud-init, statistics |
+| `vms` | QEMU VMs: status, configuration, power, create, clone, import from ESXi or OVA, disks, migration, templates, cloud-init, statistics |
 | `containers` | LXC containers: status, configuration, power, create, clone, volumes, migration, templates, interfaces, statistics |
 | `agent` | QEMU guest agent: OS, network and filesystem information, freeze/trim, and (with exec) commands and file access |
 | `snapshots` | VM and container snapshots: list, create, roll back, delete, and a cluster-wide view of old snapshots |

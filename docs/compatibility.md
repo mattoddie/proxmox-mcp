@@ -22,6 +22,7 @@ Some tools use endpoints that only exist on newer releases. Where a feature isn'
 | Guest agent privileges (`VM.GuestAgent.*`) | Proxmox VE 9. On 8.x the equivalent privilege is `VM.Monitor`. See [Getting started](getting-started.md#option-a-read-only-recommended-to-start). |
 | Resource mappings for PCI and USB devices | Proxmox VE 8 |
 | Notification targets and matchers | Proxmox VE 8.1 or later |
+| Importing from ESXi (`proxmox_get_import_metadata`, `proxmox_import_vm`) | Proxmox VE 8.2 or later; OVA/OVF appliances 8.3 or later |
 
 If you find a tool that needs a newer version than this table says, please [report it](https://github.com/mattoddie/proxmox-mcp/issues/new?template=compatibility.yml).
 

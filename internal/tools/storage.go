@@ -270,6 +270,13 @@ func storageVolumeStorage(a *Obj) (string, error) {
 	return js.Str(storage), nil
 }
 
+var importVolumeArg = Str().Min(1).D("Importable guest, e.g. \"esxi1:ha-datacenter/datastore1/web01/web01.vmx\" or \"local:import/appliance.ova\" (see proxmox_list_storage_content content=import)")
+
+// getImportMetadata reads what Proxmox recognises in an importable guest (an ESXi VM or an OVA/OVF).
+func getImportMetadata(ctx context.Context, client *proxmox.Client, node, storage string, volume any) (*Obj, error) {
+	return client.GetObj(ctx, "/nodes/"+enc(node)+"/storage/"+enc(storage)+"/import-metadata", js.O("volume", volume))
+}
+
 func storageJoin(v any) any {
 	arr, ok := v.([]any)
 	if !ok {
@@ -605,6 +612,37 @@ func registerStorage(c *Context) {
 				"used", ifThen(v.Truthy("used"), proxmox.FormatBytes(v.Get("used"))),
 				"notes", v.Get("notes"),
 				"protected", proxmox.Flag(v.Get("protected")),
+			), nil
+		},
+	})
+
+	c.Define("proxmox_get_import_metadata", Def{
+		Toolset:     "storage",
+		Title:       "Get guest import metadata",
+		Description: "Read what Proxmox recognises in an importable guest: a VM on an ESXi storage (volume like \"esxi1:ha-datacenter/datastore1/web01/web01.vmx\") or an OVA/OVF appliance on a storage with import content (\"local:import/appliance.ova\"). Find them with proxmox_list_storage_content content=import. Returns the source type, the parameters Proxmox suggests for creating the VM (create_args), the disks and NICs found and warnings about anything that won't carry over (a running source VM, lost EFI state, an OVA that has to be extracted first). Nothing is changed; create the VM with proxmox_import_vm. Proxmox VE 8.2+ (OVA/OVF 8.3+).",
+		Input:       []Prop{P("node", nodeArg), P("volume", importVolumeArg), P("storage", storageVolStArg)},
+		Handler: func(ctx context.Context, a *Obj) (any, error) {
+			node, err := c.node(ctx, a)
+			if err != nil {
+				return nil, err
+			}
+			storage, err := storageVolumeStorage(a)
+			if err != nil {
+				return nil, err
+			}
+			md, err := getImportMetadata(ctx, client, node, storage, a.Get("volume"))
+			if err != nil {
+				return nil, err
+			}
+			return proxmox.C(
+				"volume", a.Get("volume"),
+				"node", node,
+				"source", md.Get("source"),
+				"type", md.Get("type"),
+				"create_args", md.Get("create-args"),
+				"disks", md.Get("disks"),
+				"net", md.Get("net"),
+				"warnings", md.Get("warnings"),
 			), nil
 		},
 	})

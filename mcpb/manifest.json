@@ -220,6 +220,10 @@
       "description": "High-availability overview: quorum, the current CRM master, each node's LRM state (active/idle/maintenance, last update), fencing/arming state (PVE 9.1+), and every HA-managed service with its node and state. Use proxmox_list_ha_resources for the configured settings."
     },
     {
+      "name": "proxmox_get_import_metadata",
+      "description": "Read what Proxmox recognises in an importable guest: a VM on an ESXi storage (volume like \"esxi1:ha-datacenter/datastore1/web01/web01.vmx\") or an OVA/OVF appliance on a storage with import content (\"local:import/appliance.ova\"). Find them with proxmox_list_storage_content content=import. Returns the source type, the parameters Proxmox suggests for creating the VM (create_args), the disks and NICs found and warnings about anything that won't carry over (a running source VM, lost EFI state, an OVA that has to be extracted first). Nothing is changed; create the VM with proxmox_import_vm. Proxmox VE 8.2+ (OVA/OVF 8.3+)."
+    },
+    {
       "name": "proxmox_get_next_vmid",
       "description": "Get the next free VM/container ID, or check whether a specific ID is free."
     },

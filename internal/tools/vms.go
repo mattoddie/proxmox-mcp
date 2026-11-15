@@ -19,6 +19,7 @@ import (
 var (
 	vmsDiskRe      = regexp.MustCompile(`^(ide[0-3]|sata[0-5]|scsi([0-9]|[12][0-9]|30)|virtio([0-9]|1[0-5])|efidisk0|tpmstate0)$`)
 	vmsDiskKeyArg  = Str().Pattern(`^(ide[0-3]|sata[0-5]|scsi([0-9]|[12][0-9]|30)|virtio([0-9]|1[0-5])|efidisk0|tpmstate0)$`, "a disk key such as scsi0, virtio1, sata0, ide0, efidisk0 or tpmstate0").D("Disk key, e.g. scsi0, virtio1, sata0")
+	vmsNetKeyRe    = regexp.MustCompile(`^net\d+$`)
 	vmsSkiplockArg = Bool().Opt().D("Ignore a config lock (root@pam only; use with care)")
 	vmsOstypes     = []string{"other", "wxp", "w2k", "w2k3", "w2k8", "wvista", "win7", "win8", "win10", "win11", "l24", "l26", "solaris"}
 	vmsScsihw      = []string{"lsi", "lsi53c810", "virtio-scsi-pci", "virtio-scsi-single", "megasas", "pvscsi"}
@@ -1200,6 +1201,119 @@ func registerVms(c *Context) {
 				return nil, err
 			}
 			return runTask(ctx, client, upid, a.Get("wait"), js.O("vmid", vmid, "node", node, "name", a.Get("name")))
+		},
+	})
+
+	c.Define("proxmox_import_vm", Def{
+		Toolset:     "vms",
+		Title:       "Import a VM from ESXi or OVA",
+		Description: "Create a VM from an importable guest (an ESXi VM or an OVA/OVF appliance) using the metadata Proxmox reads from it (see proxmox_get_import_metadata): its suggested settings, each recognised disk imported onto target_storage with import-from, and its NICs (on `bridge` when they don't name one). The source isn't changed. Check the metadata's warnings first: shut the ESXi VM down, and an OVA's disks are extracted to working_storage (default the source storage). With bios=ovmf a fresh EFI vars disk is added on target_storage. `name` and `extra` (Proxmox parameter names, e.g. {cores: 4, memory: 8192}) override the suggested settings. VMID defaults to the next free one. Importing copies whole disks and can take a long time. Proxmox VE 8.2+ (OVA/OVF 8.3+).",
+		Write:       true,
+		Destructive: False,
+		Input: []Prop{
+			P("node", nodeArg),
+			P("volume", importVolumeArg),
+			P("storage", storageVolStArg),
+			P("target_storage", Str().Min(1).D("Storage to import the disks onto, e.g. local-lvm")),
+			P("vmid", Int().Min(100).Max(999999999).Opt().D("VMID for the new VM (default: next free ID)")),
+			P("name", Str().Opt().D("VM name (default: the source's)")),
+			P("format", Enum("raw", "qcow2", "vmdk").Opt().D("Disk format on file-based target storage")),
+			P("bridge", Str().Opt().D("Bridge for NICs the metadata doesn't put on one (default vmbr0)")),
+			P("working_storage", Str().Opt().D("File-based storage with images content to extract OVA disks to during the import (import-working-storage; default the source storage)")),
+			P("start", Bool().Opt().D("Start the VM after importing it")),
+			P("pool", Str().Opt().D("Add the VM to this resource pool")),
+			P("extra", extraArg),
+			P("wait", waitArg),
+		},
+		Handler: func(ctx context.Context, a *Obj) (any, error) {
+			node, err := c.node(ctx, a)
+			if err != nil {
+				return nil, err
+			}
+			storage, err := storageVolumeStorage(a)
+			if err != nil {
+				return nil, err
+			}
+			md, err := getImportMetadata(ctx, client, node, storage, a.Get("volume"))
+			if err != nil {
+				return nil, err
+			}
+			if t := md.Get("type"); !js.Nullish(t) && t != "vm" {
+				return nil, fmt.Errorf("Proxmox reports this guest as type %s; only VM imports are supported", js.Str(t))
+			}
+			vmid := a.Get("vmid")
+			if js.Nullish(vmid) {
+				id, err := nextID(ctx)
+				if err != nil {
+					return nil, err
+				}
+				vmid = id
+			}
+			suggested := js.NewObj()
+			if args := md.ObjAt("create-args"); args != nil {
+				suggested = js.Spread(args)
+			}
+			target := a.Str("target_storage")
+			own := js.O("vmid", vmid, "name", a.Get("name"))
+			var diskKeys []string
+			if disks := md.ObjAt("disks"); disks != nil {
+				for _, k := range disks.Keys() {
+					if !vmsDiskRe.MatchString(k) {
+						return nil, fmt.Errorf("Unexpected disk key %s in the import metadata", js.Quote(k))
+					}
+					own.Set(k, proxmox.ToPropertyString(js.O("_default", target+":0", "import-from", disks.Get(k), "format", a.Get("format")), "_default"))
+					diskKeys = append(diskKeys, k)
+				}
+			}
+			if len(diskKeys) == 0 {
+				return nil, errors.New("Proxmox found no disks to import in this guest")
+			}
+			if nets := md.ObjAt("net"); nets != nil {
+				for _, k := range nets.Keys() {
+					if !vmsNetKeyRe.MatchString(k) {
+						return nil, fmt.Errorf("Unexpected NIC key %s in the import metadata", js.Quote(k))
+					}
+					n, ok := nets.Get(k).(*Obj)
+					if !ok {
+						own.Set(k, js.Str(nets.Get(k)))
+						continue
+					}
+					n = js.Spread(n)
+					if !n.Truthy("bridge") {
+						n.Set("bridge", or(a.Get("bridge"), "vmbr0"))
+					}
+					own.Set(k, proxmox.ToPropertyString(n, "model"))
+				}
+			}
+			bios := suggested.Get("bios")
+			if x := a.ObjAt("extra"); x != nil && x.Defined("bios") {
+				bios = x.Get("bios")
+			}
+			if bios == "ovmf" && !suggested.Defined("efidisk0") {
+				own.Set("efidisk0", target+":1,efitype=4m")
+			}
+			own.Set("import-working-storage", a.Get("working_storage"))
+			own.Set("start", a.Get("start"))
+			own.Set("pool", a.Get("pool"))
+			// These turn a create into a backup restore, which with force overwrites an existing VM.
+			own, err = withExtra(own, a.Get("extra"), "archive", "force", "unique", "live-restore")
+			if err != nil {
+				return nil, err
+			}
+			for _, k := range own.Keys() {
+				if v := own.Get(k); !js.IsUndef(v) || !suggested.Has(k) {
+					suggested.Set(k, v)
+				}
+			}
+			body := defined(suggested)
+			if err := checkGuestConfigGates(c, body, ""); err != nil {
+				return nil, err
+			}
+			upid, err := client.Post(ctx, "/nodes/"+enc(node)+"/qemu", body)
+			if err != nil {
+				return nil, err
+			}
+			return runTask(ctx, client, upid, a.Get("wait"), proxmox.C("vmid", vmid, "node", node, "name", body.Get("name"), "source", md.Get("source"), "disks", diskKeys, "warnings", md.Get("warnings")))
 		},
 	})
 

@@ -6,6 +6,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+### Added
+
+- **Import from ESXi and OVA/OVF.** `proxmox_get_import_metadata` reads what Proxmox recognises in an ESXi VM or an OVA/OVF appliance on an import storage (suggested settings, disks, NICs and warnings), and `proxmox_import_vm` (write) creates the VM from it, importing each disk onto a target storage with `import-from`. Proxmox VE 8.2+ (OVA/OVF 8.3+).
+
 ### Security
 
 - **Breaking:** without `PROXMOX_ALLOW_DELETES`, arguments that delete data are refused: `delete_source` on `proxmox_move_vm_disk` and `proxmox_move_container_volume`, `retention` and `remove_old=true` on `proxmox_backup_guests` and `proxmox_save_backup_job`, and `remove_vanished` with `entry` or `acl` on `proxmox_sync_realm` (also when it comes from the realm's sync defaults, unless `dry_run`) and `proxmox_save_realm_sync_job`. Backups made without delete access are sent with `remove=0`, because Proxmox prunes older backups by default: `proxmox_backup_guests` and `proxmox_run_backup_job` no longer prune, and new backup jobs are created with `remove_old=false`.
