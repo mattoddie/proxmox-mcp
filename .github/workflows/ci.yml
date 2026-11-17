@@ -30,6 +30,13 @@ jobs:
         run: go test -race ./...
         env:
           CGO_ENABLED: "1"
+      - name: Browser OAuth redirect regression
+        run: |
+          go build -o /tmp/proxmox-mcp-browser ./cmd/proxmox-mcp
+          python3 -m venv /tmp/oauth-browser-venv
+          /tmp/oauth-browser-venv/bin/pip install playwright==1.58.0
+          /tmp/oauth-browser-venv/bin/playwright install --with-deps chromium
+          /tmp/oauth-browser-venv/bin/python scripts/oauth-browser-smoke.py /tmp/proxmox-mcp-browser
       - name: Check docs/tools.md is up to date
         run: make docs-check
       - name: Check for known vulnerabilities
@@ -156,6 +163,9 @@ jobs:
           fi
           # With one, stdio starts and exits cleanly when stdin closes.
           docker run --rm -e MCP_TRANSPORT=stdio -e PROXMOX_URL=https://192.0.2.1:8006 -e PROXMOX_VERIFY_SSL=false -e PROXMOX_API_TOKEN='ci@pam!ci=ci' proxmox-mcp:ci </dev/null
+
+      - name: Native OAuth runtime (persistent state, non-root, read-only)
+        run: python3 scripts/oauth-docker-smoke.py proxmox-mcp:ci
 
       - name: Build all platforms
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

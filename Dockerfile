@@ -29,9 +29,9 @@ LABEL org.opencontainers.image.title="proxmox-mcp" \
       org.opencontainers.image.documentation="https://github.com/mattoddie/proxmox-mcp#readme" \
       org.opencontainers.image.licenses="MIT" \
       io.modelcontextprotocol.server.name="io.github.mattoddie/proxmox-mcp"
-COPY --from=build /out/proxmox-mcp /proxmox-mcp
+COPY --from=build --chmod=0555 /out/proxmox-mcp /proxmox-mcp
 # Inside the container the server must listen on all interfaces for a published port to
-# reach it (the binary itself defaults to 127.0.0.1). MCP_AUTH_TOKEN is still required.
+# reach it (the binary itself defaults to 127.0.0.1). Static Bearer or native OAuth authentication is required.
 ENV MCP_TRANSPORT=http \
     MCP_HTTP_HOST=0.0.0.0 \
     MCP_HTTP_PORT=8080

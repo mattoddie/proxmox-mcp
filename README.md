@@ -155,3 +155,9 @@ Contributions are very welcome, whether that's bug reports, compatibility report
 [MIT](LICENSE) © Matt Oddie
 
 *proxmox-mcp is an independent community project. It is not affiliated with, endorsed by or sponsored by Proxmox Server Solutions GmbH. Proxmox is a registered trademark of Proxmox Server Solutions GmbH.*
+
+### Native OAuth (optional)
+
+For ChatGPT custom MCP connections without an OAuth proxy, see
+[OAuth configuration and deployment](docs/oauth.md) and the
+[security design](docs/oauth-design.md). Static Bearer tokens remain supported.
