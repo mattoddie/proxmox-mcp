@@ -6,6 +6,10 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-17
+
+This release fixes lenient parsing of boolean and number settings, and renames tools, arguments and settings to match the other mattoddie MCP servers ahead of 1.0. proxmox-mcp has 319 tools (157 read, 110 write, 45 delete and 7 exec) and 8 prompts. Read the **Breaking** entries before upgrading.
+
 These changes align tool, argument and setting names with the other mattoddie MCP servers before 1.0. Old names are not accepted.
 
 ### Changed
@@ -164,7 +168,8 @@ These changes align tool, argument and setting names with the other mattoddie MC
 - Multi-arch Docker image (`linux/amd64`, `linux/arm64`) published to GHCR on each release, with SBOM and provenance attestation.
 - Documentation, including a tool reference generated from the code.
 
-[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/mattoddie/proxmox-mcp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/mattoddie/proxmox-mcp/compare/v0.5.0...v0.5.1
