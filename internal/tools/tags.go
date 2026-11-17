@@ -69,7 +69,7 @@ func isDryRun(ctx context.Context) bool {
 func defineTagTools(c *Context) {
 	client := c.Client
 
-	c.Define("proxmox_bulk_tag_guests", Def{
+	c.Define("proxmox_tag_guests", Def{
 		Toolset:     "cluster",
 		Title:       "Add or remove tags on many guests",
 		Description: "Add and/or remove tags on many VMs and containers at once. Select guests by `vmids`, by `with_tag` (every guest that has that tag) or both (guests matching either). Other tags are kept, in their order; new ones are appended. Tags compare case-insensitively unless the datacenter's tag-style sets case-sensitive. Rename a tag with with_tag=old, add=[new], remove=[old]. Only guests whose tags change are updated; a failure on one guest doesn't stop the others and is reported. dry_run=true lists every change without making it.",

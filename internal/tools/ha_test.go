@@ -137,14 +137,14 @@ func TestHaTools(t *testing.T) {
 
 	run("migrates and relocates", func(t *testing.T) {
 		env.mock.Reply("POST", `^/cluster/ha/resources/vm%3A100/migrate$`, `{"sid":"vm:100","requested-node":"pve2","comigrated-resources":["vm:101"],"blocking-resources":[]}`)
-		out := env.call(t, "proxmox_ha_migrate", `{"sid":100,"action":"migrate","node":"pve2"}`)
+		out := env.call(t, "proxmox_migrate_ha_resource", `{"sid":100,"action":"migrate","node":"pve2"}`)
 		eq(t, env.mock.LastWrite().Body, `{"node":"pve2"}`)
 		eqAt(t, out, "comigrated_resources", `["vm:101"]`)
 		eqAt(t, out, "blocking_resources", js.Undef)
 		eqAt(t, out, "requested", true)
 
 		// PVE 8 returns null
-		rel := env.call(t, "proxmox_ha_migrate", `{"sid":"ct:200","action":"relocate","node":"pve2"}`)
+		rel := env.call(t, "proxmox_migrate_ha_resource", `{"sid":"ct:200","action":"relocate","node":"pve2"}`)
 		eqStr(t, env.mock.LastWrite().Path, "/cluster/ha/resources/ct%3A200/relocate")
 		eqAt(t, rel, "action", "relocate")
 	})

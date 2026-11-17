@@ -615,7 +615,7 @@ func registerContainers(c *Context) {
 
 	// ---------------------------------------------------------------- write
 
-	c.Define("proxmox_container_power", Def{
+	c.Define("proxmox_control_container_power", Def{
 		Toolset:     "containers",
 		Title:       "Start, stop or reboot a container",
 		Description: "Change an LXC container's power state: start, stop (immediate, like pulling the plug), shutdown (clean, with optional timeout and force_stop), reboot (clean shutdown and start; applies pending changes), suspend or resume (experimental for containers). Returns once the task finishes unless wait=false.",
@@ -1060,7 +1060,7 @@ func registerContainers(c *Context) {
 				return nil, fmt.Errorf("Container %s is already a template", js.NumStr(g.VMID))
 			}
 			if g.Status == "running" {
-				return nil, fmt.Errorf("Container %s is running; shut it down first (proxmox_container_power)", js.NumStr(g.VMID))
+				return nil, fmt.Errorf("Container %s is running; shut it down first (proxmox_control_container_power)", js.NumStr(g.VMID))
 			}
 			res, err := client.Post(ctx, client.GuestPath(g)+"/template", nil)
 			if err != nil {

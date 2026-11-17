@@ -646,15 +646,21 @@ func registerAccess(c *Context) {
 
 	c.Define("proxmox_list_privileges", Def{
 		Toolset:     accessToolset,
+		List:        &listing{},
 		Title:       "List privileges",
-		Description: "List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), grouped by area. Use when building a custom role with proxmox_save_role.",
+		Description: "List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), sorted, each with its area (VM, Datastore, Sys...). Use when building a custom role with proxmox_save_role.",
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			r, err := client.Get(ctx, "/access/roles/Administrator", nil)
 			if err != nil {
 				return nil, err
 			}
 			privs := accessRolePrivs(r)
-			return js.O("count", len(privs), "by_area", accessGroupPrivs(privs)), nil
+			sort.Strings(privs)
+			items := make([]any, len(privs))
+			for i, p := range privs {
+				items[i] = js.O("privilege", p, "area", strings.Split(p, ".")[0])
+			}
+			return items, nil
 		},
 	})
 

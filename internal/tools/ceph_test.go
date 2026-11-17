@@ -225,7 +225,7 @@ func TestCephTools(t *testing.T) {
 				js.O("n", 2, "t", "osd.2 marked down"),
 			}
 		})
-		res := env.call(t, "proxmox_get_ceph_log", `{"node":"pve2","start":10,"limit":2}`)
+		res := env.call(t, "proxmox_get_ceph_log", `{"node":"pve2","offset":10,"limit":2}`)
 		eqAt(t, res, "items", `["limit=2 start=10","osd.2 marked down"]`)
 		found := env.call(t, "proxmox_get_ceph_log", `{"node":"pve2","search":"down"}`)
 		eqAt(t, found, "items", `["osd.2 marked down"]`)
@@ -370,8 +370,8 @@ func TestCephTools(t *testing.T) {
 		eq(t, w.Body, `{"network":"10.10.0.0/24","cluster-network":"10.20.0.0/24"}`)
 	})
 
-	t.Run("uses PROXMOX_DEFAULT_NODE for cluster-wide reads", func(t *testing.T) {
-		env2 := startEnv(t, map[string]string{"PROXMOX_DEFAULT_NODE": "pve2"})
+	t.Run("uses PROXMOX_NODE for cluster-wide reads", func(t *testing.T) {
+		env2 := startEnv(t, map[string]string{"PROXMOX_NODE": "pve2"})
 		env2.mock.Reply("GET", `^/nodes/[^/]+/ceph/osd$`, cephTestOsdTree)
 		env2.call(t, "proxmox_list_ceph_osds", nil)
 		if n := len(env2.mock.RequestsTo("/nodes/pve2/ceph/osd", "GET")); n != 1 {

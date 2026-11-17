@@ -327,7 +327,7 @@ func registerSdn(c *Context) {
 		Toolset:     "sdn",
 		Title:       "Preview SDN apply (dry run)",
 		Description: "Dry-run proxmox_apply_sdn for one node: shows the diff between the running and the pending network interfaces (/etc/network/interfaces.d/sdn) and FRR routing configuration. Use it to review staged SDN changes before applying them.",
-		Input:       []Prop{P("node", Str().Opt().D("Node to compute the diff for (default PROXMOX_DEFAULT_NODE or the only node)"))},
+		Input:       []Prop{P("node", Str().Opt().D("Node to compute the diff for (default PROXMOX_NODE or the only node)"))},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			node, err := c.node(ctx, a)
 			if err != nil {

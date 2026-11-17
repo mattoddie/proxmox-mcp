@@ -25,7 +25,7 @@ func storageFind(items any, field string, value any) any {
 }
 
 func TestStorageTools(t *testing.T) {
-	env := startEnv(t, map[string]string{"PROXMOX_DEFAULT_NODE": "pve1"})
+	env := startEnv(t, map[string]string{"PROXMOX_NODE": "pve1"})
 	reset := func() {
 		env.mock.Reset()
 		env.mock.On("GET", `^/storage$`, func(p *Obj, _ []string, _ proxmoxtest.Request) any {

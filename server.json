@@ -52,7 +52,7 @@
           "description": "Leave empty when you set a fingerprint. true: the certificate is publicly trusted. false: skip the check (insecure)."
         },
         {
-          "name": "PROXMOX_DEFAULT_NODE",
+          "name": "PROXMOX_NODE",
           "description": "Node used when a request doesn't name one. Not needed on a single-node install."
         },
         {
@@ -81,7 +81,7 @@
         {
           "name": "PROXMOX_DENY_TOOLS",
           "description": "Optional comma-separated tool names never to offer. An unknown name stops the server from starting.",
-          "placeholder": "proxmox_delete_vm,proxmox_vm_power"
+          "placeholder": "proxmox_delete_vm,proxmox_control_vm_power"
         },
         {
           "name": "PROXMOX_AUDIT_LOG",

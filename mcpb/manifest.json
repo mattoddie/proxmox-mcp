@@ -32,7 +32,7 @@
         "PROXMOX_TLS_FINGERPRINT": "${user_config.tls_fingerprint}",
         "PROXMOX_VERIFY_SSL": "${user_config.verify_ssl}",
         "PROXMOX_CA_FILE": "${user_config.ca_file}",
-        "PROXMOX_DEFAULT_NODE": "${user_config.default_node}",
+        "PROXMOX_NODE": "${user_config.node}",
         "PROXMOX_ALLOW_WRITES": "${user_config.allow_writes}",
         "PROXMOX_ALLOW_DELETES": "${user_config.allow_deletes}",
         "PROXMOX_ALLOW_EXEC": "${user_config.allow_exec}",
@@ -286,7 +286,7 @@
     },
     {
       "name": "proxmox_get_node_syslog",
-      "description": "Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with start/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal."
+      "description": "Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with offset/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal."
     },
     {
       "name": "proxmox_get_node_time",
@@ -582,7 +582,7 @@
     },
     {
       "name": "proxmox_list_privileges",
-      "description": "List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), grouped by area. Use when building a custom role with proxmox_save_role."
+      "description": "List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), sorted, each with its area (VM, Datastore, Sys...). Use when building a custom role with proxmox_save_role."
     },
     {
       "name": "proxmox_list_realm_sync_jobs",
@@ -731,7 +731,7 @@
         "name",
         "spec"
       ],
-      "text": "Help me deploy a new VM called \"${arguments.name}\" on my Proxmox cluster.\n1. proxmox_list_guests (templates: only): suitable templates; otherwise proxmox_list_storage_content (content: iso) for installer ISOs.\n2. proxmox_get_cluster_status and proxmox_list_storage: the node with the most headroom, and storage with room for the disk.\n3. proxmox_list_node_network on that node: the right bridge (and VLAN tag) to use.\n4. proxmox_get_next_vmid for an ID.\nThen present the plan (node, VMID, template or ISO, CPU, memory, disk, network, cloud-init user/SSH key/IP) and wait for my confirmation. After I confirm, create it with proxmox_clone_vm (+ proxmox_update_vm_config for cloud-init and sizing, proxmox_resize_vm_disk if needed) or proxmox_create_vm, start it with proxmox_vm_power, and report its IP (proxmox_get_guest_network) once it's up."
+      "text": "Help me deploy a new VM called \"${arguments.name}\" on my Proxmox cluster.\n1. proxmox_list_guests (templates: only): suitable templates; otherwise proxmox_list_storage_content (content: iso) for installer ISOs.\n2. proxmox_get_cluster_status and proxmox_list_storage: the node with the most headroom, and storage with room for the disk.\n3. proxmox_list_node_network on that node: the right bridge (and VLAN tag) to use.\n4. proxmox_get_next_vmid for an ID.\nThen present the plan (node, VMID, template or ISO, CPU, memory, disk, network, cloud-init user/SSH key/IP) and wait for my confirmation. After I confirm, create it with proxmox_clone_vm (+ proxmox_update_vm_config for cloud-init and sizing, proxmox_resize_vm_disk if needed) or proxmox_create_vm, start it with proxmox_control_vm_power, and report its IP (proxmox_get_guest_network) once it's up."
     }
   ],
   "keywords": [
@@ -796,7 +796,7 @@
       "description": "Optional PEM file with the CA that signed the server's certificate, instead of a fingerprint.",
       "default": ""
     },
-    "default_node": {
+    "node": {
       "type": "string",
       "title": "Default node",
       "description": "Node used when a request doesn't name one. Not needed on a single-node install.",
@@ -829,7 +829,7 @@
     "deny_tools": {
       "type": "string",
       "title": "Denied tools",
-      "description": "Optional comma-separated tool names never to offer, e.g. proxmox_delete_vm,proxmox_vm_power. An unknown name stops the server from starting.",
+      "description": "Optional comma-separated tool names never to offer, e.g. proxmox_delete_vm,proxmox_control_vm_power. An unknown name stops the server from starting.",
       "default": ""
     },
     "audit_log": {

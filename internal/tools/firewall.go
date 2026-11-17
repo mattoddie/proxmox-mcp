@@ -43,7 +43,7 @@ func firewallScopeArgs(scopes ...string) []Prop {
 	}
 	props := []Prop{
 		P("scope", Enum(scopes...).Opt().D(fmt.Sprintf("Firewall level: %s. Inferred when omitted: %sotherwise %s.", strings.Join(texts, "; "), inferred, fallback))),
-		P("node", Str().Opt().D("Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted)")),
+		P("node", Str().Opt().D("Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted)")),
 	}
 	if contains(scopes, "guest") {
 		props = append(props, P("vmid", vmidArg.Opt().D("VM or container ID, for scope guest")))
@@ -962,9 +962,9 @@ func registerFirewall(c *Context) {
 		Description: "Read the firewall log of a node (all its traffic, including guests on it) or of one guest. Only packets matching rules/policies with a log level other than nolog are logged; set log_level_in on the options or `log` on a rule to see drops.",
 		Input: withProps(firewallScopeArgs(logScopes...), []Prop{
 			P("limit", limitArg(100)),
-			P("start", Int().Min(0).Opt().D("Skip this many lines (paging)")),
-			P("since", Int().Opt().D("Only entries since this UNIX time")),
-			P("until", Int().Opt().D("Only entries until this UNIX time")),
+			P("offset", Int().Min(0).Opt().D("Skip this many lines (paging)")),
+			P("from", timeArg("Only entries from this time")),
+			P("to", timeArg("Only entries up to this time")),
 			P("search", searchArg),
 		}),
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -972,7 +972,15 @@ func registerFirewall(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			lines, err := client.GetList(ctx, s.fw+"/log", defined(js.O("limit", or(a.Get("limit"), 100), "start", a.Get("start"), "since", a.Get("since"), "until", a.Get("until"))))
+			since, err := timeArgEpoch(a, "from")
+			if err != nil {
+				return nil, err
+			}
+			until, err := timeArgEpoch(a, "to")
+			if err != nil {
+				return nil, err
+			}
+			lines, err := client.GetList(ctx, s.fw+"/log", defined(js.O("limit", or(a.Get("limit"), 100), "start", a.Get("offset"), "since", since, "until", until)))
 			if err != nil {
 				return nil, err
 			}

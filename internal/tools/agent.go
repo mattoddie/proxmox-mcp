@@ -353,7 +353,7 @@ func registerAgent(c *Context) {
 
 	// ---------------------------------------------------------------- write
 
-	c.Define("proxmox_guest_fs_freeze", Def{
+	c.Define("proxmox_control_guest_fs_freeze", Def{
 		Toolset:     "agent",
 		Title:       "Freeze/thaw guest filesystems (agent)",
 		Description: "Freeze, thaw or check the freeze state of a running VM's filesystems through the QEMU guest agent (fsfreeze). While frozen, writes inside the guest block, so always thaw promptly. Backups and snapshots already freeze/thaw automatically when the agent is enabled; use this for external snapshotting or to recover a guest left frozen (action=status, then thaw).",
@@ -377,7 +377,7 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_guest_fstrim", Def{
+	c.Define("proxmox_trim_guest_filesystems", Def{
 		Toolset:     "agent",
 		Title:       "Trim guest filesystems (agent)",
 		Description: "Run fstrim inside a running VM via the QEMU guest agent so freed blocks are discarded and thin-provisioned storage can reclaim space. Needs discard enabled on the VM's disks to have any effect on the host. Can take a while on large disks.",
@@ -401,10 +401,10 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_guest_power", Def{
+	c.Define("proxmox_control_guest_power", Def{
 		Toolset:     "agent",
 		Title:       "Shut down/suspend via agent",
-		Description: "Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM, disk or hybrid). The request returns immediately; the guest then acts on it. Prefer proxmox_vm_power action=shutdown, which already uses the agent for shutdown when it is enabled; this is for agent-driven suspend or when you specifically want the in-guest path.",
+		Description: "Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM, disk or hybrid). The request returns immediately; the guest then acts on it. Prefer proxmox_control_vm_power action=shutdown, which already uses the agent for shutdown when it is enabled; this is for agent-driven suspend or when you specifically want the in-guest path.",
 		Write:       true,
 		Destructive: True,
 		Input:       baseInput(P("action", Enum("shutdown", "suspend-ram", "suspend-disk", "suspend-hybrid").D("shutdown, suspend-ram (sleep), suspend-disk (hibernate) or suspend-hybrid"))),
@@ -462,19 +462,19 @@ func registerAgent(c *Context) {
 			"stdout_truncated", ifThen(st.Truthy("out-truncated"), true),
 			"stderr_truncated", ifThen(st.Truthy("err-truncated"), true),
 			"duration_ms", duration,
-			"note", ifThen(!exited, "Still running; fetch the result later with proxmox_get_guest_exec_status (pid "+js.NumStr(pid)+")"),
+			"note", ifThen(!exited, "Still running; fetch the result later with proxmox_get_guest_command_status (pid "+js.NumStr(pid)+")"),
 		)
 	}
 
-	c.Define("proxmox_guest_exec", Def{
+	c.Define("proxmox_run_guest_command", Def{
 		Toolset:     "agent",
 		Title:       "Run a command in a VM (agent)",
-		Description: "Run a command inside a running VM through the QEMU guest agent and wait for it (up to timeout_s) to return exit code, stdout and stderr. `command` is the program plus arguments with no shell: use [\"/bin/sh\", \"-c\", \"...\"] for pipes/redirection on Linux or [\"cmd.exe\", \"/c\", \"...\"] / [\"powershell.exe\", \"-Command\", \"...\"] on Windows. Runs as the agent's user (root/SYSTEM). If it runs longer than timeout_s the pid is returned; follow up with proxmox_get_guest_exec_status. Output captured by the agent is size-limited (see the *_truncated flags).",
+		Description: "Run a command inside a running VM through the QEMU guest agent and wait for it (up to `timeout` seconds) to return exit code, stdout and stderr. `command` is the program plus arguments with no shell: use [\"/bin/sh\", \"-c\", \"...\"] for pipes/redirection on Linux or [\"cmd.exe\", \"/c\", \"...\"] / [\"powershell.exe\", \"-Command\", \"...\"] on Windows. Runs as the agent's user (root/SYSTEM). If it runs longer than `timeout` the pid is returned; follow up with proxmox_get_guest_command_status. Output captured by the agent is size-limited (see the *_truncated flags).",
 		Exec:        true,
 		Input: baseInput(
 			P("command", Arr(Str()).Min(1).D("Program and arguments, e.g. [\"/bin/sh\", \"-c\", \"df -h\"] or [\"systemctl\", \"status\", \"nginx\"]")),
 			P("input_data", Str().Max(65536).Opt().D("Data passed to the command's standard input (max 65536 characters)")),
-			P("timeout_s", Int().Min(0).Max(600).Opt().D("How long to wait for the command to finish (default 30; 0 = return the pid immediately)")),
+			P("timeout", Int().Min(0).Max(600).Opt().D("How long to wait for the command to finish, in seconds (default 30; 0 = return the pid immediately)")),
 		),
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			g, err := resolveVm(ctx, a)
@@ -494,7 +494,7 @@ func registerAgent(c *Context) {
 			if !js.IsFinite(pid) {
 				return nil, proxmox.Errorf("The guest agent did not return a pid for the command (got %s)", js.Stringify(res, ""))
 			}
-			timeoutMs := js.Num(or(a.Get("timeout_s"), 30)) * 1000
+			timeoutMs := js.Num(or(a.Get("timeout"), 30)) * 1000
 			if timeoutMs == 0 {
 				return execResult(g, pid, js.O("exited", false), nil), nil
 			}
@@ -506,22 +506,22 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_get_guest_exec_status", Def{
+	c.Define("proxmox_get_guest_command_status", Def{
 		Toolset:     "agent",
 		Title:       "Get guest command result (agent)",
-		Description: "Check on a command started with proxmox_guest_exec: whether it has exited and, if so, its exit code, stdout and stderr. Note the guest agent forgets a command's result once it has been read after it exited.",
+		Description: "Check on a command started with proxmox_run_guest_command: whether it has exited and, if so, its exit code, stdout and stderr. Note the guest agent forgets a command's result once it has been read after it exited.",
 		Exec:        true,
 		ReadOnly:    True,
 		Input: baseInput(
-			P("pid", Int().Pos().D("The pid returned by proxmox_guest_exec")),
-			P("wait_s", Int().Min(0).Max(600).Opt().D("Wait up to this many seconds for the command to exit (default 0: check once)")),
+			P("pid", Int().Pos().D("The pid returned by proxmox_run_guest_command")),
+			P("timeout", Int().Min(0).Max(600).Opt().D("Wait up to this many seconds for the command to exit (default 0: check once)")),
 		),
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			g, err := resolveVm(ctx, a)
 			if err != nil {
 				return nil, err
 			}
-			st, err := pollExec(ctx, g, a.Num("pid"), js.Num(or(a.Get("wait_s"), 0))*1000)
+			st, err := pollExec(ctx, g, a.Num("pid"), js.Num(or(a.Get("timeout"), 0))*1000)
 			if err != nil {
 				return nil, err
 			}
@@ -529,7 +529,7 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_guest_read_file", Def{
+	c.Define("proxmox_read_guest_file", Def{
 		Toolset:     "agent",
 		Title:       "Read a file in a VM (agent)",
 		Description: "Read a file from inside a running VM through the QEMU guest agent (e.g. a log or config file). Returns text by default, or base64 for binary files (encoding=base64). Reads at most `count` bytes from `offset` (Proxmox caps a read at 16 MiB); `truncated: true` means the end of the file was not reached, so read on with a higher offset. Gated behind exec permission because it can read any file in the guest.",
@@ -575,7 +575,7 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_guest_write_file", Def{
+	c.Define("proxmox_write_guest_file", Def{
 		Toolset:     "agent",
 		Title:       "Write a file in a VM (agent)",
 		Description: "Write (create or overwrite) a file inside a running VM through the QEMU guest agent. Content is text by default; pass encoding=base64 with base64 content for binary files. Proxmox limits content to 61440 characters (about 60 KiB of text or 45 KiB of binary as base64). Overwrites the whole file without a backup; there is no append mode (read, modify and write back instead).",
@@ -605,7 +605,7 @@ func registerAgent(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_guest_set_password", Def{
+	c.Define("proxmox_set_guest_password", Def{
 		Toolset:     "agent",
 		Title:       "Set a guest user's password (agent)",
 		Description: "Set the password of a user account inside a running VM through the QEMU guest agent (e.g. to regain access). The user must already exist. With crypted=true, `password` is an already-hashed crypt() string. For cloud-init VMs, the cipassword option is the persistent alternative.",

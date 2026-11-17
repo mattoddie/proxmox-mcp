@@ -69,7 +69,7 @@ jobs:
           PROXMOX_TLS_FINGERPRINT: ""
           PROXMOX_VERIFY_SSL: ""
           PROXMOX_CA_FILE: '${user_config.ca_file}' # an unfilled setting, passed through literally
-          PROXMOX_DEFAULT_NODE: ""
+          PROXMOX_NODE: ""
           PROXMOX_ALLOW_WRITES: "false"
           PROXMOX_ALLOW_DELETES: "false"
           PROXMOX_ALLOW_EXEC: "false"

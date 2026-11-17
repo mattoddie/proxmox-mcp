@@ -86,7 +86,7 @@ func TestDryRun(t *testing.T) {
 	t.Run("sends the guest agent ping, which changes nothing", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("POST", `/agent/ping$`, `{}`)
-		res := env.call(t, "proxmox_guest_exec", `{"vmid":100,"command":["uptime"],"dry_run":true}`)
+		res := env.call(t, "proxmox_run_guest_command", `{"vmid":100,"command":["uptime"],"dry_run":true}`)
 		eqAt(t, res, "would_send.path", "/nodes/pve1/qemu/100/agent/exec")
 		for _, w := range env.mock.Writes() {
 			if !strings.HasSuffix(w.Path, "/agent/ping") {
@@ -110,7 +110,7 @@ func TestDryRun(t *testing.T) {
 		_, registered, _ := listTools(t, config.AllTools())
 		for name, info := range registered {
 			has := hasProp(info.Props, "dry_run")
-			want := info.Gate != Read && name != "proxmox_get_guest_exec_status" && name != "proxmox_guest_read_file"
+			want := info.Gate != Read && name != "proxmox_get_guest_command_status" && name != "proxmox_read_guest_file"
 			if info.Reads || name == "proxmox_query_url_metadata" {
 				want = true
 			}

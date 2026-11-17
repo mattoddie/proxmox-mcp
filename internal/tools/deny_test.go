@@ -22,7 +22,7 @@ func TestDenyTools(t *testing.T) {
 			t.Fatal(err)
 		}
 		// The raw tool is opt-in and exec tools need exec, but their names are still valid.
-		if err := CheckDenyTools(map[string]bool{"proxmox_api_request": true, "proxmox_guest_exec": true, "proxmox_delete_vm": true}); err != nil {
+		if err := CheckDenyTools(map[string]bool{"proxmox_api_request": true, "proxmox_run_guest_command": true, "proxmox_delete_vm": true}); err != nil {
 			t.Fatal(err)
 		}
 	})

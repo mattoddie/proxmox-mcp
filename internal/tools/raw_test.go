@@ -268,22 +268,22 @@ func TestRawTool(t *testing.T) {
 		// Unrelated `data` fields are left alone.
 		env.mock.Reply("GET", `^/nodes/pve1/rrddata$`, `[{"data":"x=1"}]`)
 		eq(t, env.call(t, "proxmox_api_request", `{"path":"/nodes/pve1/rrddata"}`), `[{"data":"x=1"}]`)
-		// redact=false returns it as is.
-		eqAt(t, env.call(t, "proxmox_api_request", `{"path":"/cluster/acme/plugins/cf","redact":false}`), "data", data)
+		// include_secrets=true returns it as is.
+		eqAt(t, env.call(t, "proxmox_api_request", `{"path":"/cluster/acme/plugins/cf","include_secrets":true}`), "data", data)
 	})
 
-	t.Run("only lets redact:false through with PROXMOX_ALLOW_UNREDACTED", func(t *testing.T) {
+	t.Run("only lets include_secrets:true through with PROXMOX_ALLOW_SECRETS", func(t *testing.T) {
 		env.mock.Reply("GET", `^/access/users$`, `[{"userid":"a@pve","password":"x"}]`)
 		opts := toolOptions("all")
-		opts.AllowUnredacted = false
+		opts.AllowSecrets = false
 		s := connect(t, env.client, opts)
 		for _, tool := range listAll(t, s) {
-			if tool.Name == "proxmox_api_request" && strings.Contains(js.Stringify(js.V(tool.InputSchema), ""), "redact") {
-				t.Fatal("the redact argument is offered")
+			if tool.Name == "proxmox_api_request" && strings.Contains(js.Stringify(js.V(tool.InputSchema), ""), "include_secrets") {
+				t.Fatal("the include_secrets argument is offered")
 			}
 		}
-		eq(t, parseResult(t, callOn(t, s, "proxmox_api_request", `{"path":"/access/users","redact":false}`)), `[{"userid":"a@pve","password":"<redacted>"}]`)
-		eq(t, env.call(t, "proxmox_api_request", `{"path":"/access/users","redact":false}`), `[{"userid":"a@pve","password":"x"}]`)
+		eq(t, parseResult(t, callOn(t, s, "proxmox_api_request", `{"path":"/access/users","include_secrets":true}`)), `[{"userid":"a@pve","password":"<redacted>"}]`)
+		eq(t, env.call(t, "proxmox_api_request", `{"path":"/access/users","include_secrets":true}`), `[{"userid":"a@pve","password":"x"}]`)
 	})
 
 	t.Run("redacts secrets by default", func(t *testing.T) {

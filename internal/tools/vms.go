@@ -774,7 +774,7 @@ func registerVms(c *Context) {
 				js.O(
 					"config", vmsSummarizeConfig(configObj),
 					"pending_changes", changes,
-					"note", ifThen(len(changes) > 0, "Pending changes apply at the next VM restart (proxmox_vm_power action=reboot) or can be reverted with proxmox_update_vm_config revert=[...]"),
+					"note", ifThen(len(changes) > 0, "Pending changes apply at the next VM restart (proxmox_control_vm_power action=reboot) or can be reverted with proxmox_update_vm_config revert=[...]"),
 				),
 			)), nil
 		},
@@ -991,7 +991,7 @@ func registerVms(c *Context) {
 
 	// ---------------------------------------------------------------- write
 
-	c.Define("proxmox_vm_power", Def{
+	c.Define("proxmox_control_vm_power", Def{
 		Toolset:     "vms",
 		Title:       "Start, stop or reboot a VM",
 		Description: "Change a VM's power state. start; shutdown (clean ACPI shutdown, optionally force_stop after timeout); stop (hard power-off, may lose data); reboot (clean, applies pending config); reset (hard reset); suspend (pause in RAM); resume; hibernate (save RAM to disk and stop; resumes on next start). Reports without acting when the VM is already in the requested state.",
@@ -1443,7 +1443,7 @@ func registerVms(c *Context) {
 			changes := vmsPendingChanges(pending(ctx, client.GuestPath(g)))
 			return proxmox.Compact(js.Spread(result, js.O(
 				"pending_changes", changes,
-				"note", ifThen(len(changes) > 0, "Some changes are pending and take effect after a reboot (proxmox_vm_power action=reboot)"),
+				"note", ifThen(len(changes) > 0, "Some changes are pending and take effect after a reboot (proxmox_control_vm_power action=reboot)"),
 			))), nil
 		},
 	})
@@ -1619,7 +1619,7 @@ func registerVms(c *Context) {
 				return refWith(g, "status", "already a template"), nil
 			}
 			if g.Status == "running" {
-				return nil, fmt.Errorf("VM %s is running; shut it down first (proxmox_vm_power action=shutdown)", js.NumStr(g.VMID))
+				return nil, fmt.Errorf("VM %s is running; shut it down first (proxmox_control_vm_power action=shutdown)", js.NumStr(g.VMID))
 			}
 			upid, err := client.Post(ctx, client.GuestPath(g)+"/template", defined(js.O("disk", a.Get("disk"))))
 			if err != nil {
@@ -1734,7 +1734,7 @@ func registerVms(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_vm_monitor_command", Def{
+	c.Define("proxmox_run_vm_monitor_command", Def{
 		Toolset:     "vms",
 		Title:       "Run a QEMU monitor command",
 		Description: "Run a QEMU human monitor (HMP) command on a running VM and return its output, e.g. 'info status', 'info block', 'info network', 'info cpus', 'info balloon', 'info migrate'. Non-info commands (e.g. 'balloon 2048', 'device_del') change the live VM; prefer the dedicated tools where they exist.",

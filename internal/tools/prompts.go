@@ -153,7 +153,7 @@ Propose which snapshots look safe to delete (and which to keep, e.g. ones named 
 2. proxmox_get_cluster_status and proxmox_list_storage: the node with the most headroom, and storage with room for the disk.
 3. proxmox_list_node_network on that node: the right bridge (and VLAN tag) to use.
 4. proxmox_get_next_vmid for an ID.
-Then present the plan (node, VMID, template or ISO, CPU, memory, disk, network, cloud-init user/SSH key/IP) and wait for my confirmation. After I confirm, create it with proxmox_clone_vm (+ proxmox_update_vm_config for cloud-init and sizing, proxmox_resize_vm_disk if needed) or proxmox_create_vm, start it with proxmox_vm_power, and report its IP (proxmox_get_guest_network) once it's up.`, a.Str("name"), spec)
+Then present the plan (node, VMID, template or ISO, CPU, memory, disk, network, cloud-init user/SSH key/IP) and wait for my confirmation. After I confirm, create it with proxmox_clone_vm (+ proxmox_update_vm_config for cloud-init and sizing, proxmox_resize_vm_disk if needed) or proxmox_create_vm, start it with proxmox_control_vm_power, and report its IP (proxmox_get_guest_network) once it's up.`, a.Str("name"), spec)
 		},
 	},
 }

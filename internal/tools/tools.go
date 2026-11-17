@@ -253,7 +253,7 @@ func Instructions(opts config.Tools) string {
 	var b strings.Builder
 	b.WriteString("Tools for monitoring and managing a Proxmox VE cluster: nodes, VMs (qemu), containers (lxc), storage, backups, snapshots, firewall, HA, SDN, Ceph and access control. ")
 	b.WriteString("Start with proxmox_get_cluster_status, proxmox_list_guests or proxmox_list_nodes. ")
-	b.WriteString("Guests are addressed by VMID; the node is looked up automatically when omitted. Node-scoped tools default to PROXMOX_DEFAULT_NODE or the only node. ")
+	b.WriteString("Guests are addressed by VMID; the node is looked up automatically when omitted. Node-scoped tools default to PROXMOX_NODE or the only node. ")
 	b.WriteString("Long-running operations are Proxmox tasks: by default tools wait for them and report the outcome with the end of the task log; pass wait=false to return the task ID (UPID) and follow it with proxmox_get_task. ")
 	b.WriteString(listHelp)
 	if opts.AllowWrites {

@@ -111,9 +111,9 @@ func nodesDateParse(s string) (float64, bool) {
 	return float64(t.UnixMilli()), true
 }
 
-// nodesToEpoch accepts epoch seconds (number or numeric string) or an ISO / "YYYY-MM-DD HH:MM:SS"
+// toEpoch accepts epoch seconds (number or numeric string) or an ISO / "YYYY-MM-DD HH:MM:SS"
 // date and returns epoch seconds.
-func nodesToEpoch(value any) (any, error) {
+func toEpoch(value any) (any, error) {
 	switch v := value.(type) {
 	case js.Undefined:
 		return js.Undef, nil
@@ -130,7 +130,7 @@ func nodesToEpoch(value any) (any, error) {
 		}
 		ms, ok := nodesDateParse(s)
 		if !ok {
-			return nil, fmt.Errorf(`Not a valid time: "%s" (use epoch seconds or e.g. 2026-01-31T12:00:00Z)`, v)
+			return nil, fmt.Errorf(`Not a valid time: "%s" (use ISO 8601, e.g. 2026-01-31 or 2026-01-31T12:00:00Z)`, v)
 		}
 		return math.Floor(ms / 1000), nil
 	}
@@ -538,6 +538,39 @@ func nodesNaturalCompare(a, b string) float64 {
 }
 
 // nodesFilterStrings is filterAndLimit over strings, without a limit.
+// nodesSyslogRange converts the syslog tool's from/to to the "YYYY-MM-DD HH:MM:SS" form the
+// syslog endpoint takes, which journalctl reads as the node's local time.
+func nodesSyslogRange(ctx context.Context, client *proxmox.Client, node string, a *Obj) (since, until any, err error) {
+	since, until = js.Undef, js.Undef
+	from, err := timeArgEpoch(a, "from")
+	if err != nil {
+		return nil, nil, err
+	}
+	to, err := timeArgEpoch(a, "to")
+	if err != nil {
+		return nil, nil, err
+	}
+	if js.IsUndef(from) && js.IsUndef(to) {
+		return since, until, nil
+	}
+	t, err := client.Get(ctx, nodesPath(node)+"/time", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	tt := nodesObj(t)
+	offset := tt.Num("localtime") - tt.Num("time")
+	if !js.IsFinite(offset) {
+		offset = 0
+	}
+	format := func(v any) any {
+		if js.IsUndef(v) {
+			return js.Undef
+		}
+		return time.Unix(int64(js.Num(v)+offset), 0).UTC().Format("2006-01-02 15:04:05")
+	}
+	return format(from), format(to), nil
+}
+
 func nodesFilterStrings(items []string, search any) []any {
 	out := []any{}
 	q, _ := search.(string)
@@ -558,8 +591,19 @@ func nodesMaxCharsArg(def int) *Schema {
 	return Int().Pos().Max(5_000_000).Opt().D(fmt.Sprintf("Truncate the text to this many characters (default %d)", def))
 }
 
-func nodesTimeArg(what string) *Schema {
-	return Union(Str(), Num()).Opt().D(what + `: epoch seconds or a date like "2026-01-31 12:00:00" / ISO 8601`)
+// timeArg is the type of every from/to time window argument: an ISO 8601 string, converted to
+// what each Proxmox endpoint expects.
+func timeArg(what string) *Schema {
+	return Str().Opt().D(what + `: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time`)
+}
+
+// timeArgEpoch converts a from/to argument to epoch seconds (undefined when not given).
+func timeArgEpoch(a *Obj, key string) (any, error) {
+	v, err := toEpoch(a.Get(key))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", key, err)
+	}
+	return v, nil
 }
 
 func registerNodes(c *Context) {
@@ -768,7 +812,7 @@ func registerNodes(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_manage_node_service", Def{
+	c.Define("proxmox_control_node_service", Def{
 		Toolset:     "nodes",
 		Title:       "Start, stop, restart or reload a node service",
 		Description: "Start, stop, restart or reload a system service on a node, e.g. restart pveproxy after a certificate change. Stopping pve-cluster, corosync, pveproxy or pvedaemon can cut off API access or cluster communication; prefer reload where possible.",
@@ -1200,7 +1244,7 @@ func registerNodes(c *Context) {
 	c.Define("proxmox_update_node_config", Def{
 		Toolset:     "nodes",
 		Title:       "Update node options",
-		Description: "Change a node's options: notes/description, wake-on-LAN MAC, ACME account and certificate domains (used by proxmox_node_acme_certificate), start-on-boot delay, ballooning target. Only the given fields change; remove with `delete`.",
+		Description: "Change a node's options: notes/description, wake-on-LAN MAC, ACME account and certificate domains (used by proxmox_control_node_acme_certificate), start-on-boot delay, ballooning target. Only the given fields change; remove with `delete`.",
 		Write:       true,
 		Destructive: False,
 		Input: []Prop{
@@ -1283,10 +1327,10 @@ func registerNodes(c *Context) {
 
 	// ================================================================ power & bulk actions
 
-	c.Define("proxmox_node_power", Def{
+	c.Define("proxmox_control_node_power", Def{
 		Toolset:     "nodes",
 		Title:       "Reboot or shut down a node",
-		Description: "Reboot or shut down a Proxmox node. Running guests are shut down or stopped by the node first (HA guests may be migrated per the HA shutdown policy). Consider proxmox_node_bulk_action migrate first to move guests away. A shut-down node can only be brought back by hand, IPMI or proxmox_wake_node.",
+		Description: "Reboot or shut down a Proxmox node. Running guests are shut down or stopped by the node first (HA guests may be migrated per the HA shutdown policy). Consider proxmox_run_node_bulk_action migrate first to move guests away. A shut-down node can only be brought back by hand, IPMI or proxmox_wake_node.",
 		Write:       true,
 		Destructive: True,
 		Input:       []Prop{P("node", nodeRequiredArg), P("command", Enum("reboot", "shutdown").D("reboot or shutdown"))},
@@ -1316,10 +1360,10 @@ func registerNodes(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_node_bulk_action", Def{
+	c.Define("proxmox_run_node_bulk_action", Def{
 		Toolset:     "nodes",
 		Title:       "Start, stop, suspend or migrate all guests on a node",
-		Description: "Run a bulk action over the guests on one node: start (by default only guests with onboot=1; force=true for all), stop (shut down, hard-stopping after a timeout), suspend (VMs only) or migrate (all guests to `target`, e.g. before node maintenance). Restrict with `vmids`. Runs as one task. For a selection across nodes use proxmox_bulk_guest_action.",
+		Description: "Run a bulk action over the guests on one node: start (by default only guests with onboot=1; force=true for all), stop (shut down, hard-stopping after a timeout), suspend (VMs only) or migrate (all guests to `target`, e.g. before node maintenance). Restrict with `vmids`. Runs as one task. For a selection across nodes use proxmox_run_bulk_guest_action.",
 		Write:       true,
 		Destructive: True,
 		Input: []Prop{
@@ -1367,13 +1411,13 @@ func registerNodes(c *Context) {
 	c.Define("proxmox_get_node_syslog", Def{
 		Toolset:     "nodes",
 		Title:       "Read node syslog",
-		Description: "Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with start/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal.",
+		Description: "Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with offset/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal.",
 		Input: []Prop{
 			P("node", nodeArg),
 			P("service", Str().Opt().D("Only this service/unit, e.g. pveproxy, pvedaemon, corosync, pve-cluster")),
-			P("since", Str().Opt().D("Start time, e.g. '2026-01-31 08:00:00' or 'yesterday'")),
-			P("until", Str().Opt().D("End time, same format as since")),
-			P("start", Int().Min(0).Opt().D("Line offset to start from (default 0)")),
+			P("from", timeArg("Start of the range")),
+			P("to", timeArg("End of the range")),
+			P("offset", Int().Min(0).Opt().D("Line offset to start from (default 0)")),
 			P("limit", limitArg(200)),
 			P("search", searchArg),
 		},
@@ -1382,8 +1426,12 @@ func registerNodes(c *Context) {
 			if err != nil {
 				return nil, err
 			}
+			since, until, err := nodesSyslogRange(ctx, client, node, a)
+			if err != nil {
+				return nil, err
+			}
 			data, meta, err := client.RequestMeta(ctx, "GET", nodesPath(node)+"/syslog", defined(js.O(
-				"service", a.Get("service"), "since", a.Get("since"), "until", a.Get("until"), "start", a.Get("start"), "limit", or(a.Get("limit"), 200),
+				"service", a.Get("service"), "since", since, "until", until, "start", a.Get("offset"), "limit", or(a.Get("limit"), 200),
 			)))
 			if err != nil {
 				return nil, err
@@ -1406,9 +1454,9 @@ func registerNodes(c *Context) {
 		Description: "Read a node's systemd journal: the last N entries (default 100) or a time range, optionally only one unit, a syslog identifier, a priority level or kernel messages.",
 		Input: []Prop{
 			P("node", nodeArg),
-			P("lastentries", Int().Pos().Max(10000).Opt().D("Only the last N entries (default 100 when no range is given)")),
-			P("since", nodesTimeArg("Start of the range")),
-			P("until", nodesTimeArg("End of the range")),
+			P("limit", Int().Pos().Max(10000).Opt().D("Only the last N entries (default 100 when no range is given)")),
+			P("from", timeArg("Start of the range")),
+			P("to", timeArg("End of the range")),
 			P("unit", Str().Opt().D("Only this systemd unit, e.g. pveproxy (.service implied)")),
 			P("identifier", Str().Opt().D("Only messages whose syslog identifier matches this glob, e.g. 'pve*'")),
 			P("priority", Str().Opt().D("Only this priority or more severe: 0 (emerg) .. 7 (debug), or a range 'LOW..HIGH'; e.g. 3 for errors")),
@@ -1420,15 +1468,15 @@ func registerNodes(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			since, err := nodesToEpoch(a.Get("since"))
+			since, err := timeArgEpoch(a, "from")
 			if err != nil {
 				return nil, err
 			}
-			until, err := nodesToEpoch(a.Get("until"))
+			until, err := timeArgEpoch(a, "to")
 			if err != nil {
 				return nil, err
 			}
-			lastentries := a.Get("lastentries")
+			lastentries := a.Get("limit")
 			if js.Nullish(lastentries) {
 				lastentries = ifThen(js.IsUndef(since) && js.IsUndef(until), 100)
 			}
@@ -1787,7 +1835,7 @@ func registerNodes(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_node_acme_certificate", Def{
+	c.Define("proxmox_control_node_acme_certificate", Def{
 		Toolset:     "nodes",
 		Title:       "Order, renew or revoke an ACME certificate",
 		Description: "Order a new ACME (e.g. Let's Encrypt) certificate for a node, renew it, or revoke it at the CA. The node's ACME account and domains must be set first (proxmox_update_node_config acme_account/acme_domains; accounts via proxmox_save_acme_account, DNS plugins via proxmox_save_acme_plugin). Runs as a task; pveproxy reloads the new certificate. revoke needs delete access (PROXMOX_ALLOW_DELETES).",

@@ -353,7 +353,7 @@ func registerReplication(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_run_replication_now", Def{
+	c.Define("proxmox_run_replication_job", Def{
 		Toolset:     "replication",
 		Title:       "Run replication now",
 		Description: "Schedule a replication job to run as soon as possible instead of waiting for its schedule. Check the result with proxmox_get_replication_job or proxmox_get_replication_log.",
@@ -380,7 +380,7 @@ func registerReplication(c *Context) {
 		Input: []Prop{
 			P("id", replicationJobIDArg),
 			P("node", replicationJobNodeArg),
-			P("start", Int().Min(0).Opt().D("First line to return (default 0)")),
+			P("offset", Int().Min(0).Opt().D("Line offset of the first line to return (0-based, default 0)")),
 			P("limit", Int().Pos().Max(5000).Opt().D("Maximum lines (default 500)")),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -388,7 +388,7 @@ func registerReplication(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			lines, meta, err := client.RequestMeta(ctx, "GET", "/nodes/"+enc(node)+"/replication/"+enc(a.Get("id"))+"/log", js.O("start", or(a.Get("start"), 0), "limit", or(a.Get("limit"), 500)))
+			lines, meta, err := client.RequestMeta(ctx, "GET", "/nodes/"+enc(node)+"/replication/"+enc(a.Get("id"))+"/log", js.O("start", or(a.Get("offset"), 0), "limit", or(a.Get("limit"), 500)))
 			if err != nil {
 				return nil, err
 			}

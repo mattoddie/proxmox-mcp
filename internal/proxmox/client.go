@@ -248,7 +248,7 @@ func Fingerprint(der []byte) string {
 // Config returns the client's settings.
 func (c *Client) Config() config.Proxmox { return c.cfg }
 
-// DefaultNode is PROXMOX_DEFAULT_NODE.
+// DefaultNode is PROXMOX_NODE.
 func (c *Client) DefaultNode() string { return c.cfg.DefaultNode }
 
 // TaskTimeoutMs is PROXMOX_TASK_TIMEOUT_MS.
@@ -382,7 +382,7 @@ func (c *Client) ListNodes(ctx context.Context) ([]*js.Obj, error) {
 	return c.GetList(ctx, "/nodes", nil)
 }
 
-// ResolveNode picks the node for node-scoped calls: the one given, else PROXMOX_DEFAULT_NODE,
+// ResolveNode picks the node for node-scoped calls: the one given, else PROXMOX_NODE,
 // else the only node of a single-node install.
 func (c *Client) ResolveNode(ctx context.Context, node string) (string, error) {
 	if node != "" {
@@ -403,7 +403,7 @@ func (c *Client) ResolveNode(ctx context.Context, node string) (string, error) {
 		names[i] = js.Str(n.Get("node"))
 	}
 	sortStrings(names)
-	return "", Errorf("This cluster has %d nodes; pass `node` (one of: %s) or set PROXMOX_DEFAULT_NODE", len(nodes), strings.Join(names, ", "))
+	return "", Errorf("This cluster has %d nodes; pass `node` (one of: %s) or set PROXMOX_NODE", len(nodes), strings.Join(names, ", "))
 }
 
 // ResolveGuest finds which node a VM or container lives on and whether it is a VM (qemu) or a

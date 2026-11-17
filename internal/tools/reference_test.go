@@ -14,8 +14,9 @@ import (
 
 // testdata/typescript-reference.json is what the TypeScript server (v0.2.0) listed: every tool's
 // name, title, description, input schema and annotations, the tools registered at each access
-// level with the server instructions, and the prompts and their text. These tests hold the Go
-// server to it, so it stays a drop-in replacement.
+// level with the server instructions, and the prompts and their text. Tool and setting names in it
+// carry the 1.0 renames; the argument and description changes are applied by
+// applyDeliberateChanges. These tests hold the Go server to it, so nothing changes by accident.
 
 type reference struct {
 	all      *Obj
@@ -59,13 +60,31 @@ func applyDeliberateChanges(ref *Obj, registered map[string]Info) {
 	prop := func(p Prop) any { return InputSchema([]Prop{p}).ObjAt("properties").Get(p.Name) }
 	for _, tool := range ref.Objs("tools") {
 		name := js.Str(tool.Get("name"))
+		// 1.0: family-wide argument names. The new argument takes the old one's place.
+		if renames, ok := v1ArgRenames[name]; ok {
+			props := tool.ObjAt("inputSchema").ObjAt("properties")
+			current := InputSchema(registered[name].Props).ObjAt("properties")
+			renamed := js.NewObj()
+			for _, k := range props.Keys() {
+				if to, ok := renames[k]; ok {
+					renamed.Set(to, current.Get(to))
+				} else {
+					renamed.Set(k, props.Get(k))
+				}
+			}
+			tool.ObjAt("inputSchema").Set("properties", renamed)
+		}
+		for _, change := range v1Descriptions[name] {
+			desc := js.Str(tool.Get("description"))
+			if !strings.Contains(desc, change[0]) {
+				panic(name + ": reference description changed")
+			}
+			tool.Set("description", strings.Replace(desc, change[0], change[1], 1))
+		}
 		switch name {
 		case "proxmox_query_url_metadata":
 			// A write tool now: the node fetches any URL it is given.
 			tool.ObjAt("annotations").Set("readOnlyHint", false).Set("destructiveHint", false)
-		case "proxmox_api_request":
-			// redact is only offered with PROXMOX_ALLOW_UNREDACTED=true (as in AllTools).
-			tool.ObjAt("inputSchema").ObjAt("properties").ObjAt("redact").Set("description", "Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")
 		case "proxmox_list_acme_directories":
 			tool.Set("description", js.Str(tool.Get("description"))+" Fetching `directory` makes the node connect to that URL, so it needs write access.")
 			// 0.6: with writes on, a call with directory gets dry runs and the audit log.
@@ -121,6 +140,32 @@ func applyDeliberateChanges(ref *Obj, registered map[string]Info) {
 		}
 	}
 	read.Set("tools", tools)
+}
+
+// v1ArgRenames are the 1.0 argument renames per tool, old name to new: limit for item and line
+// counts, offset for line offsets, from/to (ISO 8601) for time windows, timeout in seconds, and
+// include_secrets (offered only with PROXMOX_ALLOW_SECRETS=true, as in AllTools).
+var v1ArgRenames = map[string]map[string]string{
+	"proxmox_api_request":              {"redact": "include_secrets"},
+	"proxmox_get_cluster_log":          {"max": "limit"},
+	"proxmox_get_task":                 {"log_lines": "limit"},
+	"proxmox_get_task_log":             {"start": "offset"},
+	"proxmox_wait_for_task":            {"timeout_s": "timeout"},
+	"proxmox_list_tasks":               {"since": "from"},
+	"proxmox_get_firewall_log":         {"start": "offset", "since": "from", "until": "to"},
+	"proxmox_get_ceph_log":             {"start": "offset"},
+	"proxmox_get_replication_log":      {"start": "offset"},
+	"proxmox_get_node_syslog":          {"since": "from", "until": "to", "start": "offset"},
+	"proxmox_get_node_journal":         {"lastentries": "limit", "since": "from", "until": "to"},
+	"proxmox_run_guest_command":        {"timeout_s": "timeout"},
+	"proxmox_get_guest_command_status": {"wait_s": "timeout"},
+}
+
+// v1Descriptions are the 1.0 description changes that follow the renames: {old, new}.
+var v1Descriptions = map[string][][2]string{
+	"proxmox_get_node_syslog":   {{"Page with start/limit.", "Page with offset/limit."}},
+	"proxmox_run_guest_command": {{"(up to timeout_s)", "(up to `timeout` seconds)"}, {"longer than timeout_s", "longer than `timeout`"}},
+	"proxmox_list_privileges":   {{"grouped by area.", "sorted, each with its area (VM, Datastore, Sys...)."}},
 }
 
 // securityNotes are the 0.6 description changes for delete-gated arguments: {old, new} replaces

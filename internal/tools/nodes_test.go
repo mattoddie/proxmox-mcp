@@ -131,7 +131,7 @@ func TestNodesServices(t *testing.T) {
 		upid := env.mock.Upid("pve1", "srvrestart", "pveproxy")
 		env.mock.Reply("POST", `^/nodes/pve1/services/pveproxy/restart$`, upid)
 		env.mock.Reply("GET", `^/nodes/pve1/services/pveproxy/state$`, `{"active-state":"active","state":"running","unit-state":"enabled"}`)
-		r := env.call(t, "proxmox_manage_node_service", `{"node":"pve1","service":"pveproxy","action":"restart"}`)
+		r := env.call(t, "proxmox_control_node_service", `{"node":"pve1","service":"pveproxy","action":"restart"}`)
 		eqAt(t, r, "status", "ok")
 		eqAt(t, r, "state.active", "active")
 		eqStr(t, env.mock.LastWrite().Path, nodesN+"/services/pveproxy/restart")
@@ -140,7 +140,7 @@ func TestNodesServices(t *testing.T) {
 	nodesRun(t, env, "returns the UPID when not waiting", func(t *testing.T) {
 		upid := env.mock.Upid("pve1", "srvstop", "sshd")
 		env.mock.Reply("POST", `^/nodes/pve1/services/sshd/stop$`, upid)
-		r := env.call(t, "proxmox_manage_node_service", `{"node":"pve1","service":"sshd","action":"stop","wait":false}`)
+		r := env.call(t, "proxmox_control_node_service", `{"node":"pve1","service":"sshd","action":"stop","wait":false}`)
 		eqAt(t, r, "upid", upid)
 		eqAt(t, r, "status", "started")
 	})
@@ -294,7 +294,7 @@ func TestNodesConfigAndPower(t *testing.T) {
 	})
 
 	nodesRun(t, env, "reboots, wakes and runs bulk actions", func(t *testing.T) {
-		env.call(t, "proxmox_node_power", `{"node":"pve2","command":"reboot"}`)
+		env.call(t, "proxmox_control_node_power", `{"node":"pve2","command":"reboot"}`)
 		eqStr(t, env.mock.LastWrite().Path, "/nodes/pve2/status")
 		eq(t, env.mock.LastWrite().Body, `{"command":"reboot"}`)
 
@@ -303,15 +303,15 @@ func TestNodesConfigAndPower(t *testing.T) {
 
 		upid := env.mock.Upid("pve1", "migrateall", "")
 		env.mock.Reply("POST", `^/nodes/pve1/migrateall$`, upid)
-		r := env.call(t, "proxmox_node_bulk_action", `{"node":"pve1","action":"migrate","target":"pve2","vmids":[100,200],"max_workers":2,"with_local_disks":true,"force":true}`)
+		r := env.call(t, "proxmox_run_node_bulk_action", `{"node":"pve1","action":"migrate","target":"pve2","vmids":[100,200],"max_workers":2,"with_local_disks":true,"force":true}`)
 		eqAt(t, r, "status", "ok")
 		eq(t, env.mock.LastWrite().Body, `{"vms":"100,200","max-workers":"2","target":"pve2","with-local-disks":"1"}`)
 
-		env.call(t, "proxmox_node_bulk_action", `{"node":"pve1","action":"stop","force_stop":false,"timeout":60,"wait":false}`)
+		env.call(t, "proxmox_run_node_bulk_action", `{"node":"pve1","action":"stop","force_stop":false,"timeout":60,"wait":false}`)
 		eqStr(t, env.mock.LastWrite().Path, nodesN+"/stopall")
 		eq(t, env.mock.LastWrite().Body, `{"force-stop":"0","timeout":"60"}`)
 
-		match(t, env.errorText(t, "proxmox_node_bulk_action", `{"node":"pve1","action":"migrate"}`), `target is required`)
+		match(t, env.errorText(t, "proxmox_run_node_bulk_action", `{"node":"pve1","action":"migrate"}`), `target is required`)
 	})
 }
 
@@ -320,10 +320,19 @@ func TestNodesLogs(t *testing.T) {
 
 	nodesRun(t, env, "reads syslog with filters", func(t *testing.T) {
 		env.mock.Reply("GET", `^/nodes/pve1/syslog$`, `[{"n":1,"t":"Jan 1 pveproxy[1]: started"},{"n":2,"t":"Jan 1 pveproxy[1]: error x"}]`)
-		r := env.call(t, "proxmox_get_node_syslog", `{"node":"pve1","service":"pveproxy","since":"2026-01-01 00:00:00","limit":10,"search":"error"}`)
+		r := env.call(t, "proxmox_get_node_syslog", `{"node":"pve1","service":"pveproxy","offset":5,"limit":10,"search":"error"}`)
 		eqAt(t, r, "lines", `["Jan 1 pveproxy[1]: error x"]`)
 		eqAt(t, r, "total", 2)
-		eq(t, env.mock.RequestsTo(nodesN+"/syslog", "")[0].Query, `{"service":"pveproxy","since":"2026-01-01 00:00:00","limit":"10"}`)
+		eq(t, env.mock.RequestsTo(nodesN+"/syslog", "")[0].Query, `{"service":"pveproxy","start":"5","limit":"10"}`)
+	})
+
+	nodesRun(t, env, "converts syslog from/to to the node's local time", func(t *testing.T) {
+		env.mock.Reply("GET", `^/nodes/pve1/syslog$`, `[]`)
+		// The node is an hour ahead of UTC.
+		env.mock.Reply("GET", `^/nodes/pve1/time$`, `{"timezone":"Europe/Berlin","time":1700000000,"localtime":1700003600}`)
+		env.call(t, "proxmox_get_node_syslog", `{"node":"pve1","from":"2023-11-14T22:13:20Z","to":"2023-11-14T23:13:20Z"}`)
+		eq(t, env.mock.RequestsTo(nodesN+"/syslog", "")[0].Query, `{"since":"2023-11-14 23:13:20","until":"2023-11-15 00:13:20","limit":"200"}`)
+		match(t, env.errorText(t, "proxmox_get_node_syslog", `{"node":"pve1","from":"yesterday"}`), `from: Not a valid time`)
 	})
 
 	nodesRun(t, env, "reads the journal with a default of the last 100 entries", func(t *testing.T) {
@@ -335,9 +344,9 @@ func TestNodesLogs(t *testing.T) {
 
 	nodesRun(t, env, "converts journal times to epoch and rejects bad ones", func(t *testing.T) {
 		env.mock.Reply("GET", `^/nodes/pve1/journal$`, `[]`)
-		env.call(t, "proxmox_get_node_journal", `{"node":"pve1","since":"2023-11-14T22:13:20Z","until":1700000100,"priority":"3"}`)
+		env.call(t, "proxmox_get_node_journal", `{"node":"pve1","from":"2023-11-14T22:13:20Z","to":"2023-11-14T22:15:00Z","priority":"3"}`)
 		eq(t, env.mock.RequestsTo(nodesN+"/journal", "")[0].Query, `{"since":"1700000000","until":"1700000100","priority":"3"}`)
-		match(t, env.errorText(t, "proxmox_get_node_journal", `{"node":"pve1","since":"not a date"}`), `Not a valid time`)
+		match(t, env.errorText(t, "proxmox_get_node_journal", `{"node":"pve1","from":"not a date"}`), `from: Not a valid time`)
 	})
 
 	t.Run("parses the date formats Date.parse accepts", func(t *testing.T) {
@@ -345,16 +354,16 @@ func TestNodesLogs(t *testing.T) {
 			"1700000000": 1700000000, "2023-11-14T22:13:20Z": 1700000000, "2023-11-14T23:13:20+01:00": 1700000000,
 			"2023-11-14": 1699920000, "2023-11-14T22:13:20.999Z": 1700000000,
 		} {
-			got, err := nodesToEpoch(in)
+			got, err := toEpoch(in)
 			if err != nil || got != want {
 				t.Fatalf("%s: got %v, %v; want %v", in, got, err, want)
 			}
 		}
 		local := time.Date(2023, 11, 14, 22, 13, 20, 0, time.Local).Unix()
-		if got, _ := nodesToEpoch("2023-11-14 22:13:20"); got != float64(local) {
+		if got, _ := toEpoch("2023-11-14 22:13:20"); got != float64(local) {
 			t.Fatalf("local time: got %v, want %v", got, local)
 		}
-		if got, _ := nodesToEpoch(1700000000.7); got != 1700000000.0 {
+		if got, _ := toEpoch(1700000000.7); got != 1700000000.0 {
 			t.Fatalf("number: got %v", got)
 		}
 	})
@@ -493,7 +502,7 @@ func TestNodesCertificates(t *testing.T) {
 		for _, am := range [][2]string{{"order", "POST"}, {"renew", "PUT"}, {"revoke", "DELETE"}} {
 			upid := env.mock.Upid("pve1", "acme"+am[0], "")
 			env.mock.Reply(am[1], `^/nodes/pve1/certificates/acme/certificate$`, upid)
-			r := env.call(t, "proxmox_node_acme_certificate", js.O("node", "pve1", "action", am[0], "force", true))
+			r := env.call(t, "proxmox_control_node_acme_certificate", js.O("node", "pve1", "action", am[0], "force", true))
 			eqAt(t, r, "status", "ok")
 			eqStr(t, env.mock.LastWrite().Method, am[1])
 		}
@@ -501,7 +510,7 @@ func TestNodesCertificates(t *testing.T) {
 		eq(t, env.mock.RequestsTo(nodesN+"/certificates/acme/certificate", "DELETE")[0].Query, `{}`)
 
 		writeOnly := connect(t, env.client, toolOptions("write"))
-		match(t, errorTextOf(t, callOn(t, writeOnly, "proxmox_node_acme_certificate", `{"node":"pve1","action":"revoke"}`)), `PROXMOX_ALLOW_DELETES`)
+		match(t, errorTextOf(t, callOn(t, writeOnly, "proxmox_control_node_acme_certificate", `{"node":"pve1","action":"revoke"}`)), `PROXMOX_ALLOW_DELETES`)
 	})
 }
 

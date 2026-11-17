@@ -95,9 +95,9 @@ func registerRaw(c *Context) {
 		P("params", Rec(Union(Str(), Num(), Bool(), Arr(Union(Str(), Num())))).Opt().D("API parameters (booleans are sent as 1/0, arrays as repeated keys)")),
 	}
 	// Turning redaction off is the operator's decision, not the model's: the argument only
-	// exists with PROXMOX_ALLOW_UNREDACTED=true.
-	if c.AllowUnredacted {
-		input = append(input, P("redact", Bool().Opt().D("Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true)")))
+	// exists with PROXMOX_ALLOW_SECRETS=true.
+	if c.AllowSecrets {
+		input = append(input, P("include_secrets", Bool().Opt().D("Return password/secret/key fields unredacted (default false; needs PROXMOX_ALLOW_SECRETS=true)")))
 	}
 
 	c.Define("proxmox_api_request", Def{
@@ -171,7 +171,7 @@ func registerRaw(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			if c.AllowUnredacted && a.Get("redact") == false {
+			if c.AllowSecrets && a.Get("include_secrets") == true {
 				return data, nil
 			}
 			// ACME plugin `data` is a KEY=value blob of DNS API credentials, which the field-name check can't see.

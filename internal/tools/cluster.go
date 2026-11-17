@@ -385,11 +385,11 @@ func registerCluster(c *Context) {
 		Title:       "Get cluster log",
 		Description: "Read recent entries of the cluster log (task starts/ends, logins and other cluster events from all nodes).",
 		Input: []Prop{
-			P("max", Int().Pos().Max(5000).Opt().D("Maximum number of entries (default 50)")),
+			P("limit", Int().Pos().Max(5000).Opt().D("Maximum number of entries (default 50)")),
 			P("search", searchArg),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
-			entries, err := client.GetList(ctx, "/cluster/log", js.O("max", or(a.Get("max"), 50)))
+			entries, err := client.GetList(ctx, "/cluster/log", js.O("max", or(a.Get("limit"), 50)))
 			if err != nil {
 				return nil, err
 			}
@@ -576,7 +576,7 @@ func registerCluster(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_bulk_guest_action", Def{
+	c.Define("proxmox_run_bulk_guest_action", Def{
 		Toolset:     "cluster",
 		Title:       "Bulk start, shut down, suspend or migrate guests",
 		Description: "Start, shut down, suspend or migrate many VMs and containers at once with Proxmox's bulk action (Proxmox VE 9+). Select guests with `vmids`; for migrate also give `target`. Runs as one task.",

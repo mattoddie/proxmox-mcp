@@ -298,11 +298,11 @@ func TestFirewallTools(t *testing.T) {
 		env.mock.Reply("GET", `^/nodes/pve1/qemu/100/firewall/log$`, `[
 			{"n":1,"t":"100 5 tap100i0-IN 11/Oct/2026:10:00:00 +0000 policy DROP: IN=fwbr100i0 SRC=10.0.0.9 DST=10.0.0.10 PROTO=TCP DPT=22"},
 			{"n":2,"t":"100 5 tap100i0-IN 11/Oct/2026:10:00:01 +0000 policy DROP: PROTO=UDP DPT=53"}]`)
-		out := env.call(t, "proxmox_get_firewall_log", `{"vmid":100,"limit":20,"since":1700000000,"search":"DPT=22"}`)
+		out := env.call(t, "proxmox_get_firewall_log", `{"vmid":100,"limit":20,"offset":3,"from":"2023-11-14T22:13:20Z","search":"DPT=22"}`)
 		eqAt(t, out, "returned", 1)
 		match(t, at(out, "items.0"), `DPT=22`)
 		req := env.mock.RequestsTo("/nodes/pve1/qemu/100/firewall/log", "GET")[0]
-		eq(t, req.Query, `{"limit":"20","since":"1700000000"}`)
+		eq(t, req.Query, `{"limit":"20","start":"3","since":"1700000000"}`)
 	})
 
 	run("reads the node firewall log and refuses cluster scope", func(t *testing.T) {

@@ -6,6 +6,23 @@ For proxmox-mcp, the "public API" is the set of tool names, their arguments, the
 
 ## [Unreleased]
 
+These changes align tool, argument and setting names with the other mattoddie MCP servers before 1.0. Old names are not accepted.
+
+### Changed
+
+- **Breaking:** tools renamed so the verb comes first: `proxmox_vm_power` → `proxmox_control_vm_power`, `proxmox_container_power` → `proxmox_control_container_power`, `proxmox_node_power` → `proxmox_control_node_power`, `proxmox_guest_power` → `proxmox_control_guest_power`, `proxmox_guest_fs_freeze` → `proxmox_control_guest_fs_freeze`, `proxmox_guest_fstrim` → `proxmox_trim_guest_filesystems`, `proxmox_guest_exec` → `proxmox_run_guest_command`, `proxmox_get_guest_exec_status` → `proxmox_get_guest_command_status`, `proxmox_guest_read_file` → `proxmox_read_guest_file`, `proxmox_guest_write_file` → `proxmox_write_guest_file`, `proxmox_guest_set_password` → `proxmox_set_guest_password`, `proxmox_ha_migrate` → `proxmox_migrate_ha_resource`, `proxmox_node_acme_certificate` → `proxmox_control_node_acme_certificate`, `proxmox_node_bulk_action` → `proxmox_run_node_bulk_action`, `proxmox_bulk_guest_action` → `proxmox_run_bulk_guest_action`, `proxmox_bulk_tag_guests` → `proxmox_tag_guests`, `proxmox_vm_monitor_command` → `proxmox_run_vm_monitor_command`, `proxmox_manage_node_service` → `proxmox_control_node_service` and `proxmox_run_replication_now` → `proxmox_run_replication_job`. Update any `PROXMOX_DENY_TOOLS` list that names them.
+- **Breaking:** `PROXMOX_DEFAULT_NODE` is now `PROXMOX_NODE`, and `PROXMOX_ALLOW_UNREDACTED` is now `PROXMOX_ALLOW_SECRETS`. The Claude Desktop bundle's default node setting is stored under a new key, so set it again after updating.
+- **Breaking:** the raw API tool's `redact: false` is now `include_secrets: true` (still only offered with `PROXMOX_ALLOW_SECRETS=true`).
+- **Breaking:** counts are `limit`: `max` on `proxmox_get_cluster_log`, `log_lines` on `proxmox_get_task` and `lastentries` on `proxmox_get_node_journal`.
+- **Breaking:** line offsets on the log tools are `offset` instead of `start`: `proxmox_get_node_syslog`, `proxmox_get_firewall_log`, `proxmox_get_ceph_log`, `proxmox_get_replication_log` and `proxmox_get_task_log` (whose result reports `offset` instead of `start`). `start` meaning "start the guest" is unchanged.
+- **Breaking:** time windows are `from`/`to` instead of `since`/`until`, always an ISO 8601 date or date-time string (a date alone is midnight UTC, a time without an offset is proxmox-mcp's local time): `proxmox_get_node_syslog`, `proxmox_get_node_journal`, `proxmox_get_firewall_log` and `proxmox_list_tasks` (`from` only). The firewall log and task list took UNIX times before, and the syslog took journalctl strings such as `yesterday`; the syslog now converts the times to the node's local time.
+- **Breaking:** seconds to wait are `timeout`: `timeout_s` on `proxmox_run_guest_command` and `proxmox_wait_for_task`, `wait_s` on `proxmox_get_guest_command_status`.
+- **Breaking:** `proxmox_list_privileges` returns `{total, returned, items}` like the other list tools, one item per privilege with its area, instead of `count` and `by_area`. It gains `search` and `fields`.
+
+### Fixed
+
+- **Breaking:** boolean settings only accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`, and anything else stops the server. Before, any other value meant `false`, so `PROXMOX_VERIFY_SSL=ture` silently turned certificate verification off and skipped the check that makes you choose how to verify an `https` connection. Number settings must be plain positive whole numbers: `PROXMOX_TIMEOUT_MS=30s` is now an error instead of 30.
+
 ## [0.6.0] - 2026-11-15
 
 ### Added

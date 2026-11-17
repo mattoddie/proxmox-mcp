@@ -46,20 +46,23 @@ func registerTasks(c *Context) {
 			P("user", Str().Opt().D("Only tasks started by this user, e.g. root@pam")),
 			P("errors", Bool().Opt().D("Only failed tasks")),
 			P("running", Bool().Opt().D("Only tasks that are still running")),
-			P("since", Int().Opt().D("Only tasks started after this UNIX time (node only)")),
+			P("from", timeArg("Only tasks started at or after this time (node only)")),
 			P("search", searchArg),
 			P("limit", limitArg(50)),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
 			var tasks []*Obj
-			var err error
+			since, err := timeArgEpoch(a, "from")
+			if err != nil {
+				return nil, err
+			}
 			if a.Truthy("node") {
 				tasks, err = client.GetList(ctx, "/nodes/"+enc(a.Get("node"))+"/tasks", defined(js.O(
 					"vmid", a.Get("vmid"),
 					"typefilter", a.Get("type"),
 					"userfilter", a.Get("user"),
 					"errors", a.Get("errors"),
-					"since", a.Get("since"),
+					"since", since,
 					"source", pick(a.Truthy("running"), "active", "all"),
 					"limit", or(a.Get("limit"), 50),
 				)))
@@ -102,10 +105,10 @@ func registerTasks(c *Context) {
 		Description: "Get a task's status (running/stopped), exit status and the last lines of its log.",
 		Input: []Prop{
 			P("upid", taskUpidArg),
-			P("log_lines", Int().Min(0).Max(1000).Opt().D("How many trailing log lines to include (default 30)")),
+			P("limit", Int().Min(0).Max(1000).Opt().D("How many trailing log lines to include (default 30)")),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
-			return client.GetTask(ctx, a.Str("upid"), int(js.Num(or(a.Get("log_lines"), 30))))
+			return client.GetTask(ctx, a.Str("upid"), int(js.Num(or(a.Get("limit"), 30))))
 		},
 	})
 
@@ -115,7 +118,7 @@ func registerTasks(c *Context) {
 		Description: "Read a task's log, paging from the start (or the end with tail=true).",
 		Input: []Prop{
 			P("upid", taskUpidArg),
-			P("start", Int().Min(0).Opt().D("First line (0-based, default 0)")),
+			P("offset", Int().Min(0).Opt().D("Line offset of the first line to return (0-based, default 0)")),
 			P("limit", Int().Pos().Max(5000).Opt().D("Number of lines (default 500)")),
 			P("tail", Bool().Opt().D("Return the last `limit` lines instead")),
 		},
@@ -126,7 +129,7 @@ func registerTasks(c *Context) {
 			}
 			path := "/nodes/" + enc(u.Node) + "/tasks/" + enc(a.Get("upid")) + "/log"
 			limit := js.Num(or(a.Get("limit"), 500))
-			start := js.Num(or(a.Get("start"), 0))
+			start := js.Num(or(a.Get("offset"), 0))
 			if a.Truthy("tail") {
 				_, meta, err := client.RequestMeta(ctx, "GET", path, js.O("start", 0, "limit", 1))
 				if err != nil {
@@ -139,7 +142,7 @@ func registerTasks(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			return js.O("start", start, "total", meta.Get("total"), "lines", mapObjs(js.Objs(lines), func(l *Obj) any { return l.Get("t") })), nil
+			return js.O("offset", start, "total", meta.Get("total"), "lines", mapObjs(js.Objs(lines), func(l *Obj) any { return l.Get("t") })), nil
 		},
 	})
 
@@ -149,10 +152,10 @@ func registerTasks(c *Context) {
 		Description: "Wait until a running task finishes (or the timeout passes) and return its outcome and log tail.",
 		Input: []Prop{
 			P("upid", taskUpidArg),
-			P("timeout_s", Int().Pos().Max(3600).Opt().D("How long to wait in seconds (default PROXMOX_TASK_TIMEOUT_MS)")),
+			P("timeout", Int().Pos().Max(3600).Opt().D("How long to wait, in seconds (default PROXMOX_TASK_TIMEOUT_MS)")),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
-			return client.WaitForTask(ctx, a.Str("upid"), proxmox.WaitOptions{TimeoutMs: int(a.Num("timeout_s")*1000) * boolInt(a.Truthy("timeout_s"))})
+			return client.WaitForTask(ctx, a.Str("upid"), proxmox.WaitOptions{TimeoutMs: int(a.Num("timeout")*1000) * boolInt(a.Truthy("timeout"))})
 		},
 	})
 

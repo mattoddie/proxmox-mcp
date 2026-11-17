@@ -122,14 +122,14 @@ func TestReplicationTools(t *testing.T) {
 	t.Run("schedules a job now on the source node", func(t *testing.T) {
 		reset()
 		env.mock.Reply("POST", `schedule_now$`, "100-0")
-		res := env.call(t, "proxmox_run_replication_now", `{"id":"100-0"}`)
+		res := env.call(t, "proxmox_run_replication_job", `{"id":"100-0"}`)
 		eqAt(t, res, "node", "pve1")
 		eqAt(t, res, "status", "scheduled")
 		eqStr(t, env.mock.LastWrite().Path, "/nodes/pve1/replication/100-0/schedule_now")
 
 		upid := env.mock.Upid("pve2", "replicate", "101-1")
 		env.mock.Reply("POST", `schedule_now$`, upid)
-		task := env.call(t, "proxmox_run_replication_now", `{"id":"101-1","node":"pve2"}`)
+		task := env.call(t, "proxmox_run_replication_job", `{"id":"101-1","node":"pve2"}`)
 		eqAt(t, task, "status", "ok")
 	})
 
@@ -138,7 +138,7 @@ func TestReplicationTools(t *testing.T) {
 		env.mock.On("GET", `^/nodes/pve1/replication/100-0/log$`, func(*Obj, []string, proxmoxtest.Request) any {
 			return proxmoxtest.WithTotal{Data: []any{js.O("n", 6, "t", "start replication job"), js.O("n", 7, "t", "end replication job")}, Total: 7}
 		})
-		res := env.call(t, "proxmox_get_replication_log", `{"id":"100-0","start":5,"limit":2}`)
+		res := env.call(t, "proxmox_get_replication_log", `{"id":"100-0","offset":5,"limit":2}`)
 		eq(t, env.mock.RequestsTo(`^.*/log$`, "")[0].Query, `{"start":"5","limit":"2"}`)
 		eq(t, res, `{"id":"100-0","node":"pve1","total_lines":7,"lines":["start replication job","end replication job"]}`)
 		match(t, env.errorText(t, "proxmox_get_replication_log", `{"id":"555-0"}`), `No VM or container with ID 555`)

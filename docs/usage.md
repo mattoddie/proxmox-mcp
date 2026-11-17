@@ -81,7 +81,15 @@ Proxmox identifies every VM and container by its numeric **VMID**, which is uniq
 - **Guest tools take a `vmid` and find the node themselves.** They look the guest up in the cluster's resource list, so you never have to say which node VM 100 is on. You can pass `node` to skip the lookup.
 - **VM tools and container tools are separate** (`proxmox_get_vm`, `proxmox_get_container` and so on), because Proxmox treats them differently. If the assistant uses the wrong kind, the error says which tools to use instead.
 - **Names work in conversation.** Say *"the web VM"* and the assistant finds its VMID with `proxmox_list_guests` first.
-- **Node-scoped tools** (node status, services, disks, storage content and so on) take an optional `node`. Without it they use `PROXMOX_DEFAULT_NODE`, or the only node on a single-node install. In a cluster without a default they fail with a message listing the node names, and the assistant asks or picks one.
+- **Node-scoped tools** (node status, services, disks, storage content and so on) take an optional `node`. Without it they use `PROXMOX_NODE`, or the only node on a single-node install. In a cluster without a default they fail with a message listing the node names, and the assistant asks or picks one.
+
+## Common arguments
+
+Arguments mean the same thing in every tool that has them:
+
+- **`limit`** caps how many items or log lines come back, and **`offset`** skips lines when paging through a log.
+- **`from` and `to`** bound a time window (the syslog, journal and firewall log, and `proxmox_list_tasks`). They are ISO 8601 strings: a date such as `2026-01-31` (midnight UTC) or a date and time such as `2026-01-31T08:00:00Z`. A time without an offset is taken as proxmox-mcp's local time, so include `Z` or an offset when it matters.
+- **`timeout`** is how long to wait, in seconds.
 
 ## Tasks and `wait`
 
@@ -157,9 +165,9 @@ Some changes are hard to undo even without deletes: rolling back a snapshot disc
 
 With `PROXMOX_ALLOW_EXEC=true` (and writes), the `agent` toolset gains tools that work **inside** VMs through the QEMU guest agent:
 
-- `proxmox_guest_exec` runs a program with arguments, with no shell unless you ask for one (`["/bin/sh", "-c", "…"]`), and returns the exit code, stdout and stderr. It runs as the agent's user, which is root or SYSTEM. Commands that run longer than the timeout return a PID to check with `proxmox_get_guest_exec_status`.
-- `proxmox_guest_read_file` and `proxmox_guest_write_file` read and write any file in the guest.
-- `proxmox_guest_set_password` sets a user's password in the guest.
+- `proxmox_run_guest_command` runs a program with arguments, with no shell unless you ask for one (`["/bin/sh", "-c", "…"]`), and returns the exit code, stdout and stderr. It runs as the agent's user, which is root or SYSTEM. Commands that run longer than the timeout return a PID to check with `proxmox_get_guest_command_status`.
+- `proxmox_read_guest_file` and `proxmox_write_guest_file` read and write any file in the guest.
+- `proxmox_set_guest_password` sets a user's password in the guest.
 
 Sending QEMU monitor commands to a VM also needs exec. Containers don't have a guest agent, so these tools only work with VMs that have the agent installed and enabled.
 
@@ -172,7 +180,7 @@ Exec effectively gives the assistant root on every VM the token can reach. Read 
 - **`raw: true`** on many list and get tools returns the API's full objects when you need a field the summary leaves out.
 - **Secrets are redacted.** Values of fields that look like passwords, secrets, keys or tickets, such as `cipassword`, realm bind passwords and notification target secrets, show as `<redacted>`. This applies to raw objects too.
 
-There are deliberate exceptions. `proxmox_create_api_token` returns the new token's secret, because Proxmox only shows it once. With `PROXMOX_ALLOW_UNREDACTED=true`, the raw API tool returns unredacted data if called with `redact: false`. And `proxmox_guest_read_file` returns whatever the file contains.
+There are deliberate exceptions. `proxmox_create_api_token` returns the new token's secret, because Proxmox only shows it once. With `PROXMOX_ALLOW_SECRETS=true`, the raw API tool returns unredacted data if called with `include_secrets: true`. And `proxmox_read_guest_file` returns whatever the file contains.
 
 ## The `extra` argument
 
@@ -198,7 +206,7 @@ Some `POST` and `PUT` requests destroy data as surely as a `DELETE`, so without 
 
 Without `PROXMOX_ALLOW_EXEC`, it also refuses to call endpoints that run commands, open consoles, send input or read or write files: every guest agent endpoint (including `exec`, `file-read`, `file-write` and `set-user-password`), the QEMU monitor, `sendkey`, console and shell proxies and websockets, migration tunnels, the node `execute` endpoint, backup `file-restore/download` (files out of a guest's backup) and any request that sets a `hookscript` or vzdump `script`. Read-only, it also refuses the `GET` requests that make a node connect to a server of the caller's choosing: remote storage scans (`scan/nfs`, `cifs`, `pbs`, `iscsi`, `glusterfs`), `query-url-metadata` and ACME `meta`/`tos` lookups with a `directory`. With writes on, these count as changes: a dry run doesn't send them and the audit log records them. Paths with control characters, `..` or `./` segments, or a query string are refused, and the checks run on the path exactly as it will be sent.
 
-Responses are always redacted, including the DNS API credentials in ACME plugin configs (only the key names are shown). The `redact: false` argument, which returns a response as is, only exists when the operator sets `PROXMOX_ALLOW_UNREDACTED=true`; the model can't turn redaction off by itself.
+Responses are always redacted, including the DNS API credentials in ACME plugin configs (only the key names are shown). The `include_secrets: true` argument, which returns a response as is, only exists when the operator sets `PROXMOX_ALLOW_SECRETS=true`; the model can't turn redaction off by itself.
 
 ## Tips for good results
 

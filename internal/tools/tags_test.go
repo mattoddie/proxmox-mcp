@@ -11,7 +11,7 @@ func TestTags(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{}`)
 		// VM 100 has prod;web, VM 101 none, CT 200 infra.
-		res := env.call(t, "proxmox_bulk_tag_guests", `{"vmids":[100,101,200],"add":["backup"],"remove":["WEB"]}`)
+		res := env.call(t, "proxmox_tag_guests", `{"vmids":[100,101,200],"add":["backup"],"remove":["WEB"]}`)
 		eqAt(t, res, "changed", 3)
 		eqAt(t, res, "guests.0.after", []any{"prod", "backup"})
 		writes := env.mock.Writes()
@@ -27,7 +27,7 @@ func TestTags(t *testing.T) {
 	t.Run("renames a tag on the guests that have it and skips unchanged ones", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{}`)
-		res := env.call(t, "proxmox_bulk_tag_guests", `{"with_tag":"prod","vmids":[200],"add":["infra"],"remove":["prod"]}`)
+		res := env.call(t, "proxmox_tag_guests", `{"with_tag":"prod","vmids":[200],"add":["infra"],"remove":["prod"]}`)
 		eqAt(t, res, "changed", 1)
 		eqAt(t, res, "unchanged", 1)
 		eqAt(t, res, "guests.1.status", "unchanged")
@@ -39,14 +39,14 @@ func TestTags(t *testing.T) {
 	t.Run("deletes the tags key when no tags are left", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{}`)
-		env.call(t, "proxmox_bulk_tag_guests", `{"vmids":[200],"remove":["infra"]}`)
+		env.call(t, "proxmox_tag_guests", `{"vmids":[200],"remove":["infra"]}`)
 		eqStr(t, env.mock.LastWrite().Body.Get("delete"), "tags")
 	})
 
 	t.Run("respects case-sensitive tag-style", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{"tag-style":"case-sensitive=1"}`)
-		res := env.call(t, "proxmox_bulk_tag_guests", `{"vmids":[100],"remove":["WEB"]}`)
+		res := env.call(t, "proxmox_tag_guests", `{"vmids":[100],"remove":["WEB"]}`)
 		eqAt(t, res, "unchanged", 1)
 		vmsNoWrites(t, env)
 	})
@@ -54,7 +54,7 @@ func TestTags(t *testing.T) {
 	t.Run("previews every change in a dry run", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{}`)
-		res := env.call(t, "proxmox_bulk_tag_guests", `{"vmids":[100,200],"add":["x"],"dry_run":true}`)
+		res := env.call(t, "proxmox_tag_guests", `{"vmids":[100,200],"add":["x"],"dry_run":true}`)
 		eqAt(t, res, "dry_run", true)
 		eqAt(t, res, "changed", 2)
 		eqAt(t, res, "guests.1.status", "would change")
@@ -65,10 +65,10 @@ func TestTags(t *testing.T) {
 	t.Run("refuses bad selections before changing anything", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("GET", `^/cluster/options$`, `{}`)
-		match(t, env.errorText(t, "proxmox_bulk_tag_guests", `{"vmids":[100,555],"add":["x"]}`), `No guest with VMID 555`)
-		match(t, env.errorText(t, "proxmox_bulk_tag_guests", `{"add":["x"]}`), `Select guests`)
-		match(t, env.errorText(t, "proxmox_bulk_tag_guests", `{"vmids":[100]}`), `add and/or remove`)
-		match(t, env.errorText(t, "proxmox_bulk_tag_guests", `{"vmids":[100],"add":["bad tag"]}`), `add`)
+		match(t, env.errorText(t, "proxmox_tag_guests", `{"vmids":[100,555],"add":["x"]}`), `No guest with VMID 555`)
+		match(t, env.errorText(t, "proxmox_tag_guests", `{"add":["x"]}`), `Select guests`)
+		match(t, env.errorText(t, "proxmox_tag_guests", `{"vmids":[100]}`), `add and/or remove`)
+		match(t, env.errorText(t, "proxmox_tag_guests", `{"vmids":[100],"add":["bad tag"]}`), `add`)
 		vmsNoWrites(t, env)
 	})
 
@@ -95,7 +95,7 @@ func TestTags(t *testing.T) {
 
 	t.Run("is gated behind writes", func(t *testing.T) {
 		names := toolNames(t, connect(t, env.client, toolOptions("read")))
-		falsy(t, names["proxmox_bulk_tag_guests"])
+		falsy(t, names["proxmox_tag_guests"])
 		falsy(t, names["proxmox_set_tag_options"])
 	})
 }

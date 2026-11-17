@@ -57,7 +57,7 @@ type testEnv struct {
 }
 
 // startEnv starts the mock, a client and a session with every tool enabled; extra settings
-// (e.g. PROXMOX_DEFAULT_NODE) go in env.
+// (e.g. PROXMOX_NODE) go in env.
 func startEnv(t testing.TB, env ...map[string]string) *testEnv {
 	t.Helper()
 	mock := proxmoxtest.New(t, "token")

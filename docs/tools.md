@@ -13,7 +13,7 @@ Each tool is labelled with the setting it needs:
 | 🔴 delete | `PROXMOX_ALLOW_WRITES=true` and `PROXMOX_ALLOW_DELETES=true` |
 | 🟣 exec | `PROXMOX_ALLOW_WRITES=true` and `PROXMOX_ALLOW_EXEC=true` |
 
-Every tool also needs its toolset to be enabled in `PROXMOX_TOOLSETS`, which enables all toolsets by default. Tools that act on a VM or container take its `vmid` and find the node automatically; node-scoped tools default to `PROXMOX_DEFAULT_NODE` or the only node. Tools that start a Proxmox task wait for it by default (`wait`), up to `PROXMOX_TASK_TIMEOUT_MS`.
+Every tool also needs its toolset to be enabled in `PROXMOX_TOOLSETS`, which enables all toolsets by default. Tools that act on a VM or container take its `vmid` and find the node automatically; node-scoped tools default to `PROXMOX_NODE` or the only node. Tools that start a Proxmox task wait for it by default (`wait`), up to `PROXMOX_TASK_TIMEOUT_MS`.
 
 Tools that change something take `dry_run`: with `true` the tool sends nothing that changes state and returns the request it would have sent; for an update of an object it can read, such as a guest config, it lists the keys that would change, with their values before and after. Calls to these tools are recorded in the audit log when `PROXMOX_AUDIT_LOG` is set.
 
@@ -54,7 +54,7 @@ Cluster overview, nodes and guests at a glance, datacenter options, corosync con
 | [`proxmox_list_guests`](#proxmox_list_guests) | 🟢 read | List VMs and containers |
 | [`proxmox_list_resources`](#proxmox_list_resources) | 🟢 read | List cluster resources |
 | [`proxmox_get_capacity_report`](#proxmox_get_capacity_report) | 🟢 read | Get capacity and overcommit report |
-| [`proxmox_bulk_tag_guests`](#proxmox_bulk_tag_guests) | 🟠 write | Add or remove tags on many guests |
+| [`proxmox_tag_guests`](#proxmox_tag_guests) | 🟠 write | Add or remove tags on many guests |
 | [`proxmox_set_tag_options`](#proxmox_set_tag_options) | 🟠 write | Set datacenter tag options |
 | [`proxmox_get_next_vmid`](#proxmox_get_next_vmid) | 🟢 read | Get next free VMID |
 | [`proxmox_get_cluster_log`](#proxmox_get_cluster_log) | 🟢 read | Get cluster log |
@@ -65,7 +65,7 @@ Cluster overview, nodes and guests at a glance, datacenter options, corosync con
 | [`proxmox_update_cluster_options`](#proxmox_update_cluster_options) | 🟠 write | Update datacenter options |
 | [`proxmox_save_metric_server`](#proxmox_save_metric_server) | 🟠 write | Create or update a metric server |
 | [`proxmox_delete_metric_server`](#proxmox_delete_metric_server) | 🔴 delete | Delete a metric server |
-| [`proxmox_bulk_guest_action`](#proxmox_bulk_guest_action) | 🟠 write | Bulk start, shut down, suspend or migrate guests |
+| [`proxmox_run_bulk_guest_action`](#proxmox_run_bulk_guest_action) | 🟠 write | Bulk start, shut down, suspend or migrate guests |
 
 ### proxmox_get_version
 
@@ -139,7 +139,7 @@ Compare what guests are allocated with the physical capacity, per node and for t
 | `node` | string |  | Only this node (and its storage) |
 | `storage` | boolean |  | Include storage allocation (default true) |
 
-### proxmox_bulk_tag_guests
+### proxmox_tag_guests
 
 🟠 write
 
@@ -189,7 +189,7 @@ Read recent entries of the cluster log (task starts/ends, logins and other clust
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `max` | integer |  | Maximum number of entries (default 50) |
+| `limit` | integer |  | Maximum number of entries (default 50) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 
 ### proxmox_get_cluster_options
@@ -282,7 +282,7 @@ Remove an external metric server configuration.
 | `id` | string | yes | Metric server ID |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_bulk_guest_action
+### proxmox_run_bulk_guest_action
 
 🟠 write · destructive
 
@@ -315,7 +315,7 @@ Node status and statistics, services, network interfaces, DNS, time, updates and
 | [`proxmox_get_node_report`](#proxmox_get_node_report) | 🟢 read | Get node system report |
 | [`proxmox_query_url_metadata`](#proxmox_query_url_metadata) | 🟠 write | Query URL metadata |
 | [`proxmox_list_node_services`](#proxmox_list_node_services) | 🟢 read | List node services |
-| [`proxmox_manage_node_service`](#proxmox_manage_node_service) | 🟠 write | Start, stop, restart or reload a node service |
+| [`proxmox_control_node_service`](#proxmox_control_node_service) | 🟠 write | Start, stop, restart or reload a node service |
 | [`proxmox_list_node_network`](#proxmox_list_node_network) | 🟢 read | List node network interfaces |
 | [`proxmox_get_node_network_interface`](#proxmox_get_node_network_interface) | 🟢 read | Get a node network interface |
 | [`proxmox_save_node_network_interface`](#proxmox_save_node_network_interface) | 🟠 write | Create or update a node network interface |
@@ -330,9 +330,9 @@ Node status and statistics, services, network interfaces, DNS, time, updates and
 | [`proxmox_set_node_timezone`](#proxmox_set_node_timezone) | 🟠 write | Set node time zone |
 | [`proxmox_get_node_config`](#proxmox_get_node_config) | 🟢 read | Get node options |
 | [`proxmox_update_node_config`](#proxmox_update_node_config) | 🟠 write | Update node options |
-| [`proxmox_node_power`](#proxmox_node_power) | 🟠 write | Reboot or shut down a node |
+| [`proxmox_control_node_power`](#proxmox_control_node_power) | 🟠 write | Reboot or shut down a node |
 | [`proxmox_wake_node`](#proxmox_wake_node) | 🟠 write | Wake a node with wake-on-LAN |
-| [`proxmox_node_bulk_action`](#proxmox_node_bulk_action) | 🟠 write | Start, stop, suspend or migrate all guests on a node |
+| [`proxmox_run_node_bulk_action`](#proxmox_run_node_bulk_action) | 🟠 write | Start, stop, suspend or migrate all guests on a node |
 | [`proxmox_get_node_syslog`](#proxmox_get_node_syslog) | 🟢 read | Read node syslog |
 | [`proxmox_get_node_journal`](#proxmox_get_node_journal) | 🟢 read | Read node systemd journal |
 | [`proxmox_list_node_updates`](#proxmox_list_node_updates) | 🟢 read | List available package updates |
@@ -347,7 +347,7 @@ Node status and statistics, services, network interfaces, DNS, time, updates and
 | [`proxmox_get_node_certificates`](#proxmox_get_node_certificates) | 🟢 read | Get node certificates |
 | [`proxmox_upload_node_certificate`](#proxmox_upload_node_certificate) | 🟠 write | Upload a custom node certificate |
 | [`proxmox_delete_node_certificate`](#proxmox_delete_node_certificate) | 🔴 delete | Delete the custom node certificate |
-| [`proxmox_node_acme_certificate`](#proxmox_node_acme_certificate) | 🟠 write | Order, renew or revoke an ACME certificate |
+| [`proxmox_control_node_acme_certificate`](#proxmox_control_node_acme_certificate) | 🟠 write | Order, renew or revoke an ACME certificate |
 | [`proxmox_list_acme_accounts`](#proxmox_list_acme_accounts) | 🟢 read | List ACME accounts |
 | [`proxmox_get_acme_account`](#proxmox_get_acme_account) | 🟢 read | Get ACME account |
 | [`proxmox_save_acme_account`](#proxmox_save_acme_account) | 🟠 write | Register or update an ACME account |
@@ -367,7 +367,7 @@ Detailed status of one node: CPU model/sockets/cores and usage, IO wait, load av
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
 
 ### proxmox_get_node_stats
@@ -378,7 +378,7 @@ Node performance history from the RRD database (CPU, IO wait, load, memory, swap
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `timeframe` | `"hour"` \| `"day"` \| `"week"` \| `"month"` \| `"year"` \| `"decade"` |  | Time window (default hour) |
 | `cf` | `"AVERAGE"` \| `"MAX"` |  | RRD consolidation function (default AVERAGE) |
 | `metrics` | string[] |  | Only these metrics, e.g. ["cpu", "memused", "netin"] (default all) |
@@ -393,7 +393,7 @@ Traffic counters of the guests' tap/veth network devices on a node (bytes in/out
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `vmid` | integer |  | Only this guest |
 
 ### proxmox_get_node_report
@@ -404,7 +404,7 @@ The node's pvereport: a long text dump of versions, hardware, storage, network, 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `max_chars` | integer |  | Truncate the text to this many characters (default 50000) |
 
 ### proxmox_query_url_metadata
@@ -415,7 +415,7 @@ Ask a node to look up a URL's file name, size and MIME type (HEAD request from t
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `url` | string | yes | The URL to inspect, e.g. https://cdimage.debian.org/.../debian-13.iso |
 | `verify_certificates` | boolean |  | Verify TLS certificates (default true) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -428,11 +428,11 @@ List the Proxmox-related system services on a node (pveproxy, pvedaemon, corosyn
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
-### proxmox_manage_node_service
+### proxmox_control_node_service
 
 🟠 write · destructive
 
@@ -440,7 +440,7 @@ Start, stop, restart or reload a system service on a node, e.g. restart pveproxy
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `service` | string | yes | Service ID, e.g. pveproxy, pvedaemon, pvestatd, corosync, pve-cluster, chrony, sshd, postfix (see proxmox_list_node_services) |
 | `action` | `"start"` \| `"stop"` \| `"restart"` \| `"reload"` | yes | What to do; reload falls back to restart if the service can't reload |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
@@ -454,7 +454,7 @@ List a node's network configuration: physical NICs, Linux bridges, bonds, VLANs 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `type` | `"bridge"` \| `"bond"` \| `"eth"` \| `"alias"` \| `"vlan"` \| `"fabric"` \| `"OVSBridge"` \| `"OVSBond"` \| `"OVSPort"` \| `"OVSIntPort"` \| `"vnet"` \| `"any_bridge"` \| `"any_local_bridge"` \| `"include_sdn"` |  | Only this interface type (any_bridge = Linux and OVS bridges) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
@@ -468,7 +468,7 @@ Get the configuration of one network interface on a node (as stored in /etc/netw
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `iface` | string | yes | Interface name, e.g. vmbr0, bond0, eno1, vmbr0.20 |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
 
@@ -480,7 +480,7 @@ Create (create=true) or update a network interface on a node: Linux bridge, bond
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `iface` | string | yes | Interface name, e.g. vmbr1, bond0, vmbr0.20, vlan20 |
 | `create` | boolean |  | Create a new interface (default false = update an existing one) |
 | `type` | `"bridge"` \| `"bond"` \| `"eth"` \| `"alias"` \| `"vlan"` \| `"fabric"` \| `"OVSBridge"` \| `"OVSBond"` \| `"OVSPort"` \| `"OVSIntPort"` \| `"vnet"` \| `"unknown"` |  | Interface type (required when creating; looked up when updating) |
@@ -512,7 +512,7 @@ Remove a network interface (bridge, bond, VLAN...) from a node's configuration. 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `iface` | string | yes | Interface name, e.g. vmbr1 |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
@@ -524,7 +524,7 @@ Apply a node's pending network changes (ifreload). Can interrupt connectivity to
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `regenerate_frr` | boolean |  | Also regenerate the FRR (SDN fabric routing) configuration |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -537,7 +537,7 @@ Discard all pending (unapplied) network changes on a node, keeping the running c
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_dns
@@ -548,7 +548,7 @@ Get a node's DNS resolver settings: search domain and up to three name servers.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_set_node_dns
 
@@ -558,7 +558,7 @@ Set a node's DNS search domain and name servers (/etc/resolv.conf). Fields left 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Search domain, e.g. example.lan |
 | `dns1` | string |  | First name server IP |
 | `dns2` | string |  | Second name server IP |
@@ -573,7 +573,7 @@ Read a node's /etc/hosts file and its digest (pass the digest to proxmox_set_nod
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_set_node_hosts
 
@@ -583,7 +583,7 @@ Replace a node's /etc/hosts with the given content. Read it first with proxmox_g
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `content` | string | yes | The complete new content of /etc/hosts |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -596,7 +596,7 @@ Get a node's current time (UTC), local time and configured time zone. Useful for
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_set_node_timezone
 
@@ -606,7 +606,7 @@ Set a node's time zone, e.g. Europe/London or UTC.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `timezone` | string | yes | Time zone name from zone.tab, e.g. Europe/London, America/New_York, UTC |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
@@ -618,17 +618,17 @@ Get a node's own options (/etc/pve/nodes/<node>/config): notes/description, wake
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_update_node_config
 
 🟠 write
 
-Change a node's options: notes/description, wake-on-LAN MAC, ACME account and certificate domains (used by proxmox_node_acme_certificate), start-on-boot delay, ballooning target. Only the given fields change; remove with `delete`.
+Change a node's options: notes/description, wake-on-LAN MAC, ACME account and certificate domains (used by proxmox_control_node_acme_certificate), start-on-boot delay, ballooning target. Only the given fields change; remove with `delete`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `description` | string |  | Node notes (Markdown), shown in the web UI |
 | `wakeonlan` | string |  | Wake-on-LAN MAC address, optionally with options, e.g. 'aa:bb:cc:dd:ee:ff,bind-interface=vmbr0' |
 | `startall_onboot_delay` | integer |  | Seconds to wait before starting on-boot guests |
@@ -640,11 +640,11 @@ Change a node's options: notes/description, wake-on-LAN MAC, ACME account and ce
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_node_power
+### proxmox_control_node_power
 
 🟠 write · destructive
 
-Reboot or shut down a Proxmox node. Running guests are shut down or stopped by the node first (HA guests may be migrated per the HA shutdown policy). Consider proxmox_node_bulk_action migrate first to move guests away. A shut-down node can only be brought back by hand, IPMI or proxmox_wake_node.
+Reboot or shut down a Proxmox node. Running guests are shut down or stopped by the node first (HA guests may be migrated per the HA shutdown policy). Consider proxmox_run_node_bulk_action migrate first to move guests away. A shut-down node can only be brought back by hand, IPMI or proxmox_wake_node.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -663,15 +663,15 @@ Send a wake-on-LAN packet to a powered-off node (sent by another cluster node). 
 | `node` | string | yes | Node name (see proxmox_list_nodes) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_node_bulk_action
+### proxmox_run_node_bulk_action
 
 🟠 write · destructive
 
-Run a bulk action over the guests on one node: start (by default only guests with onboot=1; force=true for all), stop (shut down, hard-stopping after a timeout), suspend (VMs only) or migrate (all guests to `target`, e.g. before node maintenance). Restrict with `vmids`. Runs as one task. For a selection across nodes use proxmox_bulk_guest_action.
+Run a bulk action over the guests on one node: start (by default only guests with onboot=1; force=true for all), stop (shut down, hard-stopping after a timeout), suspend (VMs only) or migrate (all guests to `target`, e.g. before node maintenance). Restrict with `vmids`. Runs as one task. For a selection across nodes use proxmox_run_bulk_guest_action.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `action` | `"start"` \| `"stop"` \| `"suspend"` \| `"migrate"` | yes | What to do with the node's guests |
 | `vmids` | integer[] |  | Only these guests (default all on the node) |
 | `target` | string |  | Target node (migrate only, required) |
@@ -687,15 +687,15 @@ Run a bulk action over the guests on one node: start (by default only guests wit
 
 🟢 read
 
-Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with start/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal.
+Read a node's system log (journal rendered as syslog lines), optionally for one service and a time range. Page with offset/limit. For the raw systemd journal with 'last N lines' semantics use proxmox_get_node_journal.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `service` | string |  | Only this service/unit, e.g. pveproxy, pvedaemon, corosync, pve-cluster |
-| `since` | string |  | Start time, e.g. '2026-01-31 08:00:00' or 'yesterday' |
-| `until` | string |  | End time, same format as since |
-| `start` | integer |  | Line offset to start from (default 0) |
+| `from` | string |  | Start of the range: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
+| `to` | string |  | End of the range: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
+| `offset` | integer |  | Line offset to start from (default 0) |
 | `limit` | integer |  | Maximum number of results (default 200) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 
@@ -707,10 +707,10 @@ Read a node's systemd journal: the last N entries (default 100) or a time range,
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
-| `lastentries` | integer |  | Only the last N entries (default 100 when no range is given) |
-| `since` | string \| number |  | Start of the range: epoch seconds or a date like "2026-01-31 12:00:00" / ISO 8601 |
-| `until` | string \| number |  | End of the range: epoch seconds or a date like "2026-01-31 12:00:00" / ISO 8601 |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `limit` | integer |  | Only the last N entries (default 100 when no range is given) |
+| `from` | string |  | Start of the range: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
+| `to` | string |  | End of the range: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
 | `unit` | string |  | Only this systemd unit, e.g. pveproxy (.service implied) |
 | `identifier` | string |  | Only messages whose syslog identifier matches this glob, e.g. 'pve*' |
 | `priority` | string |  | Only this priority or more severe: 0 (emerg) .. 7 (debug), or a range 'LOW..HIGH'; e.g. 3 for errors |
@@ -725,7 +725,7 @@ List the package updates available on a node (from the last package index refres
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 300) |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
@@ -738,7 +738,7 @@ Refresh a node's package index (apt-get update) so proxmox_list_node_updates sho
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `notify` | boolean |  | Send a notification about new packages |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -751,7 +751,7 @@ Get the changelog of a package available on a node, e.g. to see what an update t
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `package` | string | yes | Package name, e.g. pve-manager |
 | `version` | string |  | Package version (default the candidate version) |
 | `max_chars` | integer |  | Truncate the text to this many characters (default 20000) |
@@ -764,7 +764,7 @@ List the installed versions of the important Proxmox packages on a node (like `p
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 
 ### proxmox_list_node_repositories
@@ -775,7 +775,7 @@ List a node's APT repositories by file with enabled/disabled state, URIs, suites
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
 
 ### proxmox_set_node_repository
@@ -786,7 +786,7 @@ Enable or disable an existing APT repository (give path and index from proxmox_l
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `handle` | string |  | Add this standard repository, e.g. 'no-subscription' or 'enterprise' (see standard_repos) |
 | `path` | string |  | File of the repository to change, e.g. /etc/apt/sources.list.d/pve-enterprise.sources |
 | `index` | integer |  | Index of the repository within the file |
@@ -802,7 +802,7 @@ Get a node's subscription status, level, product, sockets and next due date. The
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_set_node_subscription
 
@@ -812,7 +812,7 @@ Set a node's subscription key (key given), or re-check the existing subscription
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `key` | string |  | Subscription key, e.g. pve2c-0123456789 (omit to just refresh the status) |
 | `force` | boolean |  | Refresh: contact the server even if the cached status is still valid |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -825,7 +825,7 @@ Remove the subscription key from a node (e.g. before moving it to other hardware
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ### proxmox_get_node_certificates
@@ -836,7 +836,7 @@ List the TLS certificates of a node's web interface/API (pve-root-ca, pve-ssl an
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 
 ### proxmox_upload_node_certificate
 
@@ -846,7 +846,7 @@ Install a custom TLS certificate (PEM chain) and private key for a node's web in
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `certificates` | string | yes | PEM certificate chain (server certificate first) |
 | `key` | string |  | PEM private key (required unless a key is already installed) |
 | `force` | boolean |  | Overwrite an existing custom or ACME certificate |
@@ -861,11 +861,11 @@ Remove a node's custom (or ACME) web certificate and key, falling back to the se
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `restart` | boolean |  | Restart pveproxy afterwards |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_node_acme_certificate
+### proxmox_control_node_acme_certificate
 
 🟠 write · destructive
 
@@ -873,7 +873,7 @@ Order a new ACME (e.g. Let's Encrypt) certificate for a node, renew it, or revok
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `action` | `"order"` \| `"renew"` \| `"revoke"` | yes | order a new certificate, renew the existing one, or revoke it |
 | `force` | boolean |  | order: overwrite an existing custom certificate; renew: renew even if more than 30 days remain |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
@@ -1019,7 +1019,7 @@ QEMU virtual machines: status, configuration, power, create, clone, disks, migra
 | [`proxmox_get_vm_cloudinit`](#proxmox_get_vm_cloudinit) | 🟢 read | Get VM cloud-init data |
 | [`proxmox_check_vm_migration`](#proxmox_check_vm_migration) | 🟢 read | Check VM migration preconditions |
 | [`proxmox_check_vm_feature`](#proxmox_check_vm_feature) | 🟢 read | Check VM feature support |
-| [`proxmox_vm_power`](#proxmox_vm_power) | 🟠 write | Start, stop or reboot a VM |
+| [`proxmox_control_vm_power`](#proxmox_control_vm_power) | 🟠 write | Start, stop or reboot a VM |
 | [`proxmox_create_vm`](#proxmox_create_vm) | 🟠 write | Create a VM |
 | [`proxmox_import_vm`](#proxmox_import_vm) | 🟠 write | Import a VM from ESXi or OVA |
 | [`proxmox_clone_vm`](#proxmox_clone_vm) | 🟠 write | Clone a VM or template |
@@ -1032,7 +1032,7 @@ QEMU virtual machines: status, configuration, power, create, clone, disks, migra
 | [`proxmox_delete_vm`](#proxmox_delete_vm) | 🔴 delete | Delete a VM |
 | [`proxmox_regenerate_vm_cloudinit`](#proxmox_regenerate_vm_cloudinit) | 🟠 write | Regenerate VM cloud-init drive |
 | [`proxmox_send_vm_key`](#proxmox_send_vm_key) | 🟣 exec | Send keystrokes to a VM |
-| [`proxmox_vm_monitor_command`](#proxmox_vm_monitor_command) | 🟣 exec | Run a QEMU monitor command |
+| [`proxmox_run_vm_monitor_command`](#proxmox_run_vm_monitor_command) | 🟣 exec | Run a QEMU monitor command |
 
 ### proxmox_list_vms
 
@@ -1127,7 +1127,7 @@ Check whether a VM's storage supports snapshots, linked clones ('clone') or full
 | `feature` | `"snapshot"` \| `"clone"` \| `"copy"` | yes | Feature to check |
 | `snapname` | string |  | Check for this snapshot |
 
-### proxmox_vm_power
+### proxmox_control_vm_power
 
 🟠 write · destructive
 
@@ -1156,7 +1156,7 @@ Create a QEMU VM. Give disks as typed objects (bus, storage, size_gb, options, o
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `vmid` | integer |  | VMID for the new VM (default: next free ID) |
 | `name` | string |  | VM name (DNS-style: letters, digits, '-' and '.') |
 | `memory_mb` | integer |  | Memory in MiB, e.g. 4096 |
@@ -1209,7 +1209,7 @@ Create a VM from an importable guest (an ESXi VM or an OVA/OVF appliance) using 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `volume` | string | yes | Importable guest, e.g. "esxi1:ha-datacenter/datastore1/web01/web01.vmx" or "local:import/appliance.ova" (see proxmox_list_storage_content content=import) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 | `target_storage` | string | yes | Storage to import the disks onto, e.g. local-lvm |
@@ -1430,7 +1430,7 @@ Press keys on a VM's virtual keyboard, as on its console: special keys/combos wi
 | `skiplock` | boolean |  | Ignore a config lock (root@pam only; use with care) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_vm_monitor_command
+### proxmox_run_vm_monitor_command
 
 🟣 exec · destructive
 
@@ -1456,7 +1456,7 @@ LXC containers: status, configuration, power, create, clone, volumes, migration,
 | [`proxmox_get_container_stats`](#proxmox_get_container_stats) | 🟢 read | Get container performance history |
 | [`proxmox_check_container_feature`](#proxmox_check_container_feature) | 🟢 read | Check container feature support |
 | [`proxmox_check_container_migration`](#proxmox_check_container_migration) | 🟢 read | Check container migration preconditions |
-| [`proxmox_container_power`](#proxmox_container_power) | 🟠 write | Start, stop or reboot a container |
+| [`proxmox_control_container_power`](#proxmox_control_container_power) | 🟠 write | Start, stop or reboot a container |
 | [`proxmox_create_container`](#proxmox_create_container) | 🟠 write | Create a container |
 | [`proxmox_clone_container`](#proxmox_clone_container) | 🟠 write | Clone a container |
 | [`proxmox_update_container_config`](#proxmox_update_container_config) | 🟠 write | Update container configuration |
@@ -1558,7 +1558,7 @@ Check whether an LXC container can be migrated, and to which nodes: reports runn
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `target` | string |  | Target node to check |
 
-### proxmox_container_power
+### proxmox_control_container_power
 
 🟠 write · destructive
 
@@ -1584,7 +1584,7 @@ Create an LXC container from an OS template (a vztmpl volume such as local:vztmp
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `vmid` | integer |  | VMID for the new container (default: next free ID) |
 | `ostemplate` | string | yes | OS template volume, e.g. local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst |
 | `hostname` | string |  | Hostname |
@@ -1764,14 +1764,14 @@ The QEMU guest agent: OS, network and filesystem information from inside VMs, fi
 | [`proxmox_get_guest_filesystems`](#proxmox_get_guest_filesystems) | 🟢 read | Get guest filesystems (agent) |
 | [`proxmox_get_guest_users`](#proxmox_get_guest_users) | 🟢 read | Get logged-in guest users (agent) |
 | [`proxmox_get_guest_memory_blocks`](#proxmox_get_guest_memory_blocks) | 🟢 read | Get guest memory blocks (agent) |
-| [`proxmox_guest_fs_freeze`](#proxmox_guest_fs_freeze) | 🟠 write | Freeze/thaw guest filesystems (agent) |
-| [`proxmox_guest_fstrim`](#proxmox_guest_fstrim) | 🟠 write | Trim guest filesystems (agent) |
-| [`proxmox_guest_power`](#proxmox_guest_power) | 🟠 write | Shut down/suspend via agent |
-| [`proxmox_guest_exec`](#proxmox_guest_exec) | 🟣 exec | Run a command in a VM (agent) |
-| [`proxmox_get_guest_exec_status`](#proxmox_get_guest_exec_status) | 🟣 exec | Get guest command result (agent) |
-| [`proxmox_guest_read_file`](#proxmox_guest_read_file) | 🟣 exec | Read a file in a VM (agent) |
-| [`proxmox_guest_write_file`](#proxmox_guest_write_file) | 🟣 exec | Write a file in a VM (agent) |
-| [`proxmox_guest_set_password`](#proxmox_guest_set_password) | 🟣 exec | Set a guest user's password (agent) |
+| [`proxmox_control_guest_fs_freeze`](#proxmox_control_guest_fs_freeze) | 🟠 write | Freeze/thaw guest filesystems (agent) |
+| [`proxmox_trim_guest_filesystems`](#proxmox_trim_guest_filesystems) | 🟠 write | Trim guest filesystems (agent) |
+| [`proxmox_control_guest_power`](#proxmox_control_guest_power) | 🟠 write | Shut down/suspend via agent |
+| [`proxmox_run_guest_command`](#proxmox_run_guest_command) | 🟣 exec | Run a command in a VM (agent) |
+| [`proxmox_get_guest_command_status`](#proxmox_get_guest_command_status) | 🟣 exec | Get guest command result (agent) |
+| [`proxmox_read_guest_file`](#proxmox_read_guest_file) | 🟣 exec | Read a file in a VM (agent) |
+| [`proxmox_write_guest_file`](#proxmox_write_guest_file) | 🟣 exec | Write a file in a VM (agent) |
+| [`proxmox_set_guest_password`](#proxmox_set_guest_password) | 🟣 exec | Set a guest user's password (agent) |
 
 ### proxmox_get_guest_info
 
@@ -1832,7 +1832,7 @@ Show a running VM's memory blocks as the guest sees them (QEMU guest agent get-m
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 
-### proxmox_guest_fs_freeze
+### proxmox_control_guest_fs_freeze
 
 🟠 write · destructive
 
@@ -1845,7 +1845,7 @@ Freeze, thaw or check the freeze state of a running VM's filesystems through the
 | `action` | `"freeze"` \| `"thaw"` \| `"status"` | yes | freeze: freeze all filesystems; thaw: unfreeze them; status: report 'frozen' or 'thawed' |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_guest_fstrim
+### proxmox_trim_guest_filesystems
 
 🟠 write
 
@@ -1857,11 +1857,11 @@ Run fstrim inside a running VM via the QEMU guest agent so freed blocks are disc
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_guest_power
+### proxmox_control_guest_power
 
 🟠 write · destructive
 
-Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM, disk or hybrid). The request returns immediately; the guest then acts on it. Prefer proxmox_vm_power action=shutdown, which already uses the agent for shutdown when it is enabled; this is for agent-driven suspend or when you specifically want the in-guest path.
+Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM, disk or hybrid). The request returns immediately; the guest then acts on it. Prefer proxmox_control_vm_power action=shutdown, which already uses the agent for shutdown when it is enabled; this is for agent-driven suspend or when you specifically want the in-guest path.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -1870,11 +1870,11 @@ Ask the guest OS, through the QEMU guest agent, to shut down or suspend (to RAM,
 | `action` | `"shutdown"` \| `"suspend-ram"` \| `"suspend-disk"` \| `"suspend-hybrid"` | yes | shutdown, suspend-ram (sleep), suspend-disk (hibernate) or suspend-hybrid |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_guest_exec
+### proxmox_run_guest_command
 
 🟣 exec · destructive
 
-Run a command inside a running VM through the QEMU guest agent and wait for it (up to timeout_s) to return exit code, stdout and stderr. `command` is the program plus arguments with no shell: use ["/bin/sh", "-c", "..."] for pipes/redirection on Linux or ["cmd.exe", "/c", "..."] / ["powershell.exe", "-Command", "..."] on Windows. Runs as the agent's user (root/SYSTEM). If it runs longer than timeout_s the pid is returned; follow up with proxmox_get_guest_exec_status. Output captured by the agent is size-limited (see the *_truncated flags).
+Run a command inside a running VM through the QEMU guest agent and wait for it (up to `timeout` seconds) to return exit code, stdout and stderr. `command` is the program plus arguments with no shell: use ["/bin/sh", "-c", "..."] for pipes/redirection on Linux or ["cmd.exe", "/c", "..."] / ["powershell.exe", "-Command", "..."] on Windows. Runs as the agent's user (root/SYSTEM). If it runs longer than `timeout` the pid is returned; follow up with proxmox_get_guest_command_status. Output captured by the agent is size-limited (see the *_truncated flags).
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -1882,23 +1882,23 @@ Run a command inside a running VM through the QEMU guest agent and wait for it (
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
 | `command` | string[] | yes | Program and arguments, e.g. ["/bin/sh", "-c", "df -h"] or ["systemctl", "status", "nginx"] |
 | `input_data` | string |  | Data passed to the command's standard input (max 65536 characters) |
-| `timeout_s` | integer |  | How long to wait for the command to finish (default 30; 0 = return the pid immediately) |
+| `timeout` | integer |  | How long to wait for the command to finish, in seconds (default 30; 0 = return the pid immediately) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_get_guest_exec_status
+### proxmox_get_guest_command_status
 
 🟣 exec
 
-Check on a command started with proxmox_guest_exec: whether it has exited and, if so, its exit code, stdout and stderr. Note the guest agent forgets a command's result once it has been read after it exited.
+Check on a command started with proxmox_run_guest_command: whether it has exited and, if so, its exit code, stdout and stderr. Note the guest agent forgets a command's result once it has been read after it exited.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `vmid` | integer | yes | VM or container ID (VMID), e.g. 100 |
 | `node` | string |  | Node the guest is on. Looked up automatically from the VMID when omitted. |
-| `pid` | integer | yes | The pid returned by proxmox_guest_exec |
-| `wait_s` | integer |  | Wait up to this many seconds for the command to exit (default 0: check once) |
+| `pid` | integer | yes | The pid returned by proxmox_run_guest_command |
+| `timeout` | integer |  | Wait up to this many seconds for the command to exit (default 0: check once) |
 
-### proxmox_guest_read_file
+### proxmox_read_guest_file
 
 🟣 exec
 
@@ -1913,7 +1913,7 @@ Read a file from inside a running VM through the QEMU guest agent (e.g. a log or
 | `count` | integer |  | Maximum bytes to read (default 1048576 = 1 MiB, max 16 MiB) |
 | `encoding` | `"text"` \| `"base64"` |  | text (default) decodes the content; base64 returns it encoded, for binary files |
 
-### proxmox_guest_write_file
+### proxmox_write_guest_file
 
 🟣 exec · destructive
 
@@ -1928,7 +1928,7 @@ Write (create or overwrite) a file inside a running VM through the QEMU guest ag
 | `encoding` | `"text"` \| `"base64"` |  | text (default) or base64 (content is already base64-encoded) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_guest_set_password
+### proxmox_set_guest_password
 
 🟣 exec · destructive
 
@@ -2190,7 +2190,7 @@ List the volumes on a storage: ISO images, container templates, backups, VM/CT d
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `content` | `"images"` \| `"rootdir"` \| `"iso"` \| `"vztmpl"` \| `"backup"` \| `"snippets"` \| `"import"` |  | Only this content type |
 | `vmid` | integer |  | Only volumes owned by this guest |
@@ -2207,7 +2207,7 @@ Get a volume's attributes: path on disk, format, size, used space, notes and pro
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `volume` | string | yes | Volume ID, e.g. "local:iso/debian-12.iso" or "local-lvm:vm-100-disk-0" (see proxmox_list_storage_content) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 
@@ -2219,7 +2219,7 @@ Read what Proxmox recognises in an importable guest: a VM on an ESXi storage (vo
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `volume` | string | yes | Importable guest, e.g. "esxi1:ha-datacenter/datastore1/web01/web01.vmx" or "local:import/appliance.ova" (see proxmox_list_storage_content content=import) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 
@@ -2231,7 +2231,7 @@ Set a volume's notes or protection flag. Protection (backups only) prevents prun
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `volume` | string | yes | Volume ID, e.g. "local:iso/debian-12.iso" or "local-lvm:vm-100-disk-0" (see proxmox_list_storage_content) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 | `notes` | string |  | New notes ("" clears them) |
@@ -2246,7 +2246,7 @@ Permanently delete a volume (ISO, template, backup or disk image) from storage. 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `volume` | string | yes | Volume ID, e.g. "local:iso/debian-12.iso" or "local-lvm:vm-100-disk-0" (see proxmox_list_storage_content) |
 | `storage` | string |  | Storage ID; taken from the volume ID's prefix when omitted |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
@@ -2260,7 +2260,7 @@ Allocate a new, empty disk image on a storage, owned by a guest (it shows up as 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `vmid` | integer | yes | Owner guest VMID |
 | `filename` | string | yes | Volume name, e.g. "vm-100-disk-2" (add .qcow2/.raw on file-based storage) |
@@ -2276,7 +2276,7 @@ Have a node download an ISO image, container template (vztmpl) or importable dis
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `url` | string | yes | URL to download |
 | `content` | `"iso"` \| `"vztmpl"` \| `"import"` | yes | Content type: iso, vztmpl (container template) or import (disk images/OVA) |
@@ -2296,7 +2296,7 @@ List the LXC container templates available for download from the Proxmox applian
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `section` | string |  | Only this section, e.g. "system" or "turnkeylinux" |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 200) |
@@ -2310,7 +2310,7 @@ Download an LXC template from the Proxmox appliance index onto a storage that al
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `template` | string | yes | Template name, e.g. "debian-12-standard_12.7-1_amd64.tar.zst" |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
@@ -2324,7 +2324,7 @@ Summarize a storage's usage over time from its RRD data (current, min, max, grow
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string | yes | Storage ID, e.g. "local" or "local-lvm" (see proxmox_list_storage) |
 | `timeframe` | `"hour"` \| `"day"` \| `"week"` \| `"month"` \| `"year"` |  | Period (default day) |
 | `cf` | `"AVERAGE"` \| `"MAX"` |  | Consolidation function (default AVERAGE) |
@@ -2338,7 +2338,7 @@ Discover storage that can be added with proxmox_save_storage: NFS exports or CIF
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `type` | `"nfs"` \| `"cifs"` \| `"pbs"` \| `"iscsi"` \| `"lvm"` \| `"lvmthin"` \| `"zfs"` | yes | What to scan for |
 | `server` | string |  | nfs/cifs/pbs: server name or IP |
 | `username` | string |  | cifs/pbs: user name (pbs: user@realm or token ID; required for pbs) |
@@ -2358,7 +2358,7 @@ List a node's physical disks with device path, model, serial, size, type (ssd/hd
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `type` | `"unused"` \| `"journal_disks"` |  | Only unused disks, or disks usable as Ceph journal/DB |
 | `include_partitions` | boolean |  | Also list partitions |
 | `skip_smart` | boolean |  | Skip SMART health checks (faster) |
@@ -2374,7 +2374,7 @@ Get a disk's SMART health and attributes (ATA attribute table, or the text repor
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `disk` | string | yes | Block device path, e.g. "/dev/sdb" (see proxmox_list_disks) |
 | `health_only` | boolean |  | Only return the overall health status |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
@@ -2387,7 +2387,7 @@ List a node's ZFS pools (zpools) with size, allocation, fragmentation, dedup rat
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -2399,7 +2399,7 @@ Get a zpool's detailed status (like `zpool status`): state, status/action messag
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `name` | string | yes | Pool name, e.g. "rpool" |
 
 ### proxmox_list_lvm
@@ -2410,7 +2410,7 @@ List a node's LVM volume groups with size, free space and physical volumes.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -2422,7 +2422,7 @@ List a node's LVM thin pools with data and metadata usage. Thin pools that run o
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -2434,7 +2434,7 @@ List the directory storages Proxmox manages on a node's disks (filesystems mount
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -2446,7 +2446,7 @@ Create local storage on unused disks of a node: a ZFS pool (one or more devices 
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `kind` | `"zfs"` \| `"lvm"` \| `"lvmthin"` \| `"directory"` | yes | What to create |
 | `name` | string | yes | Name of the pool/VG/thin pool/directory (and of the storage when add_storage) |
 | `devices` | string[] | yes | Block devices, e.g. ["/dev/sdb"]; several only for zfs |
@@ -2467,7 +2467,7 @@ Destroy a node-local ZFS pool, LVM volume group, LVM thin pool or managed direct
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `kind` | `"zfs"` \| `"lvm"` \| `"lvmthin"` \| `"directory"` | yes | What to destroy |
 | `name` | string | yes | Pool/VG/thin pool/directory name |
 | `volume_group` | string |  | lvmthin: the volume group the thin pool is in (required) |
@@ -2484,7 +2484,7 @@ Write a new, empty GPT partition table to a disk so it can be used (e.g. for Cep
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `disk` | string | yes | Block device path, e.g. "/dev/sdb" (see proxmox_list_disks) |
 | `uuid` | string |  | UUID for the GPT table |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
@@ -2498,7 +2498,7 @@ Wipe a disk or partition (filesystem/LVM/ZFS signatures and the start of the dev
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `disk` | string | yes | Block device path, e.g. "/dev/sdb" (see proxmox_list_disks) |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -2755,7 +2755,7 @@ Show the vzdump defaults a node applies to backups (from /etc/vzdump.conf, merge
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `storage` | string |  | Include this storage's settings (e.g. its retention) |
 
 ### proxmox_list_backup_files
@@ -2800,7 +2800,7 @@ List Proxmox tasks (backups, migrations, starts, clones...). Without `node`, lis
 | `user` | string |  | Only tasks started by this user, e.g. root@pam |
 | `errors` | boolean |  | Only failed tasks |
 | `running` | boolean |  | Only tasks that are still running |
-| `since` | integer |  | Only tasks started after this UNIX time (node only) |
+| `from` | string |  | Only tasks started at or after this time (node only): ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `limit` | integer |  | Maximum number of results (default 50) |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
@@ -2814,7 +2814,7 @@ Get a task's status (running/stopped), exit status and the last lines of its log
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `upid` | string | yes | Task ID (UPID), e.g. UPID:pve1:000A1B2C:0123ABCD:6701F3A2:qmstart:100:root@pam: |
-| `log_lines` | integer |  | How many trailing log lines to include (default 30) |
+| `limit` | integer |  | How many trailing log lines to include (default 30) |
 
 ### proxmox_get_task_log
 
@@ -2825,7 +2825,7 @@ Read a task's log, paging from the start (or the end with tail=true).
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `upid` | string | yes | Task ID (UPID), e.g. UPID:pve1:000A1B2C:0123ABCD:6701F3A2:qmstart:100:root@pam: |
-| `start` | integer |  | First line (0-based, default 0) |
+| `offset` | integer |  | Line offset of the first line to return (0-based, default 0) |
 | `limit` | integer |  | Number of lines (default 500) |
 | `tail` | boolean |  | Return the last `limit` lines instead |
 
@@ -2838,7 +2838,7 @@ Wait until a running task finishes (or the timeout passes) and return its outcom
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `upid` | string | yes | Task ID (UPID), e.g. UPID:pve1:000A1B2C:0123ABCD:6701F3A2:qmstart:100:root@pam: |
-| `timeout_s` | integer |  | How long to wait in seconds (default PROXMOX_TASK_TIMEOUT_MS) |
+| `timeout` | integer |  | How long to wait, in seconds (default PROXMOX_TASK_TIMEOUT_MS) |
 
 ### proxmox_stop_task
 
@@ -3061,9 +3061,12 @@ Delete a custom role. ACL entries using it stop granting anything. Built-in role
 
 🟢 read
 
-List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), grouped by area. Use when building a custom role with proxmox_save_role.
+List every privilege Proxmox knows (derived from the built-in Administrator role, which holds them all), sorted, each with its area (VM, Datastore, Sys...). Use when building a custom role with proxmox_save_role.
 
-_No arguments._
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `search` | string |  | Case-insensitive substring match on the items' fields. |
+| `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
 ### proxmox_list_acl
 
@@ -3375,7 +3378,7 @@ List the firewall rules of the datacenter (cluster), a node, a VM/container (gue
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` \| `"group"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid); group = a security group's rules (give group). Inferred when omitted: guest if vmid is given, group if group is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
@@ -3391,7 +3394,7 @@ Get one firewall rule by position at any level (cluster, node, guest or security
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` \| `"group"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid); group = a security group's rules (give group). Inferred when omitted: guest if vmid is given, group if group is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `pos` | integer | yes | Rule position (from proxmox_list_firewall_rules) |
@@ -3405,7 +3408,7 @@ Create a firewall rule (no `pos`; type and action required) or update the rule a
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` \| `"group"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid); group = a security group's rules (give group). Inferred when omitted: guest if vmid is given, group if group is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `pos` | integer |  | Position of the rule to update; omit to create a new rule |
@@ -3438,7 +3441,7 @@ Delete the firewall rule at `pos` (cluster, node, guest or security group). Late
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` \| `"group"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid); group = a security group's rules (give group). Inferred when omitted: guest if vmid is given, group if group is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `group` | string |  | Security group name, for scope group (see proxmox_list_firewall_groups) |
 | `pos` | integer | yes | Position of the rule to delete |
@@ -3454,7 +3457,7 @@ Get firewall options for the datacenter (enable, default policies, ebtables, log
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 
 ### proxmox_update_firewall_options
@@ -3466,7 +3469,7 @@ Change firewall options at datacenter (cluster), node or guest level; only the g
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"node"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; node = a host's own firewall; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, node if node is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `enable` | boolean |  | Enable the firewall at this level (datacenter: the master switch for everything) |
 | `policy_in` | `"ACCEPT"` \| `"REJECT"` \| `"DROP"` |  | Default inbound policy (cluster, guest) |
@@ -3510,7 +3513,7 @@ List IP/network aliases defined at datacenter (cluster) or guest level. Aliases 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
@@ -3524,7 +3527,7 @@ Create an IP/network alias, or update it if it already exists (cidr/comment; `ne
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | Alias name |
 | `cidr` | string |  | IP address or network in CIDR form, e.g. 10.0.0.5 or 10.0.0.0/24 (required when creating) |
@@ -3542,7 +3545,7 @@ Delete an IP/network alias at datacenter (cluster) or guest level. Fails while r
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | Alias name |
 | `digest` | string |  | Only apply the change if the current config digest matches (optimistic locking; from the matching get tool) |
@@ -3557,7 +3560,7 @@ List IP sets at datacenter (cluster) or guest level with their entries (CIDRs, n
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string |  | Only this IP set |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
@@ -3572,7 +3575,7 @@ Create an IP set, or update an existing one's comment / rename it (`new_name`). 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | IP set name |
 | `comment` | string |  | Comment |
@@ -3589,7 +3592,7 @@ Delete an IP set at datacenter (cluster) or guest level. Fails if it still has e
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `name` | string | yes | IP set name |
 | `force` | boolean |  | Also delete all its entries |
@@ -3604,7 +3607,7 @@ Add an IP/network to an IP set, or update an existing entry's comment/nomatch fl
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `ipset` | string | yes | IP set name |
 | `cidr` | string | yes | IP, network in CIDR form, or alias name, e.g. 10.0.0.0/24 |
@@ -3622,7 +3625,7 @@ Remove an IP/network from an IP set at datacenter (cluster) or guest level.
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `ipset` | string | yes | IP set name |
 | `cidr` | string | yes | The entry to remove, exactly as listed, e.g. 10.0.0.0/24 |
@@ -3674,12 +3677,12 @@ Read the firewall log of a node (all its traffic, including guests on it) or of 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"node"` \| `"guest"` |  | Firewall level: node = a host's own firewall; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, node if node is given, otherwise node. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `limit` | integer |  | Maximum number of results (default 100) |
-| `start` | integer |  | Skip this many lines (paging) |
-| `since` | integer |  | Only entries since this UNIX time |
-| `until` | integer |  | Only entries until this UNIX time |
+| `offset` | integer |  | Skip this many lines (paging) |
+| `from` | string |  | Only entries from this time: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
+| `to` | string |  | Only entries up to this time: ISO 8601 date or date-time, e.g. "2026-01-31" (midnight UTC) or "2026-01-31T08:00:00Z"; a time without an offset is proxmox-mcp's local time |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 
 ### proxmox_list_firewall_refs
@@ -3691,7 +3694,7 @@ List the aliases and IP sets that can be used in rule source/dest at datacenter 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `scope` | `"cluster"` \| `"guest"` |  | Firewall level: cluster = datacenter-wide; guest = a VM or container (give vmid). Inferred when omitted: guest if vmid is given, otherwise cluster. |
-| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_DEFAULT_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
+| `node` | string |  | Node name: the host for scope node (defaults to PROXMOX_NODE or the only node), or the guest's node for scope guest (looked up from vmid when omitted) |
 | `vmid` | integer |  | VM or container ID, for scope guest |
 | `type` | `"alias"` \| `"ipset"` |  | Only aliases or only IP sets |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
@@ -3730,7 +3733,7 @@ High availability: status, HA resources, groups and rules, and HA-managed migrat
 | [`proxmox_get_ha_resource`](#proxmox_get_ha_resource) | 🟢 read | Get an HA resource |
 | [`proxmox_save_ha_resource`](#proxmox_save_ha_resource) | 🟠 write | Add or update an HA resource |
 | [`proxmox_delete_ha_resource`](#proxmox_delete_ha_resource) | 🔴 delete | Remove an HA resource |
-| [`proxmox_ha_migrate`](#proxmox_ha_migrate) | 🟠 write | Migrate or relocate an HA resource |
+| [`proxmox_migrate_ha_resource`](#proxmox_migrate_ha_resource) | 🟠 write | Migrate or relocate an HA resource |
 | [`proxmox_list_ha_groups`](#proxmox_list_ha_groups) | 🟢 read | List HA groups |
 | [`proxmox_get_ha_group`](#proxmox_get_ha_group) | 🟢 read | Get an HA group |
 | [`proxmox_save_ha_group`](#proxmox_save_ha_group) | 🟠 write | Create or update an HA group |
@@ -3807,7 +3810,7 @@ Take a VM/container out of HA management (the guest itself is untouched and keep
 | `purge` | boolean |  | Also remove it from HA rules (default true) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_ha_migrate
+### proxmox_migrate_ha_resource
 
 🟠 write · destructive
 
@@ -4014,7 +4017,7 @@ Dry-run proxmox_apply_sdn for one node: shows the diff between the running and t
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to compute the diff for (default PROXMOX_DEFAULT_NODE or the only node) |
+| `node` | string |  | Node to compute the diff for (default PROXMOX_NODE or the only node) |
 
 ### proxmox_get_sdn_ipam_status
 
@@ -4315,7 +4318,7 @@ Summarized Ceph cluster health: HEALTH_OK/WARN/ERR with each health check, monit
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
 
 ### proxmox_list_ceph_osds
@@ -4326,7 +4329,7 @@ List Ceph OSDs from the OSD tree: host, up/down, in/out, device class, usage, PG
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `host` | string |  | Only OSDs on this host |
 | `status` | `"up"` \| `"down"` \| `"in"` \| `"out"` |  | Only OSDs in this state |
 | `device_class` | string |  | Only this device class, e.g. hdd, ssd, nvme |
@@ -4354,7 +4357,7 @@ List Ceph pools with replication (size/min_size), PG count and autoscale mode (w
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `raw` | boolean |  | Return the full unprocessed objects from the API (larger) |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
@@ -4369,7 +4372,7 @@ Get one Ceph pool's settings (size, min_size, PGs, autoscaler, CRUSH rule, appli
 |---|---|---|---|
 | `name` | string | yes | Pool name |
 | `statistics` | boolean |  | Include usage and I/O statistics (default true) |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 
 ### proxmox_list_ceph_services
 
@@ -4380,7 +4383,7 @@ List Ceph daemons of one type or all: monitors (quorum, rank), managers (active/
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `type` | `"mon"` \| `"mgr"` \| `"mds"` \| `"all"` |  | Daemon type (default all) |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 
 ### proxmox_list_ceph_fs
 
@@ -4390,7 +4393,7 @@ List CephFS file systems with their metadata and data pools. MDS daemons serving
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -4410,7 +4413,7 @@ Get the decompiled CRUSH map (devices, buckets, rules) and the list of CRUSH rul
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `rules_only` | boolean |  | Only list the rule names (much shorter) |
 
 ### proxmox_get_ceph_config
@@ -4423,7 +4426,7 @@ Read Ceph configuration: the configuration database (`ceph config dump`: section
 |---|---|---|---|
 | `source` | `"db"` \| `"file"` \| `"both"` |  | Configuration database, ceph.conf file, or both (default both) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 
 ### proxmox_get_ceph_log
 
@@ -4433,9 +4436,9 @@ Read lines of the Ceph cluster log (ceph.log) from a node: health changes, OSD u
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `limit` | integer |  | Number of lines (default 50) |
-| `start` | integer |  | Offset of the first line (0-based) |
+| `offset` | integer |  | Line offset of the first line to return (0-based, default 0) |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 
 ### proxmox_get_ceph_metadata
@@ -4459,7 +4462,7 @@ Ask Ceph whether stopping or destroying an OSD, monitor or MDS is safe right now
 | `service` | `"osd"` \| `"mon"` \| `"mds"` | yes | Daemon type |
 | `id` | string | yes | Daemon ID, e.g. '3' for osd.3 or the monitor name |
 | `action` | `"stop"` \| `"destroy"` | yes | Intended action |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 
 ### proxmox_control_ceph_osd
 
@@ -4529,7 +4532,7 @@ Create a Ceph pool, optionally erasure-coded and optionally added as Proxmox sto
 | `target_size_ratio` | number |  | Expected share of the cluster capacity for the autoscaler |
 | `add_storages` | boolean |  | Also create Proxmox storage entries for the pool |
 | `erasure_coding` | string |  | Create an erasure-coded pool, e.g. 'k=2,m=1' (property string; see the Proxmox docs) |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -4552,7 +4555,7 @@ Change a pool's size/min_size, PG count, autoscaler, application or CRUSH rule. 
 | `crush_rule` | string |  | CRUSH rule name (see proxmox_get_ceph_crush) |
 | `target_size` | string |  | Expected pool size for the autoscaler, e.g. 500G |
 | `target_size_ratio` | number |  | Expected share of the cluster capacity for the autoscaler |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `extra` | object |  | Additional raw Proxmox API parameters (advanced; names as in the Proxmox API viewer) for options the typed arguments don't cover. Parameters the tool sets from its typed arguments can't be repeated here. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
@@ -4569,7 +4572,7 @@ Destroy a Ceph pool and ALL data in it. Refused while in use unless force=true. 
 | `force` | boolean |  | Destroy even if guest disks still use it |
 | `remove_storages` | boolean |  | Also remove Proxmox storage entries for this pool |
 | `remove_ecprofile` | boolean |  | Remove the erasure-code profile (default true where applicable) |
-| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide. |
+| `node` | string |  | Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide. |
 | `wait` | boolean |  | Wait for the Proxmox task to finish and return its result and log (default true, up to PROXMOX_TASK_TIMEOUT_MS). With false the task ID (UPID) is returned immediately; follow it with proxmox_get_task. |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
@@ -4784,7 +4787,7 @@ Storage replication jobs, their status and logs.
 | [`proxmox_get_replication_job`](#proxmox_get_replication_job) | 🟢 read | Get replication job |
 | [`proxmox_save_replication_job`](#proxmox_save_replication_job) | 🟠 write | Create or update replication job |
 | [`proxmox_delete_replication_job`](#proxmox_delete_replication_job) | 🔴 delete | Delete replication job |
-| [`proxmox_run_replication_now`](#proxmox_run_replication_now) | 🟠 write | Run replication now |
+| [`proxmox_run_replication_job`](#proxmox_run_replication_job) | 🟠 write | Run replication now |
 | [`proxmox_get_replication_log`](#proxmox_get_replication_log) | 🟢 read | Get replication log |
 
 ### proxmox_list_replication_jobs
@@ -4845,7 +4848,7 @@ Mark a replication job for removal. The job then removes its replication snapsho
 | `force` | boolean |  | Remove the job config immediately without any cleanup |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
-### proxmox_run_replication_now
+### proxmox_run_replication_job
 
 🟠 write
 
@@ -4868,7 +4871,7 @@ Read the log of a replication job's last run from the source node, e.g. to diagn
 |---|---|---|---|
 | `id` | string | yes | Replication job ID: <guest VMID>-<job number>, e.g. "100-0" (see proxmox_list_replication_jobs) |
 | `node` | string |  | Node the guest currently runs on (the replication source). Looked up from the guest when omitted. |
-| `start` | integer |  | First line to return (default 0) |
+| `offset` | integer |  | Line offset of the first line to return (0-based, default 0) |
 | `limit` | integer |  | Maximum lines (default 500) |
 
 ## notifications
@@ -5058,7 +5061,7 @@ List a node's PCI devices for passthrough planning: address, class, vendor/devic
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `class` | `"storage"` \| `"network"` \| `"display"` \| `"multimedia"` \| `"bridge"` \| `"serial-bus"` \| `"wireless"` \| `"accelerator"` \| string |  | Only this class: a name (display, network, storage, multimedia, serial-bus, accelerator...) or hex class code prefix, e.g. 03 or 0300 |
 | `mdev_only` | boolean |  | Only devices that support mediated devices (vGPU) |
 | `all` | boolean |  | Include memory controllers, bridges and processors (hidden by default) |
@@ -5075,7 +5078,7 @@ List the mediated device (mdev, e.g. NVIDIA vGPU / Intel GVT-g) types a PCI devi
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `pci_id` | string | yes | PCI address (e.g. 0000:01:00.0) or the ID of a PCI resource mapping |
 | `search` | string |  | Case-insensitive substring match on the items' fields. |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
@@ -5088,7 +5091,7 @@ List a node's USB devices for passthrough: vendor:product ID, manufacturer and p
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `search` | string |  | Case-insensitive substring filter on names, IDs, tags and similar fields |
 | `fields` | string[] |  | Keep only these fields in each item. Dot paths (`parent.child`) reach nested fields. |
 
@@ -5100,7 +5103,7 @@ Get what a node's QEMU supports for VM configuration: CPU models (built-in and c
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `node` | string |  | Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
+| `node` | string |  | Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes. |
 | `sections` | (`"cpu_models"` \| `"machines"` \| `"cpu_flags"`)[] |  | Which parts to return (default all) |
 | `arch` | `"x86_64"` \| `"aarch64"` |  | Guest architecture (default the host's) |
 
@@ -5234,7 +5237,7 @@ Call any Proxmox VE API endpoint directly, for anything the other tools don't co
 | `method` | `"GET"` \| `"POST"` \| `"PUT"` \| `"DELETE"` |  | HTTP method (default GET) |
 | `path` | string | yes | Path relative to /api2/json, starting with / |
 | `params` | object |  | API parameters (booleans are sent as 1/0, arrays as repeated keys) |
-| `redact` | boolean |  | Redact password/secret/key fields in the response (default true; false needs PROXMOX_ALLOW_UNREDACTED=true) |
+| `include_secrets` | boolean |  | Return password/secret/key fields unredacted (default false; needs PROXMOX_ALLOW_SECRETS=true) |
 | `dry_run` | boolean |  | Preview the request (and changed keys) without sending it |
 
 ## Prompts

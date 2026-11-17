@@ -148,7 +148,7 @@ func Generate() (string, error) {
 		"| 🟠 write | `PROXMOX_ALLOW_WRITES=true` |",
 		"| 🔴 delete | `PROXMOX_ALLOW_WRITES=true` and `PROXMOX_ALLOW_DELETES=true` |",
 		"| 🟣 exec | `PROXMOX_ALLOW_WRITES=true` and `PROXMOX_ALLOW_EXEC=true` |", "",
-		"Every tool also needs its toolset to be enabled in `PROXMOX_TOOLSETS`, which enables all toolsets by default. Tools that act on a VM or container take its `vmid` and find the node automatically; node-scoped tools default to `PROXMOX_DEFAULT_NODE` or the only node. Tools that start a Proxmox task wait for it by default (`wait`), up to `PROXMOX_TASK_TIMEOUT_MS`.", "",
+		"Every tool also needs its toolset to be enabled in `PROXMOX_TOOLSETS`, which enables all toolsets by default. Tools that act on a VM or container take its `vmid` and find the node automatically; node-scoped tools default to `PROXMOX_NODE` or the only node. Tools that start a Proxmox task wait for it by default (`wait`), up to `PROXMOX_TASK_TIMEOUT_MS`.", "",
 		"Tools that change something take `dry_run`: with `true` the tool sends nothing that changes state and returns the request it would have sent; for an update of an object it can read, such as a guest config, it lists the keys that would change, with their values before and after. Calls to these tools are recorded in the audit log when `PROXMOX_AUDIT_LOG` is set.", "",
 		"List tools return `{total, returned, items}` and take `search` (a case-insensitive substring match), `fields` (keep only these fields in each item) and, on lists that can grow long, `limit`.", "",
 		"## Contents", "")

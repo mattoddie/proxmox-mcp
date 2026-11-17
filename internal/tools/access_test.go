@@ -190,8 +190,9 @@ func TestAccess(t *testing.T) {
 		eqAt(t, r, "by_area", `{"Sys":["Sys.Audit"],"VM":["VM.Audit","VM.PowerMgmt"]}`)
 
 		p := env.call(t, "proxmox_list_privileges", nil)
-		eqAt(t, p, "count", 5)
-		eqAt(t, p, "by_area.Datastore", `["Datastore.Allocate","Datastore.Audit"]`)
+		eqAt(t, p, "total", 5)
+		eqAt(t, p, "items.0", `{"privilege":"Datastore.Allocate","area":"Datastore"}`)
+		eqAt(t, env.call(t, "proxmox_list_privileges", `{"search":"datastore.","fields":["privilege"]}`), "items", `[{"privilege":"Datastore.Allocate"},{"privilege":"Datastore.Audit"}]`)
 	})
 
 	t.Run("saves and deletes roles", func(t *testing.T) {

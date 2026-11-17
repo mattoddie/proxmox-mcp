@@ -15,7 +15,7 @@ const hardwareTestPci = `[
 	{"id":"0000:03:00.0","class":"0x030000","vendor":"0x8086","device":"0x56a0","vendor_name":"Intel Corporation","device_name":"Arc A770","iommugroup":14,"mdev":1}]`
 
 func TestHardware(t *testing.T) {
-	env := startEnv(t, map[string]string{"PROXMOX_DEFAULT_NODE": "pve1"})
+	env := startEnv(t, map[string]string{"PROXMOX_NODE": "pve1"})
 	run := func(name string, f func(t *testing.T)) {
 		t.Run(name, func(t *testing.T) {
 			env.mock.Reset()

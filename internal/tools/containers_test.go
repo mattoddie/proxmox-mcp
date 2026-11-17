@@ -117,7 +117,7 @@ func TestContainersTools(t *testing.T) {
 	t.Run("runs power actions as tasks with the right parameters", func(t *testing.T) {
 		env.mock.Reset()
 		containersUpid(env, "POST", `/lxc/200/status/shutdown$`, "pve1", "vzshutdown", "200")
-		res := env.call(t, "proxmox_container_power", `{"vmid":200,"action":"shutdown","timeout":30,"force_stop":true}`)
+		res := env.call(t, "proxmox_control_container_power", `{"vmid":200,"action":"shutdown","timeout":30,"force_stop":true}`)
 		eqAt(t, res, "status", "ok")
 		eqAt(t, res, "action", "shutdown")
 		w := env.mock.LastWrite()
@@ -125,7 +125,7 @@ func TestContainersTools(t *testing.T) {
 		eq(t, w.Body, `{"timeout":"30","forceStop":"1"}`)
 
 		containersUpid(env, "POST", `/lxc/200/status/stop$`, "pve1", "vzstop", "200")
-		started := env.call(t, "proxmox_container_power", `{"vmid":200,"action":"stop","overrule_shutdown":true,"wait":false}`)
+		started := env.call(t, "proxmox_control_container_power", `{"vmid":200,"action":"stop","overrule_shutdown":true,"wait":false}`)
 		eqAt(t, started, "status", "started")
 		match(t, at(started, "upid"), `^UPID:pve1:`)
 		eq(t, env.mock.LastWrite().Body, `{"overrule-shutdown":"1"}`)
@@ -134,7 +134,7 @@ func TestContainersTools(t *testing.T) {
 	t.Run("reports failed tasks with the log", func(t *testing.T) {
 		env.mock.Reset()
 		containersUpid(env, "POST", `/lxc/200/status/reboot$`, "pve1", "vzreboot", "200", proxmoxtest.Task{Status: "stopped", ExitStatus: "boom", Log: []string{"something broke"}})
-		text := env.errorText(t, "proxmox_container_power", `{"vmid":200,"action":"reboot"}`)
+		text := env.errorText(t, "proxmox_control_container_power", `{"vmid":200,"action":"reboot"}`)
 		match(t, text, `failed: boom`)
 		match(t, text, `something broke`)
 	})

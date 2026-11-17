@@ -105,9 +105,9 @@ A single API request took longer than `PROXMOX_TIMEOUT_MS`. Some calls are slow 
 
 ## "Pass `node`"
 
-**``This cluster has 3 nodes; pass `node` (one of: pve1, pve2, pve3) or set PROXMOX_DEFAULT_NODE``**
+**``This cluster has 3 nodes; pass `node` (one of: pve1, pve2, pve3) or set PROXMOX_NODE``**
 
-A node-scoped tool was called without a node in a multi-node cluster. Usually the assistant just retries with a node. To make one node the default, set `PROXMOX_DEFAULT_NODE`. Guest tools don't need this: they find the node from the VMID.
+A node-scoped tool was called without a node in a multi-node cluster. Usually the assistant just retries with a node. To make one node the default, set `PROXMOX_NODE`. Guest tools don't need this: they find the node from the VMID.
 
 ## "No VM or container with ID"
 

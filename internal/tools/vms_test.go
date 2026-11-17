@@ -260,7 +260,7 @@ func TestVmsPower(t *testing.T) {
 	t.Run("shuts down with options and waits for the task", func(t *testing.T) {
 		env.mock.Reset()
 		vmsTaskRoute(env, "POST", `/qemu/100/status/shutdown$`, "qmshutdown", "pve1")
-		res := env.call(t, "proxmox_vm_power", `{"vmid":100,"action":"shutdown","timeout":60,"force_stop":true}`)
+		res := env.call(t, "proxmox_control_vm_power", `{"vmid":100,"action":"shutdown","timeout":60,"force_stop":true}`)
 		w := env.mock.LastWrite()
 		eqStr(t, w.Path, vmsVM100+"/status/shutdown")
 		eq(t, w.Body, `{"timeout":"60","forceStop":"1"}`)
@@ -272,7 +272,7 @@ func TestVmsPower(t *testing.T) {
 	t.Run("hibernates via suspend to disk and can return without waiting", func(t *testing.T) {
 		env.mock.Reset()
 		vmsTaskRoute(env, "POST", `/qemu/100/status/suspend$`, "qmsuspend", "pve1")
-		res := env.call(t, "proxmox_vm_power", `{"vmid":100,"action":"hibernate","state_storage":"local-lvm","wait":false}`)
+		res := env.call(t, "proxmox_control_vm_power", `{"vmid":100,"action":"hibernate","state_storage":"local-lvm","wait":false}`)
 		eq(t, env.mock.LastWrite().Body, `{"todisk":"1","statestorage":"local-lvm"}`)
 		eqAt(t, res, "status", "started")
 		match(t, at(res, "upid"), `^UPID:pve1:`)
@@ -281,20 +281,20 @@ func TestVmsPower(t *testing.T) {
 	t.Run("starts stopped VMs on their own node and skips no-op actions", func(t *testing.T) {
 		env.mock.Reset()
 		vmsTaskRoute(env, "POST", `/qemu/101/status/start$`, "qmstart", "pve2")
-		env.call(t, "proxmox_vm_power", `{"vmid":101,"action":"start","machine":"q35"}`)
+		env.call(t, "proxmox_control_vm_power", `{"vmid":101,"action":"start","machine":"q35"}`)
 		eqStr(t, env.mock.LastWrite().Path, "/nodes/pve2/qemu/101/status/start")
 		eqAt(t, env.mock.LastWrite().Body, "machine", "q35")
 
 		env.mock.Reset()
-		eqAt(t, env.call(t, "proxmox_vm_power", `{"vmid":100,"action":"start"}`), "status", "already running")
-		eqAt(t, env.call(t, "proxmox_vm_power", `{"vmid":101,"action":"stop"}`), "status", "already stopped")
+		eqAt(t, env.call(t, "proxmox_control_vm_power", `{"vmid":100,"action":"start"}`), "status", "already running")
+		eqAt(t, env.call(t, "proxmox_control_vm_power", `{"vmid":101,"action":"stop"}`), "status", "already stopped")
 		vmsNoWrites(t, env)
 	})
 
 	t.Run("validates options per action and refuses templates", func(t *testing.T) {
 		env.mock.Reset()
-		match(t, env.errorText(t, "proxmox_vm_power", `{"vmid":100,"action":"reset","force_stop":true}`), `force_stop only applies to: shutdown`)
-		match(t, env.errorText(t, "proxmox_vm_power", `{"vmid":9000,"action":"start"}`), `template`)
+		match(t, env.errorText(t, "proxmox_control_vm_power", `{"vmid":100,"action":"reset","force_stop":true}`), `force_stop only applies to: shutdown`)
+		match(t, env.errorText(t, "proxmox_control_vm_power", `{"vmid":9000,"action":"start"}`), `template`)
 		vmsNoWrites(t, env)
 	})
 
@@ -303,7 +303,7 @@ func TestVmsPower(t *testing.T) {
 		env.mock.On("POST", `/qemu/100/status/reboot$`, func(*Obj, []string, proxmoxtest.Request) any {
 			return env.mock.Upid("pve1", "qmreboot", "100", proxmoxtest.Task{Status: "stopped", ExitStatus: "VM quit/powerdown failed", Log: []string{"trying to shut down", "TASK ERROR: VM quit/powerdown failed"}})
 		})
-		text := env.errorText(t, "proxmox_vm_power", `{"vmid":100,"action":"reboot"}`)
+		text := env.errorText(t, "proxmox_control_vm_power", `{"vmid":100,"action":"reboot"}`)
 		match(t, text, `failed: VM quit/powerdown failed`)
 		match(t, text, `TASK ERROR`)
 	})
@@ -568,7 +568,7 @@ func TestVmsCloudInitKeysMonitor(t *testing.T) {
 		env.mock.On("POST", `/qemu/100/monitor$`, func(p *Obj, _ []string, _ proxmoxtest.Request) any {
 			return "VM status: running (" + js.Str(p.Get("command")) + ")\n"
 		})
-		res := env.call(t, "proxmox_vm_monitor_command", `{"vmid":100,"command":"info status"}`)
+		res := env.call(t, "proxmox_run_vm_monitor_command", `{"vmid":100,"command":"info status"}`)
 		eqAt(t, res, "output", "VM status: running (info status)")
 		eq(t, env.mock.LastWrite().Body, `{"command":"info status"}`)
 	})
@@ -610,7 +610,7 @@ func TestVmsPermissionGates(t *testing.T) {
 
 	t.Run("hides exec tools without exec permission", func(t *testing.T) {
 		names := toolNames(t, connect(t, env.client, toolOptions("delete")))
-		if names["proxmox_send_vm_key"] || names["proxmox_vm_monitor_command"] || !names["proxmox_unlink_vm_disk"] {
+		if names["proxmox_send_vm_key"] || names["proxmox_run_vm_monitor_command"] || !names["proxmox_unlink_vm_disk"] {
 			t.Fatal("exec tools need PROXMOX_ALLOW_EXEC")
 		}
 		names = toolNames(t, connect(t, env.client, toolOptions("write")))

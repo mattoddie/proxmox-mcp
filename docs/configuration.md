@@ -23,7 +23,7 @@ The server checks the configuration at startup. If something is wrong, it exits 
 | `PROXMOX_CA_FILE` | | Path to a PEM file with the CA certificate(s) to trust (in addition to the system CAs). Setting it turns certificate verification on, whatever `PROXMOX_VERIFY_SSL` says. Use the cluster's own CA, `/etc/pve/pve-root-ca.pem` on any node, to verify the default node certificates. |
 | `PROXMOX_TIMEOUT_MS` | `30000` | Timeout for each API request, in milliseconds. |
 | `PROXMOX_TASK_TIMEOUT_MS` | `120000` | How long tools wait for a Proxmox task (start, clone, migrate, backup…) to finish before returning. A task that takes longer keeps running and the tool returns its task ID. See [Usage](usage.md#tasks-and-wait). |
-| `PROXMOX_DEFAULT_NODE` | | Node used by node-scoped tools when a call doesn't name one. Single-node installs don't need it. In a cluster without it, those tools ask for a node. |
+| `PROXMOX_NODE` | | Node used by node-scoped tools when a call doesn't name one. Single-node installs don't need it. In a cluster without it, those tools ask for a node. |
 
 A variable set to an empty value counts as unset and gets its default. So does one set to exactly `${user_config.<key>}`, which is how Claude Desktop passes an [extension setting](clients.md#claude-desktop) that was left empty.
 
@@ -42,7 +42,7 @@ Without verification, a machine that can intercept the traffic between proxmox-m
 - **Use a trusted certificate** (for example from Proxmox's built-in ACME support) and set `PROXMOX_VERIFY_SSL=true`.
 - **Skip verification** with `PROXMOX_VERIFY_SSL=false`. Only on a network you trust: the server logs a warning at startup.
 
-Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`. Anything else counts as `false`.
+Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off` (any case). Anything else stops the server at startup, so a typo such as `PROXMOX_VERIFY_SSL=ture` can't quietly turn a setting off. Number variables must be plain positive whole numbers: `30s` is an error.
 
 ## Authentication
 
@@ -69,9 +69,9 @@ How each method works:
 | `PROXMOX_ALLOW_WRITES` | `false` | Register tools that change state: starting and stopping guests, creating, cloning, migrating and reconfiguring them, snapshots, backups, firewall, storage and more. Also needed for anything that makes a node connect to a server you name: remote storage scans, `proxmox_query_url_metadata` and ACME directory lookups. |
 | `PROXMOX_ALLOW_DELETES` | `false` | Also register tools that delete guests, snapshots, backups, volumes and configuration. Requires `PROXMOX_ALLOW_WRITES=true`. |
 | `PROXMOX_ALLOW_EXEC` | `false` | Also register tools that run commands or read and write files inside VMs through the QEMU guest agent, and send QEMU monitor commands. Also allows the equivalent endpoints in the raw API tool (every guest agent endpoint, consoles and shells, `sendkey`, the monitor and migration tunnels). Requires `PROXMOX_ALLOW_WRITES=true`. |
-| `PROXMOX_ALLOW_UNREDACTED` | `false` | Offer the raw API tool's `redact: false` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
+| `PROXMOX_ALLOW_SECRETS` | `false` | Offer the raw API tool's `include_secrets: true` argument, which returns responses without secret redaction. Off, every response is redacted whatever the model asks for. |
 | `PROXMOX_TOOLSETS` | `all` | Comma-separated list of [toolsets](#toolsets) to expose. See [Keeping the tool list small](#keeping-the-tool-list-small). `all` means every toolset except `raw`, which is only enabled when listed by name (e.g. `all,raw`). |
-| `PROXMOX_DENY_TOOLS` | | Comma-separated tool names never to register, whatever the toolsets and access level allow, e.g. `proxmox_delete_vm,proxmox_vm_power,proxmox_migrate_vm`. Use it to keep one or two tools out of a toolset you otherwise want. An unknown name stops the server at startup, so a typo can't leave a tool on. The raw API tool (`raw` toolset) can still reach the same endpoints, so don't enable it alongside a deny list you rely on. |
+| `PROXMOX_DENY_TOOLS` | | Comma-separated tool names never to register, whatever the toolsets and access level allow, e.g. `proxmox_delete_vm,proxmox_control_vm_power,proxmox_migrate_vm`. Use it to keep one or two tools out of a toolset you otherwise want. An unknown name stops the server at startup, so a typo can't leave a tool on. The raw API tool (`raw` toolset) can still reach the same endpoints, so don't enable it alongside a deny list you rely on. |
 
 That gives four access levels. The [tool reference](tools.md) labels every tool with the level it needs:
 
@@ -245,7 +245,7 @@ PROXMOX_URL=https://pve1.example.lan:8006
 PROXMOX_API_TOKEN=mcp@pve!mcp=...
 PROXMOX_VERIFY_SSL=true
 PROXMOX_CA_FILE=/certs/pve-root-ca.pem   # copied from /etc/pve/pve-root-ca.pem
-PROXMOX_DEFAULT_NODE=pve1
+PROXMOX_NODE=pve1
 MCP_AUTH_TOKEN=...
 ```
 

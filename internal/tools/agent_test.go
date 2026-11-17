@@ -113,19 +113,19 @@ func TestAgentTools(t *testing.T) {
 			}
 			return js.O("result", 2)
 		})
-		f := env.call(t, "proxmox_guest_fs_freeze", `{"vmid":100,"action":"freeze"}`)
+		f := env.call(t, "proxmox_control_guest_fs_freeze", `{"vmid":100,"action":"freeze"}`)
 		agentTestLastPath(t, env, agentTestPath+"/fsfreeze-freeze")
 		eqAt(t, f, "filesystems", 2)
-		eqAt(t, env.call(t, "proxmox_guest_fs_freeze", `{"vmid":100,"action":"status"}`), "status", "thawed")
+		eqAt(t, env.call(t, "proxmox_control_guest_fs_freeze", `{"vmid":100,"action":"status"}`), "status", "thawed")
 	})
 
 	t.Run("runs fstrim and agent power actions", func(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("POST", `/agent/fstrim$`, `{"result":{"paths":[{"path":"/","trimmed":1073741824},{"path":"/boot","error":"not supported"}]}}`)
-		tr := env.call(t, "proxmox_guest_fstrim", `{"vmid":100}`)
+		tr := env.call(t, "proxmox_trim_guest_filesystems", `{"vmid":100}`)
 		eqAt(t, tr, "paths", `[{"path":"/","trimmed":"1 GiB"},{"path":"/boot","error":"not supported"}]`)
 
-		p := env.call(t, "proxmox_guest_power", `{"vmid":100,"action":"suspend-disk"}`)
+		p := env.call(t, "proxmox_control_guest_power", `{"vmid":100,"action":"suspend-disk"}`)
 		eqAt(t, p, "status", "requested")
 		agentTestLastPath(t, env, agentTestPath+"/suspend-disk")
 	})
@@ -143,7 +143,7 @@ func TestAgentTools(t *testing.T) {
 			}
 			return js.MustParse(`{"exited":1,"exitcode":0,"out-data":"hello\n","err-data":"warn\n","out-truncated":1}`)
 		})
-		r := env.call(t, "proxmox_guest_exec", `{"vmid":100,"command":["/bin/sh","-c","echo hello"],"input_data":"stdin!"}`)
+		r := env.call(t, "proxmox_run_guest_command", `{"vmid":100,"command":["/bin/sh","-c","echo hello"],"input_data":"stdin!"}`)
 		w := env.mock.RequestsTo(agentTestPath+"/exec", "POST")[0]
 		eqAt(t, w.Body, "command", `["/bin/sh","-c","echo hello"]`)
 		eqAt(t, w.Body, "input-data", "stdin!")
@@ -162,12 +162,12 @@ func TestAgentTools(t *testing.T) {
 		env.mock.Reset()
 		env.mock.Reply("POST", `/agent/exec$`, `{"pid":7}`)
 		env.mock.Reply("GET", `/agent/exec-status$`, `{"exited":0}`)
-		r := env.call(t, "proxmox_guest_exec", `{"vmid":100,"command":["sleep","100"],"timeout_s":0}`)
+		r := env.call(t, "proxmox_run_guest_command", `{"vmid":100,"command":["sleep","100"],"timeout":0}`)
 		eqAt(t, r, "exited", false)
-		match(t, at(r, "note"), `proxmox_get_guest_exec_status \(pid 7\)`)
+		match(t, at(r, "note"), `proxmox_get_guest_command_status \(pid 7\)`)
 
 		env.mock.Reply("GET", `/agent/exec-status$`, `{"exited":1,"exitcode":1,"signal":9}`)
-		s := env.call(t, "proxmox_get_guest_exec_status", `{"vmid":100,"pid":7}`)
+		s := env.call(t, "proxmox_get_guest_command_status", `{"vmid":100,"pid":7}`)
 		eqAt(t, s, "exited", true)
 		eqAt(t, s, "exitcode", 1)
 		eqAt(t, s, "signal", 9)
@@ -181,7 +181,7 @@ func TestAgentTools(t *testing.T) {
 			}
 			return js.O("content", "PRETTY_NAME=Debian\n", "truncated", 1)
 		})
-		tx := env.call(t, "proxmox_guest_read_file", `{"vmid":100,"file":"/etc/os-release"}`)
+		tx := env.call(t, "proxmox_read_guest_file", `{"vmid":100,"file":"/etc/os-release"}`)
 		eqAt(t, tx, "content", "PRETTY_NAME=Debian\n")
 		eqAt(t, tx, "truncated", true)
 		eqAt(t, tx, "bytes", 19)
@@ -191,7 +191,7 @@ func TestAgentTools(t *testing.T) {
 		eqStr(t, at(q, "count"), "1048576")
 		eqAt(t, q, "decode", js.Undef)
 
-		b := env.call(t, "proxmox_guest_read_file", `{"vmid":100,"file":"/bin/x","encoding":"base64","offset":10,"count":2}`)
+		b := env.call(t, "proxmox_read_guest_file", `{"vmid":100,"file":"/bin/x","encoding":"base64","offset":10,"count":2}`)
 		eqAt(t, b, "content", "aGk=")
 		eqAt(t, b, "bytes", 2)
 		eqAt(t, b, "truncated", false)
@@ -202,19 +202,19 @@ func TestAgentTools(t *testing.T) {
 
 	t.Run("writes files", func(t *testing.T) {
 		env.mock.Reset()
-		r := env.call(t, "proxmox_guest_write_file", `{"vmid":100,"file":"/tmp/a.txt","content":"hello"}`)
+		r := env.call(t, "proxmox_write_guest_file", `{"vmid":100,"file":"/tmp/a.txt","content":"hello"}`)
 		w := env.mock.LastWrite()
 		eqStr(t, w.Path, agentTestPath+"/file-write")
 		eq(t, w.Body, `{"file":"/tmp/a.txt","content":"hello"}`)
 		eqAt(t, r, "bytes", 5)
 
-		env.call(t, "proxmox_guest_write_file", `{"vmid":100,"file":"/tmp/b","content":"aGk=","encoding":"base64"}`)
+		env.call(t, "proxmox_write_guest_file", `{"vmid":100,"file":"/tmp/b","content":"aGk=","encoding":"base64"}`)
 		eqStr(t, at(env.mock.LastWrite().Body, "encode"), "0")
 	})
 
 	t.Run("sets a user password without echoing it", func(t *testing.T) {
 		env.mock.Reset()
-		r := env.call(t, "proxmox_guest_set_password", `{"vmid":100,"username":"root","password":"s3cret!"}`)
+		r := env.call(t, "proxmox_set_guest_password", `{"vmid":100,"username":"root","password":"s3cret!"}`)
 		w := env.mock.LastWrite()
 		eqStr(t, w.Path, agentTestPath+"/set-user-password")
 		eq(t, w.Body, `{"username":"root","password":"s3cret!"}`)

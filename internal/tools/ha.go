@@ -408,7 +408,7 @@ func registerHa(c *Context) {
 		},
 	})
 
-	c.Define("proxmox_ha_migrate", Def{
+	c.Define("proxmox_migrate_ha_resource", Def{
 		Toolset:     "ha",
 		Title:       "Migrate or relocate an HA resource",
 		Description: "Ask the HA manager to move an HA-managed guest to another node. migrate = live/online migration; relocate = stop on the old node and start on the target. For HA-managed guests use this rather than the normal migrate tools. The request is queued; follow it with proxmox_get_ha_status. PVE 9 reports resources that block the move (affinity rules) or move along with it.",

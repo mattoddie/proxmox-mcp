@@ -13,7 +13,7 @@ import (
 // ---------------------------------------------------------------- common arguments
 
 var (
-	nodeArg = Str().Opt().D("Node name. Defaults to PROXMOX_DEFAULT_NODE, or the only node on a single-node install. See proxmox_list_nodes.")
+	nodeArg = Str().Opt().D("Node name. Defaults to PROXMOX_NODE, or the only node on a single-node install. See proxmox_list_nodes.")
 
 	nodeRequiredArg = Str().D("Node name (see proxmox_list_nodes)")
 
@@ -226,7 +226,7 @@ func compareStr(a, b any) float64 { return float64(js.LocaleCompare(js.Str(a), j
 
 // ---------------------------------------------------------------- guests and nodes
 
-// node resolves the `node` argument (PROXMOX_DEFAULT_NODE, or the only node, when omitted).
+// node resolves the `node` argument (PROXMOX_NODE, or the only node, when omitted).
 func (c *Context) node(ctx context.Context, a *Obj) (string, error) {
 	return c.Client.ResolveNode(ctx, a.Str("node"))
 }

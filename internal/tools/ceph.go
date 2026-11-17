@@ -40,7 +40,7 @@ func cephFlagArgs() []Prop {
 var cephServiceTypes = []string{"mon", "mgr", "mds"}
 
 var (
-	cephNodeArg   = Str().Opt().D("Node to query through (any node with Ceph installed; default PROXMOX_DEFAULT_NODE or the first online node). Results are cluster-wide.")
+	cephNodeArg   = Str().Opt().D("Node to query through (any node with Ceph installed; default PROXMOX_NODE or the first online node). Results are cluster-wide.")
 	cephTargetArg = Str().D("Node to act on (where the daemon/disk is)")
 	cephOsdIDArg  = Int().Min(0).D("OSD ID number, e.g. 3 for osd.3")
 )
@@ -730,7 +730,7 @@ func registerCeph(c *Context) {
 		Input: []Prop{
 			P("node", cephNodeArg),
 			P("limit", Int().Pos().Max(5000).Opt().D("Number of lines (default 50)")),
-			P("start", Int().Min(0).Opt().D("Offset of the first line (0-based)")),
+			P("offset", Int().Min(0).Opt().D("Line offset of the first line to return (0-based, default 0)")),
 			P("search", searchArg),
 		},
 		Handler: func(ctx context.Context, a *Obj) (any, error) {
@@ -738,7 +738,7 @@ func registerCeph(c *Context) {
 			if err != nil {
 				return nil, err
 			}
-			lines, err := client.GetList(ctx, cephBase(node)+"/log", defined(js.O("limit", or(a.Get("limit"), 50), "start", a.Get("start"))))
+			lines, err := client.GetList(ctx, cephBase(node)+"/log", defined(js.O("limit", or(a.Get("limit"), 50), "start", a.Get("offset"))))
 			if err != nil {
 				return nil, err
 			}
